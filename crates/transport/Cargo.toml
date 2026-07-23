@@ -1,0 +1,18 @@
+[package]
+name = "lifeline-transport"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Project Lifeline L0/L1 transport abstraction: Interface contract, MTU fragmentation, and a multi-interface node engine (PRD §8.4, spectrum doc §3)."
+
+[dependencies]
+lifeline-proto = { path = "../proto" }
+lifeline-core = { path = "../core" }
+lifeline-router = { path = "../router" }
+lifeline-sync = { path = "../sync" }
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+lifeline-proto = { path = "../proto" }

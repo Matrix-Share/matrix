@@ -1,0 +1,56 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/proto",
+    "crates/core",
+    "crates/router",
+    "crates/sync",
+    "crates/transport",
+    "crates/relay",
+    "crates/node",
+    "crates/sim",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://example.org/lifeline"
+rust-version = "1.75"
+
+# Shared dependency versions so every crate targets the same, real releases.
+# Chosen to maximize reuse of audited primitives (PRD §13, §15 security gate:
+# "no custom crypto primitives — use audited libraries").
+[workspace.dependencies]
+# Serialization / wire format. Canonical wire format is CBOR (PRD §11).
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+ciborium = "0.2"
+
+# Audited cryptographic primitives.
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+hkdf = "0.12"
+sha2 = "0.10"
+blake3 = "1"
+zeroize = { version = "1", features = ["derive"] }
+
+# Erasure coding for cross-partition resilience (FR-28): any k of n shards
+# reconstruct the message. Vetted MDS (Reed-Solomon) implementation.
+reed-solomon-erasure = "6"
+
+# Randomness.
+rand = "0.8"
+rand_core = "0.6"
+
+# Encodings / errors / time / logging.
+base64 = "0.22"
+hex = "0.4"
+thiserror = "1"
+tracing = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"

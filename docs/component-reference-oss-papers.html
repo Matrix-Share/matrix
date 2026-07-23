@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Component Reference — OSS Implementations + Research Papers</title>
+<style>
+  :root{
+    --bg:#0f1418; --panel:#161d23; --panel2:#1b242c; --ink:#e8edf1; --muted:#9fb0bd;
+    --line:#2a353f; --accent:#4fa3ff; --accent2:#7cffb0; --amber:#ffcf6b; --pink:#ff8ab0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 24px 80px}
+  header h1{font-size:25px;margin:0 0 6px;letter-spacing:-.3px}
+  header p.sub{color:var(--muted);margin:0 0 4px;font-size:15px}
+  .tag{display:inline-block;background:var(--panel2);border:1px solid var(--line);
+    color:var(--muted);font-size:12px;padding:3px 9px;border-radius:20px;margin-top:8px}
+  h2{font-size:18px;margin:34px 0 4px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h2 .lyr{color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.5px;display:block;margin-bottom:2px;text-transform:uppercase}
+  .block{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:4px 18px 14px;margin:14px 0}
+  h3{font-size:13px;margin:16px 0 6px;color:var(--accent2);text-transform:uppercase;letter-spacing:.4px}
+  h3.p{color:var(--amber)}
+  p{margin:8px 0}
+  .oss{font-size:13.5px;margin:6px 0}
+  .oss a{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:var(--accent)}
+  .paper{border-left:2px solid var(--line);padding:2px 0 2px 12px;margin:10px 0;font-size:13.5px}
+  .paper .cite{color:var(--ink)}
+  .paper .cite b{color:#fff}
+  .paper .venue{color:var(--muted);font-size:12.5px}
+  .paper .why{color:var(--accent2);font-size:12.5px;margin-top:3px}
+  .paper .why b{color:var(--accent2)}
+  .paper a{color:var(--accent);font-size:12.5px}
+  .note{background:#0c1116;border:1px solid var(--line);border-left:3px solid var(--accent);
+    padding:12px 16px;border-radius:8px;margin:16px 0;color:var(--muted);font-size:14px}
+  .flag{background:#241014;border:1px solid #6b2530;border-left:3px solid var(--pink);
+    padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14px;color:#f4c4cc}
+  .flag b{color:#fff}
+  a{color:var(--accent)} .src{font-size:12px;color:var(--muted)}
+  @media print{body{background:#fff;color:#000}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Component Reference — Open-Source Implementations &amp; Research</h1>
+  <p class="sub">For each layer of the network design: what to reuse (OSS) and what to read (papers) for authenticated "what-to-improve" feedback.</p>
+  <span class="tag">Companion to the network-layer design &middot; 23 Jul 2026</span>
+</header>
+
+<div class="note">
+Each block below maps to a layer of the network-layer design. <span style="color:var(--accent2)">Green = code you can build on.</span> <span style="color:var(--amber)">Amber = the papers</span>, each with a one-line note on what it validates or where it can be pushed further. The <span style="color:var(--pink)">security-analysis section at the end</span> is the most important for you — it's peer-reviewed evidence of how these exact systems fail in the field.
+</div>
+
+<h2><span class="lyr">Layer 0–1</span> Transports &amp; interface abstraction</h2>
+<div class="block">
+<h3>Open-source</h3>
+<p class="oss">Transport-agnostic stack — <a href="https://github.com/markqvist/Reticulum">markqvist/Reticulum</a> · LoRa mesh — <a href="https://github.com/meshtastic/firmware">meshtastic/firmware</a> · data-over-sound — <a href="https://github.com/ggerganov/ggwave">ggerganov/ggwave</a>, <a href="https://github.com/quiet/quiet">quiet/quiet</a> · solar LoRa node — <a href="https://github.com/sudomesh/disaster-radio">sudomesh/disaster-radio</a></p>
+<h3 class="p">Research</h3>
+<div class="paper"><div class="cite">Nandakumar, Chintalapudi, Padmanabhan, Venkatesan. <b>"Dhwani: Secure Peer-to-Peer Acoustic NFC."</b></div><div class="venue">ACM SIGCOMM 2013.</div><div class="why"><b>Use for:</b> the acoustic (speaker↔mic) channel — proves secure data-over-sound is real. <b>Improve:</b> range &amp; noise robustness in a chaotic disaster soundscape.</div><a href="https://conferences.sigcomm.org/sigcomm/2013/papers/sigcomm/p63.pdf">PDF</a></div>
+</div>
+
+<h2><span class="lyr">Layer 2</span> Identity &amp; end-to-end encryption</h2>
+<div class="block">
+<h3>Open-source</h3>
+<p class="oss">Signal protocol — <a href="https://github.com/signalapp/libsignal">signalapp/libsignal</a> · Matrix E2E — <a href="https://gitlab.matrix.org/matrix-org/olm">Olm/Megolm</a> · handshake framework — <a href="http://www.noiseprotocol.org/">Noise Protocol</a> · crypto primitives — <a href="https://github.com/jedisct1/libsodium">libsodium</a> · file/stream encryption — <a href="https://github.com/FiloSottile/age">FiloSottile/age</a></p>
+<h3 class="p">Research</h3>
+<div class="paper"><div class="cite">Cohn-Gordon, Cremers, Dowling, Garratt, Stebila. <b>"A Formal Security Analysis of the Signal Messaging Protocol."</b></div><div class="venue">IEEE EuroS&amp;P 2017 (extended in J. Cryptology 2020).</div><div class="why"><b>Use for:</b> confidence the Double Ratchet's guarantees are formally proven. <b>Improve:</b> its assumptions break under long one-way delays — check them against your DTN worst case.</div><a href="https://eprint.iacr.org/2016/1013.pdf">PDF</a></div>
+<div class="paper"><div class="cite">Alwen, Coretti, Dodis. <b>"The Double Ratchet: Security Notions, Proofs, and Modularization for the Signal Protocol."</b></div><div class="venue">EUROCRYPT 2019.</div><div class="why"><b>Use for:</b> a cleaner, modular ratchet you could adapt for store-and-forward instead of copying Signal wholesale.</div><a href="https://eprint.iacr.org/2018/1037.pdf">PDF</a></div>
+</div>
+
+<h2><span class="lyr">Layer 3</span> Peer discovery &amp; naming</h2>
+<div class="block">
+<h3>Open-source</h3>
+<p class="oss">Kademlia DHT — <a href="https://github.com/libp2p/go-libp2p-kad-dht">libp2p/go-libp2p-kad-dht</a> · BitTorrent Mainline DHT · Reticulum announce/path system</p>
+<h3 class="p">Research</h3>
+<div class="paper"><div class="cite">Maymounkov, Mazières. <b>"Kademlia: A Peer-to-Peer Information System Based on the XOR Metric."</b></div><div class="venue">IPTPS 2002.</div><div class="why"><b>Use for:</b> the discovery layer when nodes are online. <b>Improve:</b> DHTs are weak to Sybil/eclipse attacks and heavy churn — both are worse in a disaster; pair with gossip + reputation (Layer 6).</div><a href="https://www.scs.stanford.edu/~dm/home/papers/kpos.pdf">PDF</a></div>
+</div>
+
+<h2><span class="lyr">Layer 4</span> Delay-tolerant routing &amp; delivery</h2>
+<div class="block">
+<h3>Open-source</h3>
+<p class="oss">Bundle Protocol 7 — <a href="https://github.com/dtn7/dtn7-go">dtn7/dtn7-go</a> · NASA reference — <a href="https://github.com/nasa-jpl/ION-DTN">nasa-jpl/ION-DTN</a> · <a href="https://github.com/ibrdtn/ibrdtn">IBR-DTN</a> · Reticulum routing</p>
+<h3 class="p">Research</h3>
+<div class="paper"><div class="cite">Fall. <b>"A Delay-Tolerant Network Architecture for Challenged Internets."</b></div><div class="venue">ACM SIGCOMM 2003.</div><div class="why"><b>Use for:</b> the founding blueprint of your whole store-and-forward model (bundles, custody).</div><a href="https://conferences.sigcomm.org/sigcomm/2003/papers/p27-fall.pdf">PDF</a></div>
+<div class="paper"><div class="cite">Vahdat, Becker. <b>"Epidemic Routing for Partially-Connected Ad Hoc Networks."</b></div><div class="venue">Duke Univ. Tech Report CS-2000-06, 2000.</div><div class="why"><b>Use for:</b> the baseline "flood copies for reliability" idea. <b>Improve:</b> it's buffer- and battery-hungry — the reason you constrain it with spray-and-wait.</div><a href="http://issg.cs.duke.edu/epidemic/epidemic.pdf">PDF</a></div>
+<div class="paper"><div class="cite">Spyropoulos, Psounis, Raghavendra. <b>"Spray and Wait: An Efficient Routing Scheme for Intermittently Connected Mobile Networks."</b></div><div class="venue">ACM SIGCOMM WDTN 2005.</div><div class="why"><b>Use for:</b> your actual replication policy — reliability of epidemic at a fraction of the overhead.</div><a href="https://dl.acm.org/doi/10.1145/1080139.1080143">Link</a></div>
+<div class="paper"><div class="cite">Burleigh, Fall, Birrane. <b>RFC 9171 — "Bundle Protocol Version 7."</b></div><div class="venue">IETF, 2022.</div><div class="why"><b>Use for:</b> the standardized bundle/custody format — build to this for interop &amp; credibility.</div><a href="https://www.rfc-editor.org/rfc/rfc9171.html">Spec</a></div>
+</div>
+
+<h2><span class="lyr">Layer 5</span> Integrity, logs &amp; CRDTs (the "web3 done right" layer)</h2>
+<div class="block">
+<h3>Open-source</h3>
+<p class="oss">CRDTs — <a href="https://github.com/automerge/automerge">automerge/automerge</a>, <a href="https://github.com/yjs/yjs">yjs/yjs</a> · hash-linked feeds — <a href="https://github.com/ssbc">Secure Scuttlebutt (ssbc)</a> · content-addressed data — <a href="https://github.com/ipfs/kubo">ipfs/kubo</a> + <a href="https://ipld.io/">IPLD</a></p>
+<h3 class="p">Research</h3>
+<div class="paper"><div class="cite">Shapiro, Preguiça, Baquero, Zawirski. <b>"Conflict-Free Replicated Data Types."</b></div><div class="venue">SSS 2011 (full: INRIA RR-7687, "A comprehensive study of CRDTs").</div><div class="why"><b>Use for:</b> the formal basis of conflict-free partition healing. <b>Improve:</b> CRDT metadata growth/garbage-collection is the known cost — budget for it.</div><a href="https://inria.hal.science/inria-00609399/document">PDF</a></div>
+<div class="paper"><div class="cite">Tarr, Lavoie, Meyer, Tschudin. <b>"Secure Scuttlebutt: An Identity-Centric Protocol for Subjective and Decentralized Applications."</b></div><div class="venue">ACM ICN 2019.</div><div class="why"><b>Use for:</b> the closest real system to your signed hash-linked logs + gossip sync. <b>Improve:</b> append-only logs grow forever &amp; single-writer — study how they handle it.</div><a href="https://conferences.sigcomm.org/acm-icn/2019/proceedings/icn19-19.pdf">PDF</a></div>
+<div class="paper"><div class="cite">Kleppmann, Wiggins, van Hardenberg, McGranaghan. <b>"Local-First Software: You Own Your Data, in spite of the Cloud."</b></div><div class="venue">ACM Onward! 2019.</div><div class="why"><b>Use for:</b> the design philosophy behind "fast completeness" — instant local consistency, converge later. The manifesto for your L5.</div><a href="https://martin.kleppmann.com/papers/local-first.pdf">PDF</a></div>
+<div class="paper"><div class="cite">Benet. <b>"IPFS — Content Addressed, Versioned, P2P File System."</b></div><div class="venue">arXiv:1407.3561, 2014.</div><div class="why"><b>Use for:</b> the content-addressing (Merkle-DAG) model for distributing cached pages/alerts by hash.</div><a href="https://arxiv.org/abs/1407.3561">arXiv</a></div>
+</div>
+
+<h2><span class="lyr">Layer 6</span> Trust, anti-abuse &amp; incentives</h2>
+<div class="block">
+<h3>Open-source</h3>
+<p class="oss">Incentive/DePIN precedent — <a href="https://github.com/helium">helium</a> · reputation &amp; P2P — <a href="https://git.gnunet.org/gnunet.git/">GNUnet</a> · Hashcash implementations (PoW postage)</p>
+<h3 class="p">Research</h3>
+<div class="paper"><div class="cite">Douceur. <b>"The Sybil Attack."</b></div><div class="venue">IPTPS 2002.</div><div class="why"><b>Use for:</b> the canonical statement of why identity is hard without a central authority — the threat your reputation/PoW must answer.</div><a href="https://www.microsoft.com/en-us/research/publication/the-sybil-attack/">Link</a></div>
+<div class="paper"><div class="cite">Back. <b>"Hashcash — A Denial of Service Counter-Measure."</b></div><div class="venue">Tech report, 2002.</div><div class="why"><b>Use for:</b> proof-of-work "postage" to throttle spam cheaply for real users, expensively at scale.</div><a href="http://www.hashcash.org/papers/hashcash.pdf">PDF</a></div>
+<div class="paper"><div class="cite">Nakamoto. <b>"Bitcoin: A Peer-to-Peer Electronic Cash System."</b></div><div class="venue">2008.</div><div class="why"><b>Use for:</b> lineage of decentralized incentives — but note the cautionary lesson: its <b>global consensus</b> is exactly the part you must NOT put in the delivery path.</div><a href="https://bitcoin.org/bitcoin.pdf">PDF</a></div>
+<div class="paper"><div class="cite">Haleem, Allen, Thompson, Nijdam, Garg. <b>Helium whitepaper — "A Decentralized Wireless Network."</b></div><div class="venue">2018.</div><div class="why"><b>Use for:</b> the proof-of-relay/coverage incentive precedent. <b>Improve:</b> Helium's proof-of-location was gamed/spoofed — design your proof-of-relay to resist that.</div><a href="http://whitepaper.helium.com/">Link</a></div>
+</div>
+
+<h2 style="border-color:#6b2530"><span class="lyr" style="color:var(--pink)">Cross-cutting</span> Security analyses — your "what to improve" evidence</h2>
+<div class="flag">
+<b>Read these first.</b> They are peer-reviewed teardowns of the <em>exact</em> class of system you're building, and the lessons are blunt: rolling your own mesh crypto fails, and even correct ciphers don't save you if the mesh/framing layer is weak. This is the most valuable feedback in the whole reference.
+</div>
+<div class="block">
+<div class="paper"><div class="cite">Albrecht, Blasco, Jensen, Mareková. <b>"Mesh Messaging in Large-Scale Protests: Breaking Bridgefy."</b></div><div class="venue">CT-RSA 2021.</div><div class="why"><b>Lesson:</b> Bridgefy's original design allowed impersonation, MITM, and network-wide DoS. <b>For you:</b> threat-model the mesh layer itself, not just message crypto.</div><a href="https://eprint.iacr.org/2021/214.pdf">PDF</a></div>
+<div class="paper"><div class="cite">Albrecht, Eikenberg, Paterson. <b>"Breaking Bridgefy, again: Adopting libsignal is not enough."</b></div><div class="venue">USENIX Security 2022.</div><div class="why"><b>Lesson:</b> even after switching to the Signal library, attacks remained via framing/parsing and mesh handling. <b>For you:</b> integrating a good crypto lib is necessary but not sufficient — the whole path must be hardened and independently audited.</div><a href="https://www.usenix.org/system/files/sec22-albrecht.pdf">PDF</a></div>
+</div>
+
+<div class="note">
+<strong>How to use this reference:</strong> for each layer, start from the OSS project as a foundation, read the primary paper to understand the guarantee it gives, then read its "improve" note (and the Bridgefy analyses) to know where that guarantee stops. That gap — between what the component proves and what your disaster setting demands — is exactly your research and engineering agenda.
+</div>
+
+<div class="disclaimer" style="margin-top:36px;padding:16px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);font-size:12.5px">
+<strong>Citation note:</strong> titles, authors, and venues above are drawn from the papers' own pages and reputable indexes; verify the exact edition (conference vs. journal vs. tech-report) and check each OSS project's license and current maintenance before depending on it. Author lists are abbreviated where long.
+</div>
+
+<p class="src">Sources: ACM/IEEE/USENIX/Springer proceedings and authors' own PDFs for each cited paper (Fall 2003; Vahdat &amp; Becker 2000; Spyropoulos et al. 2005; RFC 9171; Maymounkov &amp; Mazières 2002; Cohn-Gordon et al. 2017; Alwen et al. 2019; Shapiro et al. 2011; Tarr et al. 2019; Kleppmann et al. 2019; Benet 2014; Douceur 2002; Back 2002; Nakamoto 2008; Helium 2018; Albrecht et al. 2021 &amp; 2022; Nandakumar et al. 2013); project repositories on GitHub/GitLab.</p>
+
+</div>
+</body>
+</html>

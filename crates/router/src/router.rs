@@ -1,0 +1,536 @@
+//! The per-node DTN router state machine (PRD §8.5, §12.1, §12.5).
+
+use crate::gateway::GatewayCache;
+use crate::store::{BundleStore, DEFAULT_STORE_CAP_BYTES};
+use lifeline_proto::{Address, Bundle, Bytes, GatewayAnnounce, Priority};
+use std::collections::HashSet;
+
+/// Capability string for an internet-uplink gateway (PRD §11.6).
+pub const CAP_INTERNET: &str = "internet";
+
+/// Router tunables.
+#[derive(Debug, Clone)]
+pub struct RouterConfig {
+    /// Carried-bundle store cap in bytes (FR-52).
+    pub store_cap_bytes: u64,
+    /// Hop limit enforced when relaying (defensive; the bundle also carries its
+    /// own `hop_limit`, and we honour the smaller).
+    pub max_hops: u16,
+    /// If set, gate NORMAL/BULK admission on valid PoW postage (FR-46). SOS and
+    /// ALERT-exempt classes always pass. Off by default so radio-less test
+    /// topologies aren't forced to pay postage.
+    pub require_postage: bool,
+}
+
+impl Default for RouterConfig {
+    fn default() -> Self {
+        RouterConfig {
+            store_cap_bytes: DEFAULT_STORE_CAP_BYTES,
+            max_hops: 32,
+            require_postage: false,
+        }
+    }
+}
+
+/// What happened when a bundle was ingested.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IngestOutcome {
+    /// The bundle was addressed to us — hand it to the application to decrypt.
+    Delivered,
+    /// Stored for later forwarding.
+    Stored,
+    /// Already seen (dedup by `bundle_id`) — suppressed (FR-26).
+    Duplicate,
+    /// Dropped; carries a human reason (expired / hop limit / no room).
+    Dropped(&'static str),
+}
+
+/// Snapshot of a peer we are in contact with, as reported by the transport.
+#[derive(Debug, Clone)]
+pub struct PeerInfo {
+    pub addr: Address,
+    pub is_gateway: bool,
+    /// Peer's hops-to-nearest-gateway, if it advertised one.
+    pub gradient: Option<u16>,
+    /// Bundle ids the peer already holds (anti-entropy — avoids re-sending).
+    pub known: HashSet<Bytes>,
+}
+
+/// Aggregate counters for diagnostics (FR-53) and sim assertions.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RouterStats {
+    pub store_len: usize,
+    pub store_bytes: u64,
+    pub delivered: u64,
+    pub duplicates: u64,
+    pub dropped_expired: u64,
+    pub dropped_hoplimit: u64,
+    pub dropped_norroom: u64,
+    pub dropped_nopostage: u64,
+    pub forwarded_copies: u64,
+    pub known_gateways: usize,
+}
+
+/// A per-node delay-tolerant router.
+pub struct DtnRouter {
+    me: Address,
+    cfg: RouterConfig,
+    is_gateway: bool,
+    caps: Vec<String>,
+
+    store: BundleStore,
+    /// Ids ever delivered-to-us or dropped — for dedup across their lifetime.
+    seen: HashSet<Bytes>,
+    /// Ids already pushed to the internet fabric by this (gateway) node.
+    bridged: HashSet<Bytes>,
+    /// Queue of bundles this internet gateway should push over its uplink.
+    bridge_out: Vec<Bundle>,
+
+    gateways: GatewayCache,
+    reputation: crate::reputation::Reputation,
+    stats: RouterStats,
+}
+
+impl DtnRouter {
+    pub fn new(me: Address, cfg: RouterConfig) -> Self {
+        let store = BundleStore::new(cfg.store_cap_bytes);
+        DtnRouter {
+            me,
+            cfg,
+            is_gateway: false,
+            caps: Vec::new(),
+            store,
+            seen: HashSet::new(),
+            bridged: HashSet::new(),
+            bridge_out: Vec::new(),
+            gateways: GatewayCache::new(),
+            reputation: crate::reputation::Reputation::new(),
+            stats: RouterStats::default(),
+        }
+    }
+
+    pub fn address(&self) -> &Address {
+        &self.me
+    }
+
+    /// Toggle this node into gateway mode with the given capabilities (FR-35).
+    pub fn set_gateway(&mut self, caps: Vec<String>) {
+        self.is_gateway = true;
+        self.caps = caps;
+    }
+
+    pub fn is_gateway(&self) -> bool {
+        self.is_gateway
+    }
+
+    fn has_internet(&self) -> bool {
+        self.caps.iter().any(|c| c == CAP_INTERNET)
+    }
+
+    /// The node's forwarding gradient (hops-to-nearest-gateway). A gateway's own
+    /// gradient is 0.
+    pub fn gradient(&self, now: u64) -> Option<u16> {
+        if self.is_gateway {
+            return Some(0);
+        }
+        self.gateways.gradient(now)
+    }
+
+    /// Submit a locally-originated bundle for delivery (§12.1 step 3).
+    pub fn submit_local(&mut self, bundle: Bundle, now: u64) {
+        if bundle.dst == self.me {
+            // Talking to yourself — just count it delivered.
+            self.seen.insert(bundle.bundle_id.clone());
+            self.stats.delivered += 1;
+            return;
+        }
+        self.store.insert(bundle, now);
+        self.refresh_store_stats();
+    }
+
+    /// Ingest a bundle received from a peer (§12.1 step 4/6).
+    pub fn ingest(&mut self, mut bundle: Bundle, now: u64) -> IngestOutcome {
+        // Dedup across the bundle's whole lifetime.
+        if self.seen.contains(&bundle.bundle_id) || self.store.contains(&bundle.bundle_id) {
+            self.stats.duplicates += 1;
+            return IngestOutcome::Duplicate;
+        }
+
+        // Deliver-to-us takes precedence over every drop rule except dedup.
+        if bundle.dst == self.me {
+            self.seen.insert(bundle.bundle_id.clone());
+            self.stats.delivered += 1;
+            return IngestOutcome::Delivered;
+        }
+
+        if bundle.is_expired(now) {
+            self.seen.insert(bundle.bundle_id.clone());
+            self.stats.dropped_expired += 1;
+            return IngestOutcome::Dropped("expired");
+        }
+        let hop_cap = bundle.hop_limit.min(self.cfg.max_hops);
+        if bundle.hops > hop_cap {
+            self.seen.insert(bundle.bundle_id.clone());
+            self.stats.dropped_hoplimit += 1;
+            return IngestOutcome::Dropped("hop limit");
+        }
+
+        // Anti-abuse admission: gate NORMAL/BULK on valid PoW postage (FR-46,
+        // §12.5). SOS/exempt classes bypass, so a flood never delays emergencies.
+        if self.cfg.require_postage
+            && !lifeline_proto::pow::verify_for_priority(
+                bundle.bundle_id.as_slice(),
+                bundle.postage.as_ref(),
+                bundle.priority,
+            )
+        {
+            self.seen.insert(bundle.bundle_id.clone());
+            self.stats.dropped_nopostage += 1;
+            return IngestOutcome::Dropped("no postage");
+        }
+
+        // Internet gateway: queue this non-local bundle for the uplink (FR-37).
+        if self.is_gateway && self.has_internet() && !self.bridged.contains(&bundle.bundle_id) {
+            self.bridged.insert(bundle.bundle_id.clone());
+            self.bridge_out.push(bundle.clone());
+        }
+
+        // Clamp copies so a malicious peer can't inflate the spray budget.
+        if bundle.copies_left == 0 {
+            bundle.copies_left = 1;
+        }
+        if self.store.insert(bundle, now) {
+            self.refresh_store_stats();
+            IngestOutcome::Stored
+        } else {
+            self.stats.dropped_norroom += 1;
+            IngestOutcome::Dropped("no room")
+        }
+    }
+
+    /// Ids we hold or have seen — shared with a peer for anti-entropy (§12.3).
+    pub fn known_ids(&self) -> HashSet<Bytes> {
+        let mut ids: HashSet<Bytes> = self.store.ids().cloned().collect();
+        ids.extend(self.seen.iter().cloned());
+        ids
+    }
+
+    /// Decide which bundles to hand to `peer` on this contact, applying binary
+    /// spray-and-wait and the gateway gradient. Mutates local copy budgets.
+    pub fn offer_to(&mut self, peer: &PeerInfo, now: u64) -> Vec<Bundle> {
+        self.store.evict_expired(now);
+        let my_gradient = self.gradient(now);
+        let peer_helps_gateway = peer.is_gateway
+            || matches!((peer.gradient, my_gradient), (Some(pg), mg) if mg.map_or(true, |g| pg < g));
+        // Route around demoted (black-hole) relays: hand them nothing except a
+        // final delivery to the recipient itself, or an SOS (never block an
+        // emergency on a reputation heuristic). FR-47.
+        let peer_demoted = self.reputation.is_demoted(&peer.addr);
+
+        // Collect candidate ids in strict priority order (SOS first), then oldest.
+        let mut candidates: Vec<(Bytes, Priority, u64)> = self
+            .store
+            .iter()
+            .filter(|s| {
+                !s.bundle.is_expired(now)
+                    && !peer.known.contains(&s.bundle.bundle_id)
+                    && !s.offered_to.contains(&peer.addr)
+            })
+            .map(|s| {
+                (
+                    s.bundle.bundle_id.clone(),
+                    s.bundle.priority,
+                    s.bundle.created_at,
+                )
+            })
+            .collect();
+        candidates.sort_by(|a, b| a.1.as_u8().cmp(&b.1.as_u8()).then(a.2.cmp(&b.2)));
+
+        let mut out = Vec::new();
+        for (id, _, _) in candidates {
+            let Some(stored) = self.store.get_mut(&id) else {
+                continue;
+            };
+            let peer_is_dst = peer.addr == stored.bundle.dst;
+            // Skip demoted relays for normal traffic (but not for direct
+            // delivery or SOS).
+            if peer_demoted && !peer_is_dst && stored.bundle.priority != Priority::Sos {
+                continue;
+            }
+            let copies = stored.bundle.copies_left;
+
+            let handed = if copies > 1 {
+                // Spray phase: give half the budget away, keep the rest.
+                let give = copies / 2;
+                let keep = copies - give;
+                stored.bundle.copies_left = keep;
+                Some(give)
+            } else if peer_is_dst || peer_helps_gateway {
+                // Wait phase: pass the last copy only toward the destination or
+                // downhill toward a gateway (DTN escape hatch).
+                Some(1)
+            } else {
+                None
+            };
+
+            if let Some(give) = handed {
+                stored.offered_to.insert(peer.addr.clone());
+                let mut copy = stored.bundle.clone();
+                copy.copies_left = give;
+                copy.hops = stored.bundle.hops.saturating_add(1);
+                self.stats.forwarded_copies += 1;
+                out.push(copy);
+            }
+        }
+        self.refresh_store_stats();
+        out
+    }
+
+    // --- Gateway announces / gradient ---
+
+    /// Record a heard gateway announce at `distance` hops (FR-36, §12.2).
+    pub fn observe_announce(&mut self, announce: GatewayAnnounce, distance: u16, now: u64) -> bool {
+        let updated = self.gateways.observe(announce, distance, now);
+        self.stats.known_gateways = self.gateways.known_count();
+        updated
+    }
+
+    /// Announces to re-broadcast to neighbours (distance already incremented).
+    pub fn announces_to_gossip(&self, now: u64) -> Vec<(GatewayAnnounce, u16)> {
+        self.gateways.to_gossip(now)
+    }
+
+    /// Drain bundles this internet gateway should push over its uplink (FR-37).
+    pub fn drain_bridge(&mut self) -> Vec<Bundle> {
+        std::mem::take(&mut self.bridge_out)
+    }
+
+    // --- Housekeeping / stats ---
+
+    /// Periodic maintenance: expire bundles and stale gateway entries.
+    pub fn tick(&mut self, now: u64) {
+        let expired = self.store.evict_expired(now);
+        self.stats.dropped_expired += expired as u64;
+        self.gateways.expire(now);
+        self.stats.known_gateways = self.gateways.known_count();
+        self.refresh_store_stats();
+    }
+
+    fn refresh_store_stats(&mut self) {
+        self.stats.store_len = self.store.len();
+        self.stats.store_bytes = self.store.total_bytes();
+    }
+
+    pub fn stats(&self) -> &RouterStats {
+        &self.stats
+    }
+
+    // --- Reputation (FR-47) ---
+
+    /// Reward a relay that contributed to a delivery.
+    pub fn credit_relay(&mut self, addr: &Address, w: f32) {
+        self.reputation.credit(addr, w);
+    }
+
+    /// Penalize a relay observed dropping/stalling traffic (black hole).
+    pub fn penalize_relay(&mut self, addr: &Address, w: f32) {
+        self.reputation.penalize(addr, w);
+    }
+
+    /// This node's reputation view, for gossiping to a peer.
+    pub fn reputation(&self) -> crate::reputation::Reputation {
+        self.reputation.snapshot()
+    }
+
+    /// Merge a peer's gossiped reputation view (pessimistic).
+    pub fn merge_reputation(&mut self, other: &crate::reputation::Reputation) {
+        self.reputation.gossip_merge(other);
+    }
+
+    /// Is `addr` currently demoted at this node?
+    pub fn is_demoted(&self, addr: &Address) -> bool {
+        self.reputation.is_demoted(addr)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lifeline_proto::WIRE_VERSION;
+
+    fn addr(b: u8) -> Address {
+        Address::from_hash_bytes([b; 16])
+    }
+
+    fn bundle(id: u8, dst: Address, prio: Priority, now: u64) -> Bundle {
+        Bundle {
+            v: WIRE_VERSION,
+            bundle_id: Bytes::new(vec![id; 16]),
+            dst,
+            src_sealed: Bytes::new(vec![0; 48]),
+            priority: prio,
+            created_at: now,
+            ttl_s: 1000,
+            hop_limit: 8,
+            hops: 0,
+            copies_left: 6,
+            ciphertext: Bytes::new(vec![0; 64]),
+            sig: Bytes::new(vec![0; 64]),
+            postage: None,
+            frag: None,
+        }
+    }
+
+    fn peer(a: Address) -> PeerInfo {
+        PeerInfo {
+            addr: a,
+            is_gateway: false,
+            gradient: None,
+            known: HashSet::new(),
+        }
+    }
+
+    #[test]
+    fn delivers_to_self() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        let b = bundle(1, addr(1), Priority::Normal, 0);
+        assert_eq!(r.ingest(b, 10), IngestOutcome::Delivered);
+        assert_eq!(r.stats().delivered, 1);
+    }
+
+    #[test]
+    fn demoted_relay_is_skipped_but_sos_and_dst_still_flow() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        // Two bundles for dst addr(9): one NORMAL, one SOS.
+        r.ingest(bundle(40, addr(9), Priority::Normal, 0), 1);
+        r.ingest(bundle(41, addr(9), Priority::Sos, 0), 1);
+
+        // Demote a relay peer addr(2) (not the destination).
+        r.penalize_relay(&addr(2), 0.99);
+        r.penalize_relay(&addr(2), 0.99);
+        assert!(r.is_demoted(&addr(2)));
+
+        // Offering to the demoted relay: only the SOS is handed over.
+        let offered = r.offer_to(&peer(addr(2)), 2);
+        assert_eq!(offered.len(), 1);
+        assert_eq!(offered[0].priority, Priority::Sos);
+
+        // A healthy relay addr(3) still receives the NORMAL bundle.
+        let offered3 = r.offer_to(&peer(addr(3)), 2);
+        assert!(offered3.iter().any(|b| b.priority == Priority::Normal));
+    }
+
+    #[test]
+    fn direct_delivery_to_demoted_recipient_still_allowed() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        r.ingest(bundle(42, addr(9), Priority::Normal, 0), 1);
+        // Even if the *recipient* somehow got demoted, deliver directly to them.
+        r.penalize_relay(&addr(9), 0.99);
+        r.penalize_relay(&addr(9), 0.99);
+        let offered = r.offer_to(&peer(addr(9)), 2);
+        assert_eq!(offered.len(), 1);
+    }
+
+    #[test]
+    fn dedup_suppresses_repeats() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        let b = bundle(2, addr(9), Priority::Normal, 0);
+        assert_eq!(r.ingest(b.clone(), 10), IngestOutcome::Stored);
+        assert_eq!(r.ingest(b, 10), IngestOutcome::Duplicate);
+    }
+
+    #[test]
+    fn drops_expired_and_hoplimit() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        let mut b = bundle(3, addr(9), Priority::Normal, 0);
+        b.ttl_s = 5;
+        assert!(matches!(
+            r.ingest(b, 100),
+            IngestOutcome::Dropped("expired")
+        ));
+
+        let mut b2 = bundle(4, addr(9), Priority::Normal, 0);
+        b2.hops = 9; // > hop_limit 8
+        assert!(matches!(
+            r.ingest(b2, 1),
+            IngestOutcome::Dropped("hop limit")
+        ));
+    }
+
+    #[test]
+    fn binary_spray_splits_budget() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        r.ingest(bundle(5, addr(9), Priority::Normal, 0), 1);
+        let offered = r.offer_to(&peer(addr(2)), 2);
+        assert_eq!(offered.len(), 1);
+        assert_eq!(offered[0].copies_left, 3); // gave floor(6/2)
+        assert_eq!(offered[0].hops, 1);
+        // Local keeps the other half.
+        let kept = r.known_ids();
+        assert!(kept.contains(&Bytes::new(vec![5; 16])));
+    }
+
+    #[test]
+    fn wait_phase_only_forwards_to_dst_or_gateway() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        let mut b = bundle(6, addr(9), Priority::Normal, 0);
+        b.copies_left = 1; // wait phase
+        r.ingest(b, 1);
+        // Random peer that is neither dst nor a gateway: no offer.
+        assert!(r.offer_to(&peer(addr(2)), 2).is_empty());
+        // The destination itself: offered.
+        let offered = r.offer_to(&peer(addr(9)), 2);
+        assert_eq!(offered.len(), 1);
+    }
+
+    #[test]
+    fn sos_offered_before_normal() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        r.ingest(bundle(10, addr(9), Priority::Normal, 0), 1);
+        r.ingest(bundle(11, addr(9), Priority::Sos, 0), 1);
+        let offered = r.offer_to(&peer(addr(2)), 2);
+        // SOS bundle (id 11) must be first.
+        assert_eq!(offered[0].bundle_id, Bytes::new(vec![11; 16]));
+        assert_eq!(offered[0].priority, Priority::Sos);
+    }
+
+    #[test]
+    fn postage_gates_bulk_but_not_sos() {
+        let cfg = RouterConfig {
+            require_postage: true,
+            ..RouterConfig::default()
+        };
+        let mut r = DtnRouter::new(addr(1), cfg);
+
+        // BULK with no postage → dropped.
+        let mut spam = bundle(30, addr(9), Priority::Bulk, 0);
+        spam.postage = None;
+        assert!(matches!(
+            r.ingest(spam, 1),
+            IngestOutcome::Dropped("no postage")
+        ));
+
+        // BULK with valid postage → stored.
+        let mut ok = bundle(31, addr(9), Priority::Bulk, 0);
+        ok.postage =
+            lifeline_proto::pow::mint_for_priority(ok.bundle_id.as_slice(), Priority::Bulk);
+        assert_eq!(r.ingest(ok, 1), IngestOutcome::Stored);
+
+        // SOS with no postage → still stored (exempt).
+        let mut sos = bundle(32, addr(9), Priority::Sos, 0);
+        sos.postage = None;
+        assert_eq!(r.ingest(sos, 1), IngestOutcome::Stored);
+    }
+
+    #[test]
+    fn internet_gateway_bridges_nonlocal() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        r.set_gateway(vec![CAP_INTERNET.into()]);
+        r.ingest(bundle(20, addr(9), Priority::Normal, 0), 1);
+        let bridged = r.drain_bridge();
+        assert_eq!(bridged.len(), 1);
+        assert_eq!(bridged[0].bundle_id, Bytes::new(vec![20; 16]));
+        // Draining twice yields nothing.
+        assert!(r.drain_bridge().is_empty());
+    }
+}

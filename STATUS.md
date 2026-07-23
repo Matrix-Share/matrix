@@ -1,0 +1,142 @@
+# Implementation status — traceability to the PRD
+
+Legend: **✅ Done** (implemented + tested) · **◐ Partial** (schema/protocol present;
+UI/transport/persistence layer pending) · **○ Planned** (later phase).
+
+This build covers **the decentralized core** (PRD §16: P1.0/P1.1), the **L0/L1
+transport abstraction** (modular across BLE/Wi-Fi Aware/ultrasound/optical/LoRa/
+internet), plus the first slices of **P2.2 (CRDT sync, FR-33)** and **P3.0
+anti-abuse (PoW postage, FR-46)** — i.e. the full L1–L6 substrate. What remains
+is real radio/socket *backends* behind the finished `Interface` seam, the mobile
+UI, and the web console. A full design-doc gap analysis and research-paper agenda
+is in [`GAPS.md`](GAPS.md).
+
+## Identity & onboarding (§8.1)
+| Req | State | Where |
+|---|---|---|
+| FR-1 Ed25519/X25519 keypair on first launch | ✅ | `core::identity::Identity::generate` |
+| FR-2 Address derived from public key | ✅ | `Identity::derive_address` = `blake3(sign_pub)[..16]` |
+| FR-3 Shareable identity + fingerprint | ◐ | `Identity::public` / `fingerprint`; QR image is UI |
+| FR-4 Passphrase/biometric unlock of keystore | ○ | needs platform secure storage |
+| FR-5 Encrypted key backup/restore | ✅ | `core::identity::KeyBackup` (Argon2id + AEAD) |
+
+## Contacts & discovery (§8.2)
+| Req | State | Where |
+|---|---|---|
+| FR-6 Add contact by QR TOFU (MITM-resistant) | ◐ | crypto binding + header-sig verify done; QR scan is UI |
+| FR-7 BLE/Wi-Fi-Aware advertisement discovery | ◐ | beacon-based peer discovery works over the transport (`NodeEngine`, proven over the relay in `lifeline-node`); BLE/NAN *backend* ○ |
+| FR-8 DHT online / gossip announces offline | ◐ | signed gateway announces + gradient done; Kademlia DHT ○ |
+| FR-9 Contact store with verification state | ◐ | `proto::Contact` schema; persistence ○ |
+
+## Messaging (§8.3)
+| Req | State | Where |
+|---|---|---|
+| FR-10 Send E2E text | ✅ | `core::message::seal_bundle` |
+| FR-11 Message states | ◐ | `proto::MessageState`; sim tracks delivered/verified |
+| FR-12 Group messages (sender-keys, CRDT membership) | ✅ | CRDT membership (`sync`) + **sender-keys group encryption** (`core::group`: ratcheting sender key, sealed distribution, skipped-key cache, signed messages, late-join forward secrecy) |
+| FR-13 Small attachments + content addressing | ✅ | **`core::content`** (BLAKE3-CID blocks, Merkle manifest, dedup, integrity-checked reassemble, missing-block reporting) — IPFS model; mesh fetch-by-CID protocol ○ |
+| FR-14 Priority classes SOS>ALERT>NORMAL>BULK | ✅ | `proto::Priority` |
+| FR-15 Local encrypted searchable history | ○ | persistence layer |
+
+## Transports (§8.4)
+| Req | State | Where |
+|---|---|---|
+| FR-16..21 BLE / Wi-Fi Aware / ultrasound / optical / LoRa / internet | ◐ | **`transport::Interface` contract + caps + MTU fragmentation for all six, driven by `NodeEngine`; delivery proven over each in tests. A real `UdpInterface` (multicast/LAN) meshes two nodes with no relay (verified over real sockets).** BLE/ggwave/LoRa radio backends ○ (platform work) |
+| FR-22 Concurrent transports, router picks best | ✅ | `NodeEngine` runs multiple `Interface`s concurrently; same bundle over any (test: BLE+ultrasound+internet) |
+
+## Routing & delivery (§8.5)
+| Req | State | Where |
+|---|---|---|
+| FR-23 Store-carry-forward | ✅ | `router::DtnRouter` + `store` |
+| FR-24 Binary spray-and-wait (budget L) | ✅ | `router::offer_to` |
+| FR-25 Custody transfer | ◐ | retention prevents loss; `proto::CustodyReceipt` schema present; signed exchange ○ |
+| FR-26 TTL, hop limit, dedup | ✅ | `router::ingest` |
+| FR-27 Priority queueing, SOS preempts | ✅ | `router::offer_to` (strict priority sort) |
+| FR-28 Erasure/fountain coding | ✅ | `core::erasure` (Reed-Solomon, any k-of-n) + `Bundle.frag`; `NodeEngine::submit_erasure` + reassembly; **proven end-to-end and surviving a 20%-loss partition in `sim`** |
+| FR-29 Gateway gradient + ≥95% delivery AC | ✅ | `router::gateway`; **proven in `sim` (100%)** |
+
+## Integrity, proof & sync (§8.6)
+| Req | State | Where |
+|---|---|---|
+| FR-30 Append-only hash-linked log | ✅ | `core::log::HashLog` (tamper-evident, tested) + signed `Checkpoint` compaction (Tarr "logs grow forever") |
+| FR-31 Signed delivery receipt | ✅ | `core::receipt::make_delivery_receipt` |
+| FR-32 Match receipts → verified; retry unmatched | ◐ | matching + verify done; delivery-status also shared as a CRDT (`sync`); adaptive retry ○ |
+| FR-33 CRDT state merge after partition | ✅ | `sync` (ORSWOT + LWW + version vectors); **proven converging in the mesh** (`sim`); causal-stability GC bounds metadata (Shapiro) |
+| FR-34 Offline verification function | ✅ | `core::receipt::verify_delivery` (pure, offline) |
+
+## Gateway node (§8.7)
+| Req | State | Where |
+|---|---|---|
+| FR-35 Toggle gateway mode | ✅ | `router::set_gateway` |
+| FR-36 Signed gateway announce | ✅ | `proto::GatewayAnnounce` + `sim::make_announce` |
+| FR-37 Bridge bundles to internet/LoRa | ◐ | internet bridge ✅ (`sim` fabric); LoRa ○ |
+| FR-38 Gateways handle ciphertext only | ✅ | router never decrypts; treats payload as opaque |
+| FR-39 Web gateway console | ◐ | **`lifeline-node` serves a web GUI** (chat, discovery, delivery ticks, live mesh status, in-GUI self-test) over HTTP/WS; LoRa-over-Web-Serial console ○ |
+
+## Emergency features (§8.8)
+| Req | State | Where |
+|---|---|---|
+| FR-40 One-tap SOS + GPS + battery | ✅ (protocol) | `proto::Payload{Sos, Coords}` + `Priority::Sos`; UI ○ |
+| FR-41 "I'm safe" broadcast | ✅ | `NodeEngine::broadcast_safe` fans out to all contacts (tested end-to-end) |
+| FR-42 Authority alerts | ◐ | `PayloadKind::Alert`; Cell Broadcast ingest ○ (Phase 3) |
+| FR-43 Location sharing | ✅ (send) | `NodeEngine::submit_location` delivers GPS coords (tested); periodic-interval scheduling is app-level |
+
+## Security & anti-abuse (§8.9)
+| Req | State | Where |
+|---|---|---|
+| FR-44 E2E encryption everywhere | ✅ | `core::message` / `core::crypto` |
+| FR-45 Sealed sender | ✅ | `core::message` (sender sealed to recipient) |
+| FR-46 PoW postage | ✅ | `proto::pow` (Hashcash, difficulty by priority, SOS exempt); enforced at router admission; **flood-throttle AC proven** (`sim`) |
+| FR-47 Reputation gossip | ◐ | **`router::Reputation` (credit/penalize/pessimistic gossip-merge) demotes relays; `offer_to` routes around demoted black holes (never blocking SOS/direct delivery); demotion propagates mesh-wide — proven in `sim`.** Automatic black-hole *attribution* (custody-chain analysis) ○ |
+| FR-48 Endpoint moderation (block/blocklists) | ✅ | shared blocklist CRDT (`sync`) + **endpoint enforcement** (`NodeEngine` drops blocked senders — no inbox, no receipt; tested) |
+| FR-49 Onion metadata wrapping | ○ | Phase 3 |
+
+## Settings & platform (§8.10)
+| Req | State | Where |
+|---|---|---|
+| FR-50 Battery-saver duty cycling | ○ | platform |
+| FR-51 Per-transport toggles | ○ | with transports |
+| FR-52 Store cap + priority/TTL-aware LRU eviction | ✅ | `router::store::BundleStore` |
+| FR-53 Diagnostics view | ◐ | `router::RouterStats` + `sim` report; UI ○ |
+
+## Non-functional
+| Req | State |
+|---|---|
+| NFR-3 ≥95% eventual delivery (3-cluster + mule) | ✅ proven in `sim` (100%) |
+| NFR-8 Offline-first, no server dependency | ✅ core has zero network dependency |
+| NFR-9 Versioned wire format | ✅ `proto::WIRE_VERSION` on every envelope |
+| NFR-1 Independent security audit | ◐ | **Framing hardening + panic-freedom fuzz tests on the `proto` CBOR and `transport::frame` parsers (600k+ adversarial inputs, bounded reassembly).** Independent audit still a pre-launch gate (Phase 3) |
+
+## Suggested next steps (in PRD phase order)
+1. **P1.2 transports** — implement the `router` contact source over a real BLE
+   transport (Android/iOS platform channels), then ultrasound (ggwave) as the
+   radio-off fallback. The router API (`offer_to` / `ingest` / `known_ids`) is
+   already the seam.
+2. **Custody receipts (FR-25)** — wire signed `CustodyReceipt` exchange so nodes
+   can drop copies early under store pressure.
+3. **Sender-keys group encryption (FR-12)** — layer group message encryption on
+   top of the converged CRDT membership already provided by `sync`.
+4. **Reputation gossip (FR-47)** — demote relays that drop custody/receipts,
+   composing with the PoW postage already in place.
+5. **Fuzzing (NFR-1 gate)** — `cargo fuzz` targets on the CBOR parsers in
+   `proto` (now including `postage`) before any wider deployment (Bridgefy
+   lesson, PRD §15).
+
+## Application & self-hosting (new)
+| Capability | State | Where |
+|---|---|---|
+| Web GUI chat client (identity/invite, discovery, E2E chat, delivery ticks, live status) | ✅ | `lifeline-node` + `crates/node/web/index.html` |
+| Zero-knowledge relay (internet fabric, ciphertext-only) | ✅ | `lifeline-relay` |
+| Real network transport | ✅ | `transport::ChannelInterface` + relay client |
+| In-GUI acceptance self-test | ✅ | `/api/selftest` runs the 3-cluster+mule scenario |
+| Docker / docker-compose self-hosting | ✅ | `Dockerfile`, `docker-compose.yml` |
+| Identity persistence (encrypted at rest) | ✅ | Argon2id `KeyBackup` in `LIFELINE_DATA_DIR` |
+| OSS project hygiene (LICENSE, CI, CONTRIBUTING, SECURITY, CoC, templates) | ✅ | repo root + `.github/` |
+| OSS capability-migration map | ✅ | [`INTEROP.md`](INTEROP.md) |
+
+### Delta-sync note (§12.3)
+`sync` currently converges via **full-state CRDT merge** on each contact, which
+is correct (idempotent/commutative/associative) and proven in the mesh. The
+version-vector machinery is in place to move to **delta transfer** (send only
+dots the peer lacks) as a bandwidth optimization; convergence guarantees are
+unchanged.

@@ -1,0 +1,18 @@
+[package]
+name = "lifeline-proto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Project Lifeline wire schemas & canonical CBOR encoding (PRD §11)."
+
+[dependencies]
+serde.workspace = true
+serde_bytes.workspace = true
+ciborium.workspace = true
+blake3.workspace = true
+base64.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+hex.workspace = true

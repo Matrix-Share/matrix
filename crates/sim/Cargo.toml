@@ -1,0 +1,19 @@
+[package]
+name = "lifeline-sim"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Project Lifeline network simulator: partitions, data mules, gateways — validates the delivery acceptance criteria (PRD §16, NFR-3)."
+
+[dependencies]
+lifeline-proto = { path = "../proto" }
+lifeline-core = { path = "../core" }
+lifeline-router = { path = "../router" }
+lifeline-sync = { path = "../sync" }
+serde.workspace = true
+rand.workspace = true
+
+[[bin]]
+name = "lifeline-sim"
+path = "src/main.rs"

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Project Lifeline</title>
+<style>
+  :root{
+    --bg:#0f1418; --panel:#161d23; --panel2:#1b242c; --ink:#e8edf1; --muted:#9fb0bd;
+    --line:#2a353f; --accent:#4fa3ff; --accent2:#7cffb0; --amber:#ffcf6b; --pink:#ff8ab0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px;line-height:1.5}
+  header{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:16px;margin:0;letter-spacing:-.2px}
+  header .sub{color:var(--muted);font-size:12px}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--pink)}
+  .dot.on{background:var(--accent2)}
+  .wrap{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 49px)}
+  .side{border-right:1px solid var(--line);overflow-y:auto;padding:14px;background:var(--panel)}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px}
+  .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 8px}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-all}
+  button{background:var(--accent);color:#04121f;border:none;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer;font-size:13px}
+  button.ghost{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+  button:hover{filter:brightness(1.08)}
+  input,textarea,select{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px;width:100%;font-family:inherit}
+  .peer{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+  .peer:hover{background:var(--bg)}
+  .peer.sel{border-color:var(--accent);background:var(--bg)}
+  .peer .nm{font-weight:600}
+  .peer .ad{color:var(--muted);font-size:11px}
+  .avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#245a7a,#12331f);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+  .main{display:flex;flex-direction:column;height:100%}
+  .chat{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:8px}
+  .bubble{max-width:70%;padding:9px 12px;border-radius:12px;font-size:14px}
+  .bubble.out{align-self:flex-end;background:#123047;border:1px solid #245a7a}
+  .bubble.in{align-self:flex-start;background:var(--panel2);border:1px solid var(--line)}
+  .bubble.sos{border-color:var(--pink);background:#341522}
+  .bubble .meta{font-size:10px;color:var(--muted);margin-top:4px}
+  .tick{color:var(--accent2)}
+  .composer{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--line);background:var(--panel)}
+  .composer input{flex:1}
+  .row{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .hint{color:var(--muted);text-align:center;margin:auto;max-width:340px}
+  .stat{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--muted)}
+  .stat b{color:var(--ink)}
+  code{background:var(--bg);padding:1px 5px;border-radius:5px}
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:8px;opacity:0;transition:opacity .2s}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="relayDot"></span>
+  <h1>Project&nbsp;Lifeline</h1>
+  <span class="sub" id="meName">…</span>
+  <span class="sub" style="margin-left:auto" id="peerStat">0 peers</span>
+</header>
+
+<div class="wrap">
+  <aside class="side">
+    <div class="card">
+      <h2>Your identity</h2>
+      <div class="mono" id="meAddr">…</div>
+      <div class="row">
+        <button id="copyBtn" class="ghost">Copy my invite code</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Add a contact</h2>
+      <textarea id="codeIn" rows="3" placeholder="Paste someone's invite code"></textarea>
+      <div class="row"><button id="addBtn">Add contact</button></div>
+    </div>
+
+    <div class="card">
+      <h2>People</h2>
+      <div id="dir"></div>
+    </div>
+
+    <div class="card">
+      <h2>Mesh status</h2>
+      <div id="stats"></div>
+      <div class="row"><button id="testBtn" class="ghost">Run network self-test</button></div>
+      <div class="mono" id="testOut" style="margin-top:8px;color:var(--muted)"></div>
+    </div>
+  </aside>
+
+  <section class="main">
+    <div class="chat" id="chat">
+      <div class="hint">Pick someone under <b>People</b> to start an end-to-end-encrypted chat.
+      Everyone connected to the same relay discovers each other automatically.</div>
+    </div>
+    <div class="composer">
+      <select id="prio" style="width:auto"><option value="2">Normal</option><option value="0">SOS</option></select>
+      <input id="msg" placeholder="Message…" autocomplete="off" />
+      <button id="sendBtn">Send</button>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let state = null;
+let sel = null; // selected peer address
+
+const $ = (id) => document.getElementById(id);
+function toast(t){ const el=$("toast"); el.textContent=t; el.classList.add("show"); setTimeout(()=>el.classList.remove("show"),1600); }
+function initials(s){ return (s||"?").slice(0,2).toUpperCase(); }
+
+function render(){
+  if(!state) return;
+  $("meName").textContent = state.identity.name + " · " + state.identity.address.slice(0,8);
+  $("meAddr").textContent = state.identity.address;
+  $("relayDot").className = "dot" + (state.status.relay_connected ? " on" : "");
+  $("peerStat").textContent = state.status.peer_count + " peers";
+
+  // directory
+  const dir = $("dir");
+  dir.innerHTML = "";
+  if(state.directory.length===0){ dir.innerHTML = '<div class="ad" style="color:var(--muted)">No one discovered yet…</div>'; }
+  state.directory.forEach(p=>{
+    const d=document.createElement("div");
+    d.className="peer"+(sel===p.address?" sel":"");
+    d.innerHTML = `<div class="avatar">${initials(p.name)}</div><div><div class="nm">${escapeHtml(p.name)}</div><div class="ad">${p.address.slice(0,16)}…</div></div>`;
+    d.onclick=()=>{ sel=p.address; render(); };
+    dir.appendChild(d);
+  });
+
+  // stats
+  const s=state.status;
+  $("stats").innerHTML =
+    stat("Interfaces", s.interfaces.join(", ")||"—") +
+    stat("Relay", s.relay_connected?"connected":"offline") +
+    stat("Sent / verified", s.sent+" / "+s.verified) +
+    stat("Received", s.received) +
+    stat("Relayed copies", s.forwarded_copies) +
+    stat("Store", s.store_len);
+
+  renderChat();
+}
+function stat(k,v){ return `<div class="stat"><span>${k}</span><b>${escapeHtml(String(v))}</b></div>`; }
+function escapeHtml(s){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function renderChat(){
+  const chat=$("chat");
+  if(!sel){ return; }
+  const msgs = state.messages.filter(m=>m.peer===sel);
+  chat.innerHTML = "";
+  if(msgs.length===0){ chat.innerHTML='<div class="hint">No messages yet. Say hello — it will be end-to-end encrypted and delivery-verified.</div>'; return; }
+  msgs.forEach(m=>{
+    const b=document.createElement("div");
+    const out = m.dir==="out";
+    b.className="bubble "+(out?"out":"in")+(m.dir==="in-sos"?" sos":"");
+    let status = out ? (m.status==="verified"?'<span class="tick">✓✓ verified</span>':"sent · …") : "received";
+    b.innerHTML = `<div>${escapeHtml(m.body)}</div><div class="meta">${status}</div>`;
+    chat.appendChild(b);
+  });
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function post(url, body){
+  const r = await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  return r.json();
+}
+
+$("copyBtn").onclick = async ()=>{
+  try{ await navigator.clipboard.writeText(state.identity.code); toast("Invite code copied"); }
+  catch(e){ prompt("Copy your invite code:", state.identity.code); }
+};
+$("addBtn").onclick = async ()=>{
+  const code=$("codeIn").value.trim(); if(!code) return;
+  await post("/api/contacts",{code}); $("codeIn").value=""; toast("Contact added");
+};
+$("sendBtn").onclick = send;
+$("msg").addEventListener("keydown",e=>{ if(e.key==="Enter") send(); });
+async function send(){
+  if(!sel){ toast("Pick someone to chat with first"); return; }
+  const body=$("msg").value.trim(); if(!body) return;
+  const priority=parseInt($("prio").value,10);
+  await post("/api/send",{to:sel, body, priority});
+  $("msg").value="";
+}
+$("testBtn").onclick = async ()=>{
+  $("testOut").textContent="running acceptance simulator…";
+  const r = await (await fetch("/api/selftest")).json();
+  $("testOut").innerHTML = `${r.scenario}<br>delivered ${r.delivered}/${r.sent} (${r.pct_delivered.toFixed(0)}%) · verified ${r.pct_verified.toFixed(0)}% · logs ${r.logs_valid?"valid":"INVALID"}`;
+};
+
+function connect(){
+  const proto = location.protocol==="https:"?"wss":"ws";
+  const ws = new WebSocket(`${proto}://${location.host}/api/ws`);
+  ws.onmessage = (ev)=>{ state=JSON.parse(ev.data); render(); };
+  ws.onclose = ()=>{ setTimeout(connect, 1000); };
+}
+// initial fetch then live updates
+fetch("/api/state").then(r=>r.json()).then(s=>{state=s;render();});
+connect();
+</script>
+</body>
+</html>
