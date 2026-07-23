@@ -1,0 +1,13 @@
+# Rust build output
+/target
+**/target
+
+# Node runtime data (persisted identities, etc.)
+/data
+**/data/
+
+# OS / editor cruft
+.DS_Store
+*.swp
+
+# Cargo.lock IS committed (this workspace ships binaries).

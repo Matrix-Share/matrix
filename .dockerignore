@@ -1,0 +1,11 @@
+target/
+data/
+**/data/
+.git/
+.github/
+*.md
+!crates/**/*.md
+docs/
+.DS_Store
+Dockerfile
+docker-compose.yml
