@@ -1,0 +1,63 @@
+# Project Lifeline — self-hostable demo mesh.
+#
+#   docker compose up --build
+#
+# Then open two browser tabs:
+#   http://localhost:8080   (Asha)
+#   http://localhost:8081   (Ravi)
+# They discover each other automatically and can chat — end-to-end encrypted,
+# with delivery receipts. The relay only ever sees ciphertext.
+#
+# Everything here is optional infrastructure: on real devices the nodes mesh
+# directly over BLE/Wi-Fi Aware/ultrasound. The relay stands in for the internet
+# transport so browsers on one machine (or across the world) can connect.
+
+services:
+  relay:
+    build: .
+    image: lifeline
+    command: ["lifeline-relay"]
+    environment:
+      LIFELINE_RELAY_ADDR: 0.0.0.0:7000
+      RUST_LOG: info
+    ports:
+      - "7000:7000"
+    restart: unless-stopped
+
+  asha:
+    build: .
+    image: lifeline
+    command: ["lifeline-node"]
+    depends_on: [relay]
+    environment:
+      LIFELINE_NODE_ADDR: 0.0.0.0:8080
+      LIFELINE_RELAY_ADDR: relay:7000
+      LIFELINE_NAME: Asha
+      LIFELINE_PASSPHRASE: change-me-in-production
+      RUST_LOG: info
+    ports:
+      - "8080:8080"
+    volumes:
+      - asha-data:/data
+    restart: unless-stopped
+
+  ravi:
+    build: .
+    image: lifeline
+    command: ["lifeline-node"]
+    depends_on: [relay]
+    environment:
+      LIFELINE_NODE_ADDR: 0.0.0.0:8080
+      LIFELINE_RELAY_ADDR: relay:7000
+      LIFELINE_NAME: Ravi
+      LIFELINE_PASSPHRASE: change-me-in-production
+      RUST_LOG: info
+    ports:
+      - "8081:8080"
+    volumes:
+      - ravi-data:/data
+    restart: unless-stopped
+
+volumes:
+  asha-data:
+  ravi-data:

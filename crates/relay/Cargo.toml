@@ -1,0 +1,24 @@
+[package]
+name = "lifeline-relay"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Project Lifeline zero-knowledge relay: forwards opaque ciphertext frames between nodes (the internet-gateway fabric)."
+
+[lib]
+name = "lifeline_relay"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lifeline-relay"
+path = "src/main.rs"
+
+[dependencies]
+serde.workspace = true
+serde_bytes.workspace = true
+ciborium.workspace = true
+thiserror.workspace = true
+tokio = { version = "1", features = ["rt-multi-thread", "net", "io-util", "macros", "sync", "time", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

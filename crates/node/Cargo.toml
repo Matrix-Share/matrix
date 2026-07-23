@@ -1,0 +1,29 @@
+[package]
+name = "lifeline-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Project Lifeline node daemon: runs the mesh engine and serves a web GUI + HTTP/WS API for chatting over the mesh."
+
+[[bin]]
+name = "lifeline-node"
+path = "src/main.rs"
+
+[dependencies]
+lifeline-proto = { path = "../proto" }
+lifeline-core = { path = "../core" }
+lifeline-router = { path = "../router" }
+lifeline-sync = { path = "../sync" }
+lifeline-transport = { path = "../transport" }
+lifeline-sim = { path = "../sim" }
+lifeline-relay = { path = "../relay" }
+
+serde.workspace = true
+serde_json = "1"
+ciborium.workspace = true
+
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "sync", "time", "signal"] }
+axum = { version = "0.7", features = ["ws"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

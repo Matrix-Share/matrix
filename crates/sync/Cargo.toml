@@ -1,0 +1,11 @@
+[package]
+name = "lifeline-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Project Lifeline L5 CRDT sync: version vectors, OR-Set (ORSWOT), LWW, shared state, anti-entropy merge (PRD §8.6 FR-33, §12.3)."
+
+[dependencies]
+lifeline-proto = { path = "../proto" }
+serde.workspace = true

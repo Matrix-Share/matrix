@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decentralized Network Layer — Design</title>
+<style>
+  :root{
+    --bg:#0f1418; --panel:#161d23; --panel2:#1b242c; --ink:#e8edf1; --muted:#9fb0bd;
+    --line:#2a353f; --accent:#4fa3ff; --accent2:#7cffb0; --amber:#ffcf6b; --pink:#ff8ab0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;font-size:15px}
+  .wrap{max-width:1120px;margin:0 auto;padding:40px 24px 80px}
+  header h1{font-size:26px;margin:0 0 6px;letter-spacing:-.3px}
+  header p.sub{color:var(--muted);margin:0 0 4px;font-size:15px}
+  .tag{display:inline-block;background:var(--panel2);border:1px solid var(--line);
+    color:var(--muted);font-size:12px;padding:3px 9px;border-radius:20px;margin-top:8px}
+  h2{font-size:20px;margin:42px 0 6px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:15.5px;margin:22px 0 4px;color:var(--accent)}
+  p{margin:10px 0}
+  .lead{color:var(--muted);font-size:14px}
+  .note{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
+    padding:12px 16px;border-radius:8px;margin:16px 0;color:var(--muted);font-size:14px}
+  .key{background:var(--panel);border:1px solid var(--accent2);border-left:3px solid var(--accent2);
+    padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14px}
+  .warn{background:#241a10;border:1px solid #6b5417;border-left:3px solid var(--amber);
+    padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14px;color:#f0dca8}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--panel2);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px}
+  tr:last-child td{border-bottom:none}
+  td strong{color:var(--ink)}
+  .pill{display:inline-block;padding:1px 8px;border-radius:12px;font-size:10.5px;font-weight:700;white-space:nowrap}
+  .ok{background:#12331f;color:var(--accent2);border:1px solid #1f5c37}
+  .cond{background:#241a10;color:var(--amber);border:1px solid #6b5417}
+  .bad{background:#341522;color:var(--pink);border:1px solid #6b2544}
+  ul,ol{margin:8px 0;padding-left:20px} li{margin:6px 0}
+  .figure{background:#0c1116;border:1px solid var(--line);border-radius:12px;padding:16px;margin:18px 0;overflow-x:auto}
+  .figcap{color:var(--muted);font-size:12.5px;margin-top:8px;text-align:center}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+  .flow{background:#0c1116;border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:14px 0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:#cfe0ec;line-height:1.7;overflow-x:auto}
+  .flow b{color:var(--accent2)}
+  .disclaimer{margin-top:40px;padding:16px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);font-size:12.5px}
+  a{color:var(--accent)} .src{font-size:12px;color:var(--muted)}
+  @media print{body{background:#fff;color:#000}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>The Network Layer — Decentralized, Encrypted, Delivery-Verified</h1>
+  <p class="sub">A design for P2P identity, full end-to-end encryption, near-guaranteed delivery, and partition tolerance.</p>
+  <p class="sub">Using the <em>right</em> web3 primitives — and deliberately <em>not</em> a global consensus blockchain.</p>
+  <span class="tag">Network-layer design &middot; 23 Jul 2026</span>
+</header>
+
+<div class="key">
+<strong>The single design decision everything hangs on:</strong> you want blockchain-grade <em>verifiability</em> (tamper-proof identities, provable delivery) <em>without</em> blockchain-grade <em>consensus</em>. A global chain needs the exact connectivity a disaster destroys, and its "wait for global agreement" model is the opposite of "fast completeness." The answer is <strong>local-first cryptography</strong>: signed hash-linked logs + signed receipts + CRDTs. These give you provable, tamper-evident delivery that works fully offline and converges the instant links reappear. Keep an actual ledger — if you use one at all — only for <em>incentives/settlement</em>, running opportunistically when online.
+</div>
+
+<h2>1 &middot; The layered stack</h2>
+<p class="lead">Seven layers. Each one is a well-studied problem with mature open-source parts — you're assembling, not inventing.</p>
+<div class="figure">
+<svg viewBox="0 0 900 470" width="100%" role="img" aria-label="Seven-layer network stack from physical transports up to applications">
+  <!-- layers bottom to top -->
+  <g font-size="12" font-family="monospace">
+  <rect x="60" y="410" width="600" height="46" rx="8" fill="#12202b" stroke="#245a7a"/>
+  <text x="76" y="431" fill="#8fd0ff" font-weight="700">L0 · TRANSPORTS</text>
+  <text x="76" y="447" fill="#9fb0bd" font-size="10.5">BLE · Wi-Fi Aware · ultrasound · optical · LoRa · internet · human data-mules</text>
+
+  <rect x="60" y="356" width="600" height="46" rx="8" fill="#131b22" stroke="#2a353f"/>
+  <text x="76" y="377" fill="#e8edf1" font-weight="700">L1 · INTERFACE ABSTRACTION</text>
+  <text x="76" y="393" fill="#9fb0bd" font-size="10.5">transport-agnostic frames — one message, any medium (Reticulum interfaces)</text>
+
+  <rect x="60" y="302" width="600" height="46" rx="8" fill="#171f17" stroke="#2f5c34"/>
+  <text x="76" y="323" fill="#7cffb0" font-weight="700">L2 · IDENTITY &amp; E2E CRYPTO</text>
+  <text x="76" y="339" fill="#9fb0bd" font-size="10.5">keypair identity (self-sovereign) · X3DH + Double Ratchet · sealed sender</text>
+
+  <rect x="60" y="248" width="600" height="46" rx="8" fill="#131b22" stroke="#2a353f"/>
+  <text x="76" y="269" fill="#e8edf1" font-weight="700">L3 · DISCOVERY &amp; NAMING</text>
+  <text x="76" y="285" fill="#9fb0bd" font-size="10.5">address = public key · Kademlia DHT when connected · gossip announces offline</text>
+
+  <rect x="60" y="194" width="600" height="46" rx="8" fill="#131b22" stroke="#2a353f"/>
+  <text x="76" y="215" fill="#e8edf1" font-weight="700">L4 · DTN ROUTING &amp; DELIVERY</text>
+  <text x="76" y="231" fill="#9fb0bd" font-size="10.5">store-carry-forward · spray-and-wait replication · custody · TTL · priority · erasure coding</text>
+
+  <rect x="60" y="140" width="600" height="46" rx="8" fill="#171f17" stroke="#2f5c34"/>
+  <text x="76" y="161" fill="#7cffb0" font-weight="700">L5 · INTEGRITY &amp; DELIVERY PROOF  ← "web3 done right"</text>
+  <text x="76" y="177" fill="#9fb0bd" font-size="10.5">hash-linked per-identity logs · signed delivery receipts · CRDT state merge</text>
+
+  <rect x="60" y="86" width="600" height="46" rx="8" fill="#241a10" stroke="#6b5417"/>
+  <text x="76" y="107" fill="#ffcf6b" font-weight="700">L6 · TRUST, REPUTATION &amp; ANTI-ABUSE</text>
+  <text x="76" y="123" fill="#9fb0bd" font-size="10.5">PoW postage · reputation gossip · web-of-trust · proof-of-relay incentive · endpoint moderation</text>
+
+  <rect x="60" y="32" width="600" height="46" rx="8" fill="#12202b" stroke="#245a7a"/>
+  <text x="76" y="53" fill="#8fd0ff" font-weight="700">L7 · APPLICATION</text>
+  <text x="76" y="69" fill="#9fb0bd" font-size="10.5">messaging · SOS+location · groups · cached content · alerts</text>
+
+  <!-- side annotations -->
+  <rect x="680" y="86" width="160" height="262" rx="8" fill="none" stroke="#7cffb0" stroke-dasharray="5 4"/>
+  <text x="760" y="76" fill="#7cffb0" font-size="10.5" text-anchor="middle">the decentralized core</text>
+  <text x="760" y="360" fill="#9fb0bd" font-size="10" text-anchor="middle">works fully offline;</text>
+  <text x="760" y="374" fill="#9fb0bd" font-size="10" text-anchor="middle">converges on reconnect</text>
+  </g>
+</svg>
+<div class="figcap">Green layers (L2, L5) + amber L6 are the cryptographic heart — all function offline. A ledger, if used, sits only inside L6 for incentives and settles when online.</div>
+</div>
+
+<h2>2 &middot; Solving your four hard problems</h2>
+
+<h3>Problem A — Identify peers &amp; guarantee full end-to-end encryption</h3>
+<p>Every user generates a keypair on-device; <strong>the address <em>is</em> the public key</strong> (self-sovereign identity — the web3 "DID" idea, no registrar, no phone number). Two peers exchange keys out-of-band once (QR scan, like Briar) or discover them via the DHT/announces. Messages use <strong>X3DH</strong> to agree a key asynchronously and the <strong>Double Ratchet</strong> (the Signal design) for forward secrecy, wrapped in <strong>sealed sender</strong> so relays can't even see who sent what.</p>
+<div class="note">Because encryption is end-to-end at L2, every relay and gateway above only ever handles opaque ciphertext. Full encryption isn't a feature bolted on — it's the identity system itself. This is the <em>only</em> layer that ever sees plaintext, and it runs solely on the two endpoints.</div>
+
+<h3>Problem B — Make <em>every</em> message reach its recipient</h3>
+<p>In a partition-prone network you can't promise bounded-<em>time</em> delivery, but you can engineer <strong>eventual delivery with very high probability</strong>, plus <em>proof</em> of it:</p>
+<ul>
+<li><strong>Replication (spray-and-wait):</strong> the message is carried as a small number of controlled copies, not one fragile packet — dramatically raising delivery odds without flooding.</li>
+<li><strong>Custody transfer (from DTN Bundle Protocol):</strong> a node formally takes responsibility for a message before the previous holder drops it — no silent loss at hand-offs.</li>
+<li><strong>End-to-end signed receipt:</strong> the recipient, on decrypting, emits a signed acknowledgement that propagates back. Until the sender sees it, the message is retried on new paths.</li>
+<li><strong>TTL + priority:</strong> messages are patient (long TTL) and emergencies preempt everything at every hop.</li>
+</ul>
+<div class="warn"><strong>Honesty check:</strong> "every message <em>always</em> arrives" is physically impossible if a recipient is permanently unreachable. The achievable, defensible guarantee is: <em>delivered with high probability, and when delivered, cryptographically proven — and the sender always knows which of the two it is.</em> That certainty is what users actually need.</div>
+
+<h3>Problem C — A whole region's links are down (can't get messages in or out)</h3>
+<p>No algorithm beats physics: if <em>zero</em> links cross the boundary, no bits cross. So the design maximizes the chance that <em>some</em> link exists, and stays useful in the meantime:</p>
+<ul>
+<li><strong>Transport diversity = more chances of one live link:</strong> sound/light locally, BLE/Wi-Fi mesh, LoRa for km-scale, internet where any node has it. The more independent physical channels, the harder it is to fully seal a region.</li>
+<li><strong>Humans as the link (data mules):</strong> anyone who walks or drives out of the zone carries queued messages on their phone and flushes them the moment they hit connectivity — a car leaving a flood zone <em>is</em> a network link. This is the DTN "sneakernet" principle and it's remarkably robust.</li>
+<li><strong>Erasure/fountain coding across mules:</strong> split a message into coded fragments so it reconstructs even if only <em>some</em> carriers make it out — resilient to partial escape.</li>
+<li><strong>The region keeps working internally:</strong> intra-region messaging never stops; only cross-boundary traffic queues. Patient queues flush automatically when any boundary link reappears.</li>
+<li><strong>Pre-positioned independent gateways:</strong> solar-powered LoRa nodes on high ground that don't depend on the grid or towers — deliberate "always-on straws" out of the region.</li>
+</ul>
+<div class="key"><strong>Reframe:</strong> a sealed region isn't a failure state, it's a <em>buffering</em> state. The network holds every message safely, keeps the locals talking, and delivers outward the instant the first mule, solar node, or restored link bridges the gap — then <strong>CRDT merge</strong> (below) reconciles both sides in seconds with zero conflicts.</div>
+
+<h3>Problem D — Web3-style validation + fast completeness (without the consensus tax)</h3>
+<p>This is where your blockchain instinct pays off — used precisely. Three primitives give you tamper-proof, verifiable delivery that needs <em>no</em> global agreement:</p>
+<ol>
+<li><strong>Hash-linked per-identity logs (Merkle feeds):</strong> each user's outbox is an append-only log where every entry references the hash of the previous one (like git / Secure Scuttlebutt / a personal mini-chain). Tamper-evident, self-verifying, no miners — anyone can check it, and two copies sync by exchanging only what's missing.</li>
+<li><strong>Signed delivery receipts:</strong> the recipient's signature over a message's hash is portable, standalone <em>proof of delivery</em> — verifiable by anyone, offline, forever. No ledger required to trust it.</li>
+<li><strong>CRDTs for "fast completeness":</strong> shared state (delivery status, group membership, presence) is modelled as conflict-free replicated data types (Automerge/Yjs-style). Every node is instantly consistent <em>locally</em>, and when partitions heal the states <strong>merge deterministically with no conflicts</strong> — convergence in one sync round, not one block time. <em>That</em> is fast completeness.</li>
+</ol>
+<div class="flow">
+<b>DELIVERY VALIDATION FLOW (all offline-capable):</b><br>
+1 · Sender S encrypts msg → recipient R's key; appends <b>hash(msg)</b> to S's signed log<br>
+2 · Relays carry it (spray-and-wait); each may add a signed <b>custody receipt</b><br>
+3 · R decrypts, emits <b>Receipt = Sign_R( hash(msg), timestamp )</b><br>
+4 · Receipt diffuses back opportunistically → S matches it to the log entry<br>
+5 · <b>S now holds cryptographic proof of delivery</b> — no chain, no consensus, works fully offline<br>
+6 · (optional) aggregated custody/delivery receipts = <b>proof-of-relay</b>, settled to a ledger later, when online, to reward gateways
+</div>
+<div class="note">The only place a real distributed ledger earns its keep is the <em>optional incentive layer</em> (rewarding people who run gateways/relays — the Helium / "proof-of-relay" model). Crucially it settles <strong>asynchronously when online</strong>, so it never sits in the delivery path or slows anything down. Delivery correctness comes entirely from signatures, not consensus.</div>
+
+<h2>3 &middot; Handling misuse (you flagged this explicitly)</h2>
+<table>
+<thead><tr><th>Abuse</th><th>Defense</th></tr></thead>
+<tbody>
+<tr><td><strong>Spam / flooding</strong></td><td>Proof-of-work "postage" per message (Hashcash), scaled by priority; cheap for a real user, expensive at scale. Rate limits at relays.</td></tr>
+<tr><td><strong>Sybil (fake identities)</strong></td><td>Identity creation costs PoW; reputation is earned via successful relays; high-trust contacts via web-of-trust vouching / QR key exchange.</td></tr>
+<tr><td><strong>Black-hole relays (drop messages)</strong></td><td>Replication + missing end-to-end receipts expose non-delivery; reputation gossip demotes bad relays; traffic re-routes around them.</td></tr>
+<tr><td><strong>Harmful content</strong></td><td>Network is content-blind by design (E2E), so moderation lives at the <em>endpoints</em>: report/block keys, gossiped blocklists, key-level bans. <span class="pill cond">tradeoff</span> Honest tension between privacy and moderation — decide the policy deliberately.</td></tr>
+<tr><td><strong>Gateway DoS (scarce exits)</strong></td><td>Priority classes (SOS preempts chatter) + per-sender fair-queuing + PoW so no one can monopolize a gateway.</td></tr>
+</tbody>
+</table>
+
+<h2>4 &middot; Don't reinvent — the reuse map</h2>
+<table>
+<thead><tr><th>Layer</th><th>Proven building block</th></tr></thead>
+<tbody>
+<tr><td>L2 Identity &amp; E2E</td><td>Ed25519/X25519 keypairs · Signal <strong>Double Ratchet</strong> + X3DH · Noise Protocol · libsodium/age</td></tr>
+<tr><td>L3 Discovery</td><td>Kademlia <strong>DHT</strong> (libp2p) · Reticulum announces</td></tr>
+<tr><td>L4 Routing &amp; delivery</td><td><strong>Reticulum</strong> (transport-agnostic routing) · <strong>DTN Bundle Protocol 7</strong> (custody) · spray-and-wait</td></tr>
+<tr><td>L5 Integrity &amp; proof</td><td><strong>Secure Scuttlebutt</strong> hash-linked feeds · IPLD/Merkle-DAG · <strong>Automerge / Yjs</strong> CRDTs</td></tr>
+<tr><td>L6 Anti-abuse &amp; incentive</td><td>Hashcash PoW · <strong>Helium / Proof-of-Relay</strong> as the incentive precedent · Althea</td></tr>
+</tbody>
+</table>
+<div class="key">Net effect: build on <strong>Reticulum</strong> for L1–L4, layer <strong>SSB-style hash-linked logs + Automerge CRDTs</strong> for L5, add your <strong>PoW/reputation + optional proof-of-relay</strong> at L6, and keep the Double Ratchet at L2. That's roughly 80% assembly of hardened components and 20% new glue — the new glue being your delivery-receipt protocol, the sound/light interfaces, and the incentive design.</div>
+
+<div class="disclaimer">
+<strong>Design brief, not final spec — verify before building.</strong> Confirm licenses (SSB, Automerge, Reticulum, libsignal) for your product model; libsignal in particular has usage terms. The Double Ratchet fits interactive chat cleanly but needs care for long-delay/one-way DTN paths — validate the async/sealed-sender variant against your worst-case delivery latency. Physics caveat stands: a permanently isolated recipient cannot receive; the system's job is to prove <em>whether</em> delivery happened, not to defy that. Ham/satellite/spectrum legal notes from earlier still bind the radio transports. Not legal advice.
+</div>
+
+<p class="src">Sources: Signal Double Ratchet / X3DH &amp; sealed sender; DTN Bundle Protocol 7 (custody transfer), epidemic &amp; spray-and-wait routing literature; Secure Scuttlebutt hash-linked feeds; Automerge / Yjs CRDTs; Kademlia DHT (libp2p); Reticulum Network Stack; Helium &amp; SendingNetwork "Proof of Relay" (decentralized relay incentives); Hashcash proof-of-work.</p>
+
+</div>
+</body>
+</html>

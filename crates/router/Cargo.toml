@@ -1,0 +1,15 @@
+[package]
+name = "lifeline-router"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Project Lifeline L4 DTN router: store-carry-forward, spray-and-wait, custody, priority, gateway gradient (PRD §8.5, §12)."
+
+[dependencies]
+lifeline-proto = { path = "../proto" }
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+lifeline-core = { path = "../core" }
