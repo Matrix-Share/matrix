@@ -21,6 +21,9 @@ pub enum Command {
         body: String,
         priority: u8,
     },
+    /// Send a message via onion routing over auto-selected relays (FR-49): hides
+    /// who is talking to whom. Receipt-less by design.
+    SendPrivate { to: String, body: String },
     /// Add a contact from a shared identity code (`b64url(cbor(IdentityPublic))`).
     AddContact { code: String },
     /// One-tap SOS with optional GPS + battery (FR-40).
@@ -30,6 +33,17 @@ pub enum Command {
         acc_m: Option<u32>,
         battery_pct: Option<u8>,
         note: Option<String>,
+    },
+    /// Broadcast a text message to every contact (ask the mesh to propagate it).
+    Broadcast { body: String },
+    /// Broadcast "I'm safe" to all contacts (FR-41).
+    Safe { note: Option<String> },
+    /// Share location with a specific contact (FR-43).
+    Location {
+        to: String,
+        lat: f64,
+        lon: f64,
+        acc_m: Option<u32>,
     },
 }
 
@@ -89,4 +103,6 @@ pub struct StatusView {
     pub custody_transfers: u64,
     pub known_gateways: usize,
     pub retries: u64,
+    /// Lossy-link ARQ frame retransmissions (FR — Dhwani noise robustness).
+    pub arq_retransmits: u64,
 }

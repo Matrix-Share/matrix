@@ -25,12 +25,63 @@ pub fn router(state: AppState) -> Router {
         .route("/", get(index))
         .route("/api/state", get(get_state))
         .route("/api/send", post(post_send))
+        .route("/api/send_private", post(post_send_private))
         .route("/api/contacts", post(post_contact))
         .route("/api/selftest", get(get_selftest))
         .route("/api/sos", post(post_sos))
+        .route("/api/broadcast", post(post_broadcast))
+        .route("/api/safe", post(post_safe))
+        .route("/api/location", post(post_location))
         .route("/api/qr.svg", get(get_qr))
         .route("/api/ws", get(ws_handler))
         .with_state(state)
+}
+
+#[derive(Deserialize)]
+struct BroadcastReq {
+    body: String,
+}
+
+/// Broadcast a message to the whole mesh (every contact).
+async fn post_broadcast(
+    State(st): State<AppState>,
+    Json(req): Json<BroadcastReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::Broadcast { body: req.body });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct SafeReq {
+    note: Option<String>,
+}
+
+/// Broadcast "I'm safe" to all contacts (FR-41).
+async fn post_safe(State(st): State<AppState>, Json(req): Json<SafeReq>) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::Safe { note: req.note });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct LocationReq {
+    to: String,
+    lat: f64,
+    lon: f64,
+    acc_m: Option<u32>,
+}
+
+/// Share location with a specific contact (FR-43).
+async fn post_location(
+    State(st): State<AppState>,
+    Json(req): Json<LocationReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::Location {
+        to: req.to,
+        lat: req.lat,
+        lon: req.lon,
+        acc_m: req.acc_m,
+    });
+    Json(serde_json::json!({ "ok": true }))
 }
 
 #[derive(Deserialize)]
@@ -123,6 +174,24 @@ async fn post_send(State(st): State<AppState>, Json(req): Json<SendReq>) -> impl
         to: req.to,
         body: req.body,
         priority: req.priority,
+    });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct SendPrivateReq {
+    to: String,
+    body: String,
+}
+
+/// Send a message via onion routing (FR-49) over auto-selected relays.
+async fn post_send_private(
+    State(st): State<AppState>,
+    Json(req): Json<SendPrivateReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::SendPrivate {
+        to: req.to,
+        body: req.body,
     });
     Json(serde_json::json!({ "ok": true }))
 }

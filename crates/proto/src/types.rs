@@ -171,6 +171,19 @@ pub enum PayloadKind {
     Receipt,
     GroupOp,
     AttachChunk,
+    /// A signed custody-transfer acknowledgement (FR-25): a committed custodian
+    /// tells the previous hop it has accepted responsibility for a bundle, so
+    /// the previous hop may free its relayed copy.
+    Custody,
+    /// An onion-routing layer (FR-49): the body is one still-encrypted onion
+    /// whose outer layer is sealed to this hop. The hop peels it to learn only
+    /// the next hop, then forwards — hiding who is talking to whom.
+    Onion,
+    /// A request for a content-addressed block by CID (FR-13): body is the CID.
+    BlockRequest,
+    /// A content-addressed block in reply to a request (FR-13): body carries the
+    /// `(cid, bytes)` so the receiver can verify the hash before storing.
+    BlockResponse,
 }
 
 /// GPS coordinates attached to SOS / location payloads (PRD §11.3, FR-40/43).
