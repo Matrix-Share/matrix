@@ -19,6 +19,23 @@ struct MediumInner {
     next_id: PeerId,
     attached: Vec<PeerId>,
     inbox: HashMap<PeerId, Vec<(PeerId, Vec<u8>)>>,
+    /// Frame drop probability in per-mille (0 = reliable). Models a noisy
+    /// ultrasound/LoRa channel so lossy-link ARQ (see [`crate::arq`]) is testable.
+    loss_permille: u32,
+    /// Deterministic LCG state for reproducible drop decisions (no OS RNG, so
+    /// tests never flake).
+    rng: u32,
+}
+
+impl MediumInner {
+    /// Returns true if this frame should be dropped (advances the PRNG).
+    fn drop_frame(&mut self) -> bool {
+        if self.loss_permille == 0 {
+            return false;
+        }
+        self.rng = self.rng.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        (self.rng >> 16) % 1000 < self.loss_permille
+    }
 }
 
 /// A cloneable handle to a physical channel.
@@ -28,6 +45,16 @@ pub struct SharedMedium(Rc<RefCell<MediumInner>>);
 impl SharedMedium {
     pub fn new() -> Self {
         SharedMedium(Rc::new(RefCell::new(MediumInner::default())))
+    }
+
+    /// A medium that pseudo-randomly drops `loss_permille`/1000 of all frames
+    /// (deterministically seeded), for exercising lossy-link ARQ end-to-end.
+    pub fn new_lossy(loss_permille: u32, seed: u32) -> Self {
+        SharedMedium(Rc::new(RefCell::new(MediumInner {
+            loss_permille,
+            rng: seed | 1,
+            ..MediumInner::default()
+        })))
     }
 
     /// Attach a new interface with the given caps; returns a driver bound to
@@ -79,6 +106,11 @@ impl Interface for MemoryInterface {
             });
         }
         let mut inner = self.medium.0.borrow_mut();
+        // Simulate channel loss: the frame leaves the sender fine but never
+        // arrives. ARQ must recover it via retransmission.
+        if inner.drop_frame() {
+            return Ok(());
+        }
         if let Some(box_) = inner.inbox.get_mut(&peer) {
             box_.push((self.id, frame.to_vec()));
         }

@@ -20,6 +20,7 @@
 //! whole stack is testable without radios; a real BLE/LoRa/internet backend is
 //! a drop-in that implements [`Interface`] with the same [`InterfaceCaps`].
 
+pub mod arq;
 pub mod caps;
 pub mod channel;
 pub mod engine;
@@ -28,9 +29,10 @@ pub mod interface;
 pub mod medium;
 pub mod udp;
 
+pub use arq::{ArqRx, ArqTx};
 pub use caps::{InterfaceCaps, InterfaceKind, RangeClass, ThroughputClass};
 pub use channel::{ChannelInterface, Outbound};
-pub use engine::{EngineConfig, Inbound, NodeEngine};
+pub use engine::{CustodyRole, EngineConfig, Inbound, NodeEngine};
 pub use frame::{Fragmenter, Frame, FrameKind, Reassembler};
 pub use interface::{Interface, PeerId};
 pub use medium::{MemoryInterface, SharedMedium};

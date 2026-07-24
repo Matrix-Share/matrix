@@ -36,6 +36,9 @@ pub enum FrameKind {
     Bundle,
     /// A CRDT shared-state blob (anti-entropy, §12.3).
     State,
+    /// A selective-ACK control frame for lossy-link ARQ (see [`crate::arq`]).
+    /// Always a single frame; its `data` carries the ACK's base + bitmap.
+    Ack,
 }
 
 impl FrameKind {
@@ -44,6 +47,7 @@ impl FrameKind {
             FrameKind::Beacon => 0,
             FrameKind::Bundle => 1,
             FrameKind::State => 2,
+            FrameKind::Ack => 3,
         }
     }
     fn from_u8(v: u8) -> Option<FrameKind> {
@@ -51,6 +55,7 @@ impl FrameKind {
             0 => Some(FrameKind::Beacon),
             1 => Some(FrameKind::Bundle),
             2 => Some(FrameKind::State),
+            3 => Some(FrameKind::Ack),
             _ => None,
         }
     }

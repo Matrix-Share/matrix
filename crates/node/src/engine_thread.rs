@@ -50,7 +50,13 @@ pub fn run(
     data_dir: String,
     initial: crate::views::PersistedState,
 ) {
-    let mut engine = NodeEngine::new(identity, EngineConfig::default());
+    // A node self-hosted as infrastructure (a gateway / always-on relay) can run
+    // as a committed custodian so battery-limited carriers offload to it (FR-25).
+    let mut cfg = EngineConfig::default();
+    if std::env::var("LIFELINE_CUSTODIAN").is_ok() {
+        cfg.custody_role = lifeline_transport::CustodyRole::Custodian;
+    }
+    let mut engine = NodeEngine::new(identity, cfg);
     engine.add_interface(Box::new(ChannelInterface::new(
         InterfaceCaps::internet(),
         out_tx,
@@ -113,19 +119,15 @@ pub fn run(
                         _ => None,
                     };
                     let ids = engine.broadcast_sos(coords, battery_pct, note.clone(), now);
-                    for id in ids {
-                        let idx = messages.len();
-                        messages.push(MsgView {
-                            id: id.to_b64url(),
-                            dir: "out-sos".into(),
-                            peer: String::new(),
-                            peer_name: "everyone".into(),
-                            body: note.clone().unwrap_or_else(|| "SOS".into()),
-                            ts: now,
-                            status: "sent".into(),
-                        });
-                        sent_index.insert(id.to_b64url(), idx);
-                    }
+                    record_broadcast(
+                        &mut messages,
+                        &mut sent_index,
+                        &ids,
+                        "out-sos",
+                        &format!("SOS · {} contact{}", ids.len(), plural(ids.len())),
+                        &note.clone().unwrap_or_else(|| "SOS".into()),
+                        now,
+                    );
                     dirty = true;
                 }
                 Command::Send { to, body, priority } => {
@@ -149,6 +151,93 @@ pub fn run(
                         dirty = true;
                     }
                 }
+                Command::SendPrivate { to, body } => {
+                    let Ok(addr) = Address::from_text(&to) else {
+                        continue;
+                    };
+                    let me = engine.address().clone();
+                    if let Some(recipient) = engine.contact(&addr) {
+                        // Auto-pick up to two intermediate relays from the
+                        // directory (never the recipient or ourselves).
+                        let relays: Vec<IdentityPublic> = engine
+                            .directory()
+                            .into_iter()
+                            .filter(|p| p.id != addr && p.id != me)
+                            .take(2)
+                            .collect();
+                        let (payload, _) = build_payload(&body, 2);
+                        if let Some(id) =
+                            engine.submit_onion(&relays, &recipient, payload, Priority::Normal, now)
+                        {
+                            let idx = messages.len();
+                            let peer_name = name_of(&engine, &addr);
+                            messages.push(MsgView {
+                                id: id.to_b64url(),
+                                dir: "out-private".into(),
+                                peer: to,
+                                peer_name,
+                                body,
+                                ts: now,
+                                status: "private".into(),
+                            });
+                            sent_index.insert(id.to_b64url(), idx);
+                            dirty = true;
+                        }
+                    }
+                }
+                Command::Broadcast { body } => {
+                    let ids = engine.broadcast_text(&body, Priority::Alert, now);
+                    record_broadcast(
+                        &mut messages,
+                        &mut sent_index,
+                        &ids,
+                        "out-broadcast",
+                        &format!("Broadcast · {} node{}", ids.len(), plural(ids.len())),
+                        &body,
+                        now,
+                    );
+                    dirty = true;
+                }
+                Command::Safe { note } => {
+                    let body = note.unwrap_or_else(|| "I'm safe".into());
+                    let ids = engine.broadcast_safe(Some(body.clone()), now);
+                    record_broadcast(
+                        &mut messages,
+                        &mut sent_index,
+                        &ids,
+                        "out",
+                        &format!("I'm safe · {} contact{}", ids.len(), plural(ids.len())),
+                        &body,
+                        now,
+                    );
+                    dirty = true;
+                }
+                Command::Location {
+                    to,
+                    lat,
+                    lon,
+                    acc_m,
+                } => {
+                    if let Ok(addr) = Address::from_text(&to) {
+                        if let Some(id) =
+                            engine.submit_location(&addr, lat, lon, acc_m.unwrap_or(0), now)
+                        {
+                            let idx = messages.len();
+                            let peer_name = name_of(&engine, &addr);
+                            messages.push(MsgView {
+                                id: id.to_b64url(),
+                                dir: "out".into(),
+                                peer: to,
+                                peer_name,
+                                body: format!("📍 shared location ({lat:.4}, {lon:.4})"),
+                                ts: now,
+                                status: "sent".into(),
+                            });
+                            sent_index.insert(id.to_b64url(), idx);
+                            dirty = true;
+                        }
+                    }
+                }
             }
         }
 
@@ -168,7 +257,7 @@ pub fn run(
                 dir: dir.into(),
                 peer: inb.from.to_text(),
                 peer_name,
-                body: inb.payload.body.unwrap_or_default(),
+                body: display_body(&inb.payload),
                 ts: now,
                 status: "received".into(),
             });
@@ -217,6 +306,68 @@ pub fn run(
         version.fetch_add(1, Ordering::Relaxed);
 
         std::thread::sleep(Duration::from_millis(150));
+    }
+}
+
+fn plural(n: usize) -> &'static str {
+    if n == 1 {
+        ""
+    } else {
+        "s"
+    }
+}
+
+/// Record a mesh-wide broadcast as a single message in the "mesh" thread. All
+/// recipient ids map to the one message, so it flips to "verified" as soon as
+/// any recipient's receipt returns.
+fn record_broadcast(
+    messages: &mut Vec<MsgView>,
+    sent_index: &mut HashMap<String, usize>,
+    ids: &[lifeline_proto::Bytes],
+    dir: &str,
+    peer_name: &str,
+    body: &str,
+    now: u64,
+) {
+    if ids.is_empty() {
+        return;
+    }
+    let idx = messages.len();
+    messages.push(MsgView {
+        id: ids[0].to_b64url(),
+        dir: dir.into(),
+        peer: "mesh".into(),
+        peer_name: peer_name.into(),
+        body: body.into(),
+        ts: now,
+        status: "sent".into(),
+    });
+    for id in ids {
+        sent_index.insert(id.to_b64url(), idx);
+    }
+}
+
+/// Human-readable body for an inbound payload (Location/Safe/SOS carry no text
+/// body, so synthesize one for the UI).
+fn display_body(p: &Payload) -> String {
+    use PayloadKind::*;
+    match p.kind {
+        Location => match &p.coords {
+            Some(c) => format!("📍 shared their location ({:.4}, {:.4})", c.lat, c.lon),
+            None => "📍 shared their location".into(),
+        },
+        Safe => p.body.clone().unwrap_or_else(|| "I'm safe".into()),
+        Sos => {
+            let mut s = p.body.clone().unwrap_or_else(|| "SOS".into());
+            if let Some(c) = &p.coords {
+                s.push_str(&format!("  ·  📍 {:.4}, {:.4}", c.lat, c.lon));
+            }
+            if let Some(b) = p.battery_pct {
+                s.push_str(&format!("  ·  🔋 {b}%"));
+            }
+            s
+        }
+        _ => p.body.clone().unwrap_or_default(),
     }
 }
 
@@ -300,6 +451,7 @@ fn build_snapshot(
             custody_transfers: stats.custody_transfers,
             known_gateways: stats.known_gateways,
             retries: engine.retry_count(),
+            arq_retransmits: engine.arq_retransmits(),
         },
     }
 }

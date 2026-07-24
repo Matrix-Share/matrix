@@ -7,6 +7,60 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Lossy-link ARQ / selective repeat** (`transport::arq`, Dhwani noise
+  robustness): unicast bundle frames are now retransmitted until acknowledged.
+  The sender blasts once then re-sends only unacked fragments on an RTO timer;
+  the receiver replies with a compact selective ACK (cumulative base + a windowed
+  bitmap) that fits even ultrasound's MTU. Proven delivering a message **and its
+  receipt over a 30%-loss channel**; a reliable link triggers zero retransmits.
+  Surfaced as a "Repaired frames" tile in the GUI.
+- **Custody transfer round-trip** (FR-25): a `CustodyRole::Custodian`
+  (gateway/base/well-provisioned mule) signs a custody receipt for relayed
+  bundles it stores; the previous-hop carrier verifies it and frees its copy.
+  Nodes never release bundles they originated, so custody only ever moves a
+  bundle to a safer holder — delivery is never reduced. `LIFELINE_CUSTODIAN=1`
+  runs a self-hosted node as a custodian.
+- **Onion forwarding in the engine** (FR-49): `submit_onion` builds a route and
+  each relay peels one layer and re-seals to the next hop (buffering until the
+  hop's key is learned), so no relay learns more than the next hop. Exposed as a
+  **private send** (shield toggle) in the node API + GUI.
+- **Mesh fetch-by-CID** (FR-13): `store_content`/`fetch_content` plus
+  `BlockRequest`/`BlockResponse` payloads pull content-addressed blocks by hash
+  over the mesh, verifying each block against its CID before storing, with
+  request retransmission and a cached-block short-circuit.
+
+### Fixed
+- **Large-blob CBOR decode** (`proto::codec`): `Bytes` now deserializes via
+  `deserialize_byte_buf` instead of `deserialize_bytes`, which ciborium caps at
+  its 4 KiB scratch buffer. Any wire blob over ~4 KiB (big attachments, block
+  transfers, single-frame bundles on high-MTU links) previously failed to decode;
+  now blobs of any size round-trip.
+
+### Changed
+- **Rebuilt web GUI into a two-view product (Messages + Network)**: the app now
+  centers on real messaging and visible mesh propagation. **Messages** view has a
+  prominent connect flow (QR invite / paste-a-code tabs), a contact list with
+  avatars, previews, timestamps and unread markers, a pinned **"Mesh &
+  broadcasts"** thread, and a chat pane with per-message lifecycle chips
+  (Sending… → Delivered ✓✓). **Network** view is a live propagation dashboard:
+  hero stat tiles (peers, gateways, delivered/verified, relayed copies, queue,
+  retries, custody), a **broadcast-to-mesh** composer alongside SOS / I'm-safe,
+  a client-diffed **live activity feed** that narrates propagation in real time
+  (sent → verified → relayed), a peer list, and the packaged self-test. Verified
+  end-to-end against a relay + two nodes.
+- **Broadcast to the mesh** (`POST /api/broadcast`,
+  `NodeEngine::broadcast_text`): send one message to every contact and ask the
+  network to propagate it; recorded as a single mesh-thread entry that verifies
+  as recipients confirm.
+- **Redesigned web GUI ("Calm Utility")**: a modern, theme-aware (light/dark),
+  accessible interface — monochrome surfaces + one accent, hairline borders,
+  conversation list with previews, delivery/verified ticks, safety-accented
+  emergency actions, avatars, live status, and a collapsible diagnostics panel.
+  New endpoints `POST /api/safe` (FR-41) and `POST /api/location` (FR-43) back
+  the emergency/share actions; inbound Location/SOS/Safe payloads render with
+  readable summaries.
+
+### Added
 - **Encrypted persistence** (`core::vault`, FR-9/FR-15): the contact directory
   and message history are persisted **encrypted at rest** (Argon2id-derived key,
   reused across saves; XChaCha20-Poly1305) and restored on restart — verified

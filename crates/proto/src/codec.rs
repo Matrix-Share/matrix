@@ -149,7 +149,11 @@ impl<'de> Deserialize<'de> for Bytes {
         if d.is_human_readable() {
             d.deserialize_str(V)
         } else {
-            d.deserialize_bytes(V)
+            // `deserialize_byte_buf` (owned) — NOT `deserialize_bytes` — because
+            // ciborium's borrowed byte path is capped at its 4 KiB scratch buffer
+            // and errors on larger byte strings. The owned path handles blobs of
+            // any size (fragments carrying big attachments, ciphertext, etc.).
+            d.deserialize_byte_buf(V)
         }
     }
 }

@@ -97,14 +97,14 @@ The component-reference doc pairs each paper with a *what-to-improve* note. Stat
 | Gap | Doc basis | Priority |
 |---|---|---|
 | ~~Erasure/fountain coding across mules~~ | PRD FR-28; network-layer Problem C | ✅ done (`core::erasure` Reed-Solomon; survives 20%-loss partition in `sim`) |
-| **Custody receipts exchange** | PRD FR-25; DTN BP7 | Medium — schema present, retention prevents loss |
+| ~~Custody receipts exchange~~ | PRD FR-25; DTN BP7 | ✅ **done** — automatic engine round-trip (`CustodyRole::Custodian` signs, carrier releases; never releases originated bundles) |
 | ~~Reputation gossip / black-hole avoidance~~ | Problem C; Kademlia/Douceur/Helium | ✅ mechanism done (auto-attribution ○) |
 | ~~Parser panic-freedom fuzzing~~ | Bridgefy analyses | ✅ done (continuous `cargo fuzz` nice-to-have) |
 | ~~Real socket transport (no relay)~~ | spectrum §3; L0 | ✅ `UdpInterface` done |
-| **Sender-keys group encryption** | PRD FR-12 | Medium — CRDT membership already converges |
-| **Content-addressed blocks (IPFS/IPLD)** | PRD FR-13; Benet | Medium — for large attachments & cached alerts |
-| **Lossy-link ARQ / selective repeat** | Dhwani noise robustness | Medium — needed for real ultrasound/LoRa/UDP-loss |
-| ~~Onion/metadata privacy~~ | PRD FR-49; gateway §5 | ✅ done (`core::onion`; engine forwarding path ○) |
+| ~~Sender-keys group encryption~~ | PRD FR-12 | ✅ done (`core::group` Megolm-style; fans out + decrypts across nodes) |
+| ~~Content-addressed blocks (IPFS/IPLD)~~ | PRD FR-13; Benet | ✅ **done** — `core::content` blocks + engine **mesh fetch-by-CID** (`BlockRequest`/`BlockResponse`, hash-verified) |
+| ~~Lossy-link ARQ / selective repeat~~ | Dhwani noise robustness | ✅ **done** — `transport::arq` selective-repeat; recovers a message over a 30%-loss channel |
+| ~~Onion/metadata privacy~~ | PRD FR-49; gateway §5 | ✅ **done** — `core::onion` + engine forwarding path (peel-and-re-seal per hop), exposed as "private send" |
 | **Official alert ingest (India Cell Broadcast)** | PRD FR-42 | ◐ signed-alert trust done (`core::alert`); external CB feed ○ |
 | **Endpoint moderation enforcement** | PRD FR-48 | Low — blocklist CRDT done; drop-enforcement wiring |
 | **BP7 interop mapping** | RFC 9171 | Low — credibility/interop |
@@ -112,12 +112,15 @@ The component-reference doc pairs each paper with a *what-to-improve* note. Stat
 
 ## 4. Recommended next slice
 Recently completed: erasure coding (FR-28), reputation (FR-47), parser
-hardening (NFR-1), and a real UDP/LAN transport. Next, in priority order:
-1. **Sender-keys group encryption (FR-12)** — layer group-message encryption on
-   the already-converging CRDT membership; fully sim-verifiable.
-2. **Content-addressed blocks (FR-13 / IPFS model)** — BLAKE3-CID block store for
-   large attachments and cached alerts, fetched by hash.
-3. **Lossy-link ARQ / selective repeat** — fragment retransmission, the last
-   thing before real ultrasound/LoRa backends are dependable (Dhwani).
-4. **BP7 interop codec (RFC 9171)** and a **`cargo fuzz` harness** for continuous
-   fuzzing of the parsers.
+hardening (NFR-1), a real UDP/LAN transport, sender-keys groups (FR-12), and —
+this round — **lossy-link ARQ**, **custody transfer round-trip (FR-25)**, **onion
+forwarding in the engine (FR-49)**, and **mesh fetch-by-CID (FR-13)** (plus a
+latent large-blob CBOR decode fix). Next, in priority order:
+1. **Kademlia DHT online backend (FR-8)** — the XOR-metric routing table behind
+   the already-working signed gossip announces.
+2. **BP7 interop codec (RFC 9171)** — explicit endpoint-ID mapping for standards
+   interop, and a **`cargo fuzz` harness** for continuous parser fuzzing.
+3. **Custody + onion engine round-trips are done; next reliability item is
+   gateway-directional custody** via propagated gateway gradient in the engine.
+4. **Full-text encrypted history search (FR-15)** and **official Cell-Broadcast
+   ingest (FR-42)**.

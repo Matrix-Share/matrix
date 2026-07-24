@@ -372,6 +372,11 @@ impl DtnRouter {
 
     // --- Custody transfer (FR-25) ---
 
+    /// Whether this node currently holds a copy of `bundle_id` in its store.
+    pub fn holds(&self, bundle_id: &Bytes) -> bool {
+        self.store.contains(bundle_id)
+    }
+
     /// Release our copy of a bundle because another node has signed for custody
     /// (the caller has verified the [`lifeline_proto::CustodyReceipt`]). Frees
     /// storage without silent loss — the custodian is now responsible. Returns

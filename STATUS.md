@@ -34,14 +34,14 @@ is in [`GAPS.md`](GAPS.md).
 | FR-10 Send E2E text | ✅ | `core::message::seal_bundle` |
 | FR-11 Message states | ◐ | `proto::MessageState`; sim tracks delivered/verified |
 | FR-12 Group messages (sender-keys, CRDT membership) | ✅ | CRDT membership + `core::group` sender-keys, **wired end-to-end in `NodeEngine`** (`create_group`/`add_group_member`/`send_group`: distribution + fan-out + decrypt, out-of-order buffer); tested (3-member fan-out, non-member excluded, multi-sender) |
-| FR-13 Small attachments + content addressing | ✅ | **`core::content`** (BLAKE3-CID blocks, Merkle manifest, dedup, integrity-checked reassemble, missing-block reporting) — IPFS model; mesh fetch-by-CID protocol ○ |
+| FR-13 Small attachments + content addressing | ✅ | **`core::content`** (BLAKE3-CID blocks, Merkle manifest, dedup, integrity-checked reassemble) + **mesh fetch-by-CID protocol** in the engine: `store_content`/`fetch_content`, `BlockRequest`/`BlockResponse` over the mesh (binary blocks, hash-verified on arrival), request retransmission, cached-block short-circuit — proven pulling a multi-block object between two nodes |
 | FR-14 Priority classes SOS>ALERT>NORMAL>BULK | ✅ | `proto::Priority` |
 | FR-15 Local encrypted history | ✅ (encrypted store) | message history **persisted encrypted at rest** (`core::vault`: Argon2id + XChaCha20-Poly1305) — restored on restart, verified end-to-end; full-text search ○ |
 
 ## Transports (§8.4)
 | Req | State | Where |
 |---|---|---|
-| FR-16..21 BLE / Wi-Fi Aware / ultrasound / optical / LoRa / internet | ◐ | **`transport::Interface` contract + caps + MTU fragmentation for all six, driven by `NodeEngine`; delivery proven over each in tests. A real `UdpInterface` (multicast/LAN) meshes two nodes with no relay (verified over real sockets).** BLE/ggwave/LoRa radio backends ○ (platform work) |
+| FR-16..21 BLE / Wi-Fi Aware / ultrasound / optical / LoRa / internet | ◐ | **`transport::Interface` contract + caps + MTU fragmentation for all six, driven by `NodeEngine`; delivery proven over each in tests. A real `UdpInterface` (multicast/LAN) meshes two nodes with no relay (verified over real sockets). Lossy-link ARQ (`transport::arq`, selective-repeat with cumulative+bitmap SACKs) recovers dropped fragments — proven delivering a message over a 30%-loss channel.** BLE/ggwave/LoRa radio backends ○ (platform work) |
 | FR-22 Concurrent transports, router picks best | ✅ | `NodeEngine` runs multiple `Interface`s concurrently; same bundle over any (test: BLE+ultrasound+internet) |
 
 ## Routing & delivery (§8.5)
@@ -49,7 +49,7 @@ is in [`GAPS.md`](GAPS.md).
 |---|---|---|
 | FR-23 Store-carry-forward | ✅ | `router::DtnRouter` + `store` |
 | FR-24 Binary spray-and-wait (budget L) | ✅ | `router::offer_to` |
-| FR-25 Custody transfer | ◐ | **signed custody receipts** (`core::receipt::make/verify_custody_receipt`) + `router::release_custody` (drop copy once custody confirmed, dedup-safe) — tested; automatic engine round-trip (emit-on-store → release) ○ |
+| FR-25 Custody transfer | ✅ | signed custody receipts + `router::release_custody`, now with the **automatic engine round-trip**: a committed `CustodyRole::Custodian` (gateway/base/provisioned mule) signs for relayed bundles it stores and the previous-hop carrier frees its copy — never releasing bundles it originated, so delivery is never reduced (proven end-to-end over a forced relay line) |
 | FR-26 TTL, hop limit, dedup | ✅ | `router::ingest` |
 | FR-27 Priority queueing, SOS preempts | ✅ | `router::offer_to` (strict priority sort) |
 | FR-28 Erasure/fountain coding | ✅ | `core::erasure` (Reed-Solomon, any k-of-n) + `Bundle.frag`; `NodeEngine::submit_erasure` + reassembly; **proven end-to-end and surviving a 20%-loss partition in `sim`** |
@@ -71,7 +71,7 @@ is in [`GAPS.md`](GAPS.md).
 | FR-36 Signed gateway announce | ✅ | `proto::GatewayAnnounce` + `sim::make_announce` |
 | FR-37 Bridge bundles to internet/LoRa | ◐ | internet bridge ✅ (`sim` fabric); LoRa ○ |
 | FR-38 Gateways handle ciphertext only | ✅ | router never decrypts; treats payload as opaque |
-| FR-39 Web gateway console | ◐ | **`lifeline-node` serves a web GUI** (chat, discovery, delivery ticks, live mesh status, in-GUI self-test) over HTTP/WS; LoRa-over-Web-Serial console ○ |
+| FR-39 Web gateway console | ◐ | **`lifeline-node` serves a two-view web product** (theme-aware) over HTTP/WS — **Messages** (connect flow, contacts, pinned mesh thread, per-message lifecycle chips) + **Network** dashboard (stat tiles, broadcast-to-mesh, SOS/safe, live propagation activity feed, peer list, in-GUI self-test); LoRa-over-Web-Serial console ○ |
 
 ## Emergency features (§8.8)
 | Req | State | Where |
@@ -79,7 +79,7 @@ is in [`GAPS.md`](GAPS.md).
 | FR-40 One-tap SOS + GPS + battery | ✅ | protocol + `NodeEngine::broadcast_sos` + **GUI SOS button** (geolocation + battery, graceful fallback) via `POST /api/sos` — verified delivering as `in-sos` end-to-end |
 | FR-41 "I'm safe" broadcast | ✅ | `NodeEngine::broadcast_safe` fans out to all contacts (tested end-to-end) |
 | FR-42 Authority alerts | ✅ | `core::alert` — Ed25519-signed alerts with an **authenticated broadcast identity**, trusted-authority root store, key↔address binding, expiry (tested incl. spoof/tamper). External Cell-Broadcast *ingest* ○ |
-| FR-43 Location sharing | ✅ (send) | `NodeEngine::submit_location` delivers GPS coords (tested); periodic-interval scheduling is app-level |
+| FR-43 Location sharing | ✅ | `NodeEngine::submit_location` + **GUI share-location** (`POST /api/location`, browser geolocation) — verified delivered; periodic-interval scheduling is app-level |
 
 ## Security & anti-abuse (§8.9)
 | Req | State | Where |
@@ -89,7 +89,7 @@ is in [`GAPS.md`](GAPS.md).
 | FR-46 PoW postage | ✅ | `proto::pow` (Hashcash, difficulty by priority, SOS exempt); enforced at router admission; **flood-throttle AC proven** (`sim`) |
 | FR-47 Reputation gossip | ◐ | **`router::Reputation` (credit/penalize/pessimistic gossip-merge) demotes relays; `offer_to` routes around demoted black holes (never blocking SOS/direct delivery); demotion propagates mesh-wide — proven in `sim`.** Automatic black-hole *attribution* (custody-chain analysis) ○ |
 | FR-48 Endpoint moderation (block/blocklists) | ✅ | shared blocklist CRDT (`sync`) + **endpoint enforcement** (`NodeEngine` drops blocked senders — no inbox, no receipt; tested) |
-| FR-49 Onion metadata wrapping | ✅ (core) | `core::onion` build/peel — one SealedBox layer per relay; each hop learns only the next hop (tested: 2-hop reveals-only-next, off-path can't peel, tamper rejected). Engine forwarding path ○ |
+| FR-49 Onion metadata wrapping | ✅ | `core::onion` build/peel + the **engine forwarding path**: `submit_onion` builds the route, each relay peels one layer and re-seals to the next hop (buffering until the hop's key is learned), so no relay learns more than the next hop and the recipient sees only the last relay. Exposed as a "private send" in the node/GUI. Proven A→R1→R2→Bob end-to-end |
 
 ## Settings & platform (§8.10)
 | Req | State | Where |
@@ -125,7 +125,8 @@ is in [`GAPS.md`](GAPS.md).
 ## Application & self-hosting (new)
 | Capability | State | Where |
 |---|---|---|
-| Web GUI chat client (identity/invite, discovery, E2E chat, delivery ticks, live status) | ✅ | `lifeline-node` + `crates/node/web/index.html` |
+| Web GUI product (Messages + Network views; connect flow, contacts, mesh thread, lifecycle chips, live propagation dashboard) | ✅ | `lifeline-node` + `crates/node/web/index.html` |
+| Broadcast to the mesh (fan-out to every contact, propagated) | ✅ | `NodeEngine::broadcast_text` + `POST /api/broadcast` |
 | Zero-knowledge relay (internet fabric, ciphertext-only) | ✅ | `lifeline-relay` |
 | Real network transport | ✅ | `transport::ChannelInterface` + relay client |
 | In-GUI acceptance self-test | ✅ | `/api/selftest` runs the 3-cluster+mule scenario |
