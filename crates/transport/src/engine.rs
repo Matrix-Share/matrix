@@ -18,6 +18,7 @@ use lifeline_core::erasure::{fragment_bundle, FragmentCollector};
 use lifeline_core::group::{GroupEnvelope, GroupMessage, ReceiverKeyState, SenderKeyState};
 use lifeline_core::message::{open_bundle, seal_bundle, SealOptions};
 use lifeline_core::onion::{build_onion, peel_onion, Peeled};
+use lifeline_core::prekey::{verify_prekey, PrekeyRing};
 use lifeline_core::receipt::{make_delivery_receipt, verify_delivery};
 use lifeline_core::Identity;
 use lifeline_proto::codec::{b64url_decode, b64url_encode, from_cbor, to_cbor};
@@ -68,6 +69,13 @@ pub struct EngineConfig {
     pub gateway_caps: Vec<String>,
     /// Ticks between this gateway's own announce emissions.
     pub announce_interval: u64,
+    /// Ticks between forward-secret prekey rotations (FR-44). Must be large enough
+    /// that `prekey_retain` rotations cover the message TTL, so in-flight messages
+    /// still open. Default is large so short-lived sessions don't churn keys.
+    pub prekey_rotate_interval: u64,
+    /// How many recent prekeys to retain (their secrets kept for opening delayed
+    /// messages, then deleted for forward secrecy).
+    pub prekey_retain: usize,
 }
 
 impl Default for EngineConfig {
@@ -82,6 +90,8 @@ impl Default for EngineConfig {
             arq_max_rounds: crate::arq::DEFAULT_MAX_ROUNDS,
             gateway_caps: Vec::new(),
             announce_interval: 10,
+            prekey_rotate_interval: 86_400,
+            prekey_retain: 8,
         }
     }
 }
@@ -194,6 +204,11 @@ pub struct NodeEngine {
     /// Next tick at which we re-gossip known announces (throttled so a cache of
     /// announces isn't re-broadcast on every single tick).
     next_gossip: u64,
+    /// Forward-secret prekey ring (FR-44): rotating recipient keys we publish in
+    /// our beacon and open incoming messages against.
+    prekey_ring: PrekeyRing,
+    next_prekey_rotate: u64,
+    prekey_rotate_interval: u64,
     /// Content-addressed block store (FR-13): serves blocks by CID to peers.
     blocks: BlockStore,
     /// Manifests we are actively pulling blocks for, keyed by root CID.
@@ -235,6 +250,11 @@ impl NodeEngine {
             (cfg.retry_window, cfg.max_retries, cfg.respray_copies);
         let (arq_rto, arq_max_rounds) = (cfg.arq_rto, cfg.arq_max_rounds);
         let custody_role = cfg.custody_role;
+        // Start with one prekey so our very first beacon already advertises a
+        // forward-secret key.
+        let mut prekey_ring = PrekeyRing::new(cfg.prekey_retain);
+        prekey_ring.rotate();
+        let prekey_rotate_interval = cfg.prekey_rotate_interval.max(1);
         let gateway_caps = cfg.gateway_caps.clone();
         let announce_interval = cfg.announce_interval.max(1);
         let mut router = DtnRouter::new(public.id.clone(), cfg.router);
@@ -272,6 +292,9 @@ impl NodeEngine {
             next_announce: 0,
             announce_interval,
             next_gossip: 0,
+            prekey_ring,
+            next_prekey_rotate: prekey_rotate_interval,
+            prekey_rotate_interval,
             blocks: BlockStore::new(),
             pending_fetches: HashMap::new(),
             fetched: Vec::new(),
@@ -312,7 +335,8 @@ impl NodeEngine {
         now: u64,
     ) -> Bytes {
         let opts = SealOptions::normal(now).with_priority(priority);
-        let bundle = seal_bundle(&self.identity, to, &payload, &opts).expect("seal");
+        let recipient = self.fs_recipient(to);
+        let bundle = seal_bundle(&self.identity, &recipient, &payload, &opts).expect("seal");
         let id = bundle.bundle_id.clone();
         self.sent.push(SentRec {
             bundle_id: id.clone(),
@@ -323,6 +347,23 @@ impl NodeEngine {
         });
         self.originate(bundle, now);
         id
+    }
+
+    /// Forward secrecy (FR-44): if the recipient advertises a valid current prekey
+    /// (learned from a beacon), seal to it instead of their long-term key. A
+    /// prekey that doesn't self-verify or whose owner ≠ the recipient is ignored,
+    /// falling back to the long-term key — so a forged prekey can only cost
+    /// forward secrecy, never redirect the message.
+    fn fs_recipient(&self, to: &IdentityPublic) -> IdentityPublic {
+        if let Some(pk) = &to.prekey {
+            if pk.owner == to.id && verify_prekey(pk).is_ok() {
+                let mut r = to.clone();
+                r.kex_pub = pk.kex_pub.clone();
+                r.prekey = None; // the sealed recipient record needn't carry it
+                return r;
+            }
+        }
+        to.clone()
     }
 
     /// Inject a bundle this node *originated* into the mesh, remembering its id
@@ -908,6 +949,10 @@ impl NodeEngine {
 
     /// One scheduler step: advertise, receive, and offer over every interface.
     pub fn tick(&mut self, now: u64) {
+        if now >= self.next_prekey_rotate {
+            self.prekey_ring.rotate();
+            self.next_prekey_rotate = now + self.prekey_rotate_interval;
+        }
         self.gateway_round(now);
         self.advertise_and_receive(now);
         self.forward_pending_onions(now);
@@ -1031,9 +1076,12 @@ impl NodeEngine {
 
     fn advertise_and_receive(&mut self, now: u64) {
         // Beacon carries our gateway status + current gradient so neighbours can
-        // route bundles *downhill* toward the nearest gateway (FR-29/FR-36).
+        // route bundles *downhill* toward the nearest gateway (FR-29/FR-36), plus
+        // our current forward-secret prekey so senders seal to it (FR-44).
+        let mut beacon_id = self.public.clone();
+        beacon_id.prekey = self.prekey_ring.publish(&self.identity);
         let beacon = to_cbor(&Beacon {
-            id: self.public.clone(),
+            id: beacon_id,
             gw: self.router.is_gateway(),
             grad: self.router.gradient(now),
         })
@@ -1188,7 +1236,16 @@ impl NodeEngine {
                                 gradient: b.grad,
                             },
                         );
-                        self.contacts.entry(b.id.id.clone()).or_insert(b.id);
+                        match self.contacts.entry(b.id.id.clone()) {
+                            std::collections::hash_map::Entry::Occupied(mut e) => {
+                                // Learn the peer's *current* prekey on each beacon
+                                // (its long-term keys stay TOFU-fixed).
+                                e.get_mut().prekey = b.id.prekey;
+                            }
+                            std::collections::hash_map::Entry::Vacant(e) => {
+                                e.insert(b.id);
+                            }
+                        }
                     }
                 }
             }
@@ -1286,8 +1343,14 @@ impl NodeEngine {
             }
             return;
         }
-        let Ok(opened) = open_bundle(&self.identity, &bundle) else {
-            return;
+        // Open with our long-term key; if that fails, the sender may have sealed
+        // to one of our rotating forward-secret prekeys — try the ring (FR-44).
+        let opened = match open_bundle(&self.identity, &bundle) {
+            Ok(o) => o,
+            Err(_) => match self.prekey_ring.open_bundle(&self.public.id, &bundle) {
+                Some(o) => o,
+                None => return,
+            },
         };
         if opened.payload.kind == lifeline_proto::PayloadKind::Receipt {
             self.process_receipt(opened);

@@ -22,8 +22,7 @@ use crate::crypto::{SealedBox, SecureChannel};
 use crate::identity::{address_of, verify_sig, Identity};
 use crate::{CoreError, Result};
 use lifeline_proto::codec::to_cbor;
-use lifeline_proto::{Address, Bytes};
-use serde::{Deserialize, Serialize};
+use lifeline_proto::{Address, Bytes, SignedPrekey};
 use std::collections::VecDeque;
 use x25519_dalek::{PublicKey as XPublic, StaticSecret as XSecret};
 
@@ -32,19 +31,6 @@ const PREKEY_SIGN_DOMAIN: &[u8] = b"lifeline/v1/prekey";
 const PREKEY_INFO: &[u8] = b"lifeline/v1/prekey-seal";
 const PREKEY_AD: &[u8] = b"lifeline/prekey";
 
-/// A published, signed prekey. Senders verify it against the owner's identity key
-/// (known via TOFU/QR), then seal messages to `kex_pub` for forward secrecy.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SignedPrekey {
-    pub owner: Address,
-    /// Rotation counter — higher is newer.
-    pub epoch: u64,
-    /// The prekey's X25519 public key.
-    pub kex_pub: Bytes,
-    /// Owner's Ed25519 signature over `(owner, epoch, kex_pub)`.
-    pub sig: Bytes,
-}
-
 fn prekey_signing_bytes(owner: &Address, epoch: u64, kex_pub: &Bytes) -> Vec<u8> {
     let mut m = Vec::with_capacity(PREKEY_SIGN_DOMAIN.len() + 32);
     m.extend_from_slice(PREKEY_SIGN_DOMAIN);
@@ -52,35 +38,24 @@ fn prekey_signing_bytes(owner: &Address, epoch: u64, kex_pub: &Bytes) -> Vec<u8>
     m
 }
 
-impl SignedPrekey {
-    /// Verify this prekey is authentic: the signature is valid under
-    /// `owner_sign_pub` and that key binds to the claimed `owner` address.
-    pub fn verify(&self, owner_sign_pub: &[u8]) -> Result<()> {
-        if address_of(owner_sign_pub)? != self.owner {
-            return Err(CoreError::Log("prekey owner key mismatch".into()));
-        }
-        verify_sig(
-            owner_sign_pub,
-            &prekey_signing_bytes(&self.owner, self.epoch, &self.kex_pub),
-            self.sig.as_slice(),
-        )
+/// Verify a prekey **self-containedly**: its embedded `sign_pub` binds to the
+/// claimed `owner` address, and the signature is valid under it.
+pub fn verify_prekey(pk: &SignedPrekey) -> Result<()> {
+    if address_of(pk.sign_pub.as_slice())? != pk.owner {
+        return Err(CoreError::Log("prekey owner key mismatch".into()));
     }
-
-    fn public(&self) -> Result<XPublic> {
-        crate::crypto::x25519_pub_from_slice(self.kex_pub.as_slice())
-    }
+    verify_sig(
+        pk.sign_pub.as_slice(),
+        &prekey_signing_bytes(&pk.owner, pk.epoch, &pk.kex_pub),
+        pk.sig.as_slice(),
+    )
 }
 
-/// Seal `plaintext` to a verified recipient prekey (forward-secret path). The
-/// caller supplies the recipient's identity signing key to authenticate the
-/// prekey first, so a MITM cannot substitute their own.
-pub fn seal_to_prekey(
-    prekey: &SignedPrekey,
-    owner_sign_pub: &[u8],
-    plaintext: &[u8],
-) -> Result<Vec<u8>> {
-    prekey.verify(owner_sign_pub)?;
-    let pk = prekey.public()?;
+/// Seal `plaintext` to a verified recipient prekey (forward-secret path). Rejects
+/// a prekey that isn't self-consistent, so a MITM can't substitute their own.
+pub fn seal_to_prekey(prekey: &SignedPrekey, plaintext: &[u8]) -> Result<Vec<u8>> {
+    verify_prekey(prekey)?;
+    let pk = crate::crypto::x25519_pub_from_slice(prekey.kex_pub.as_slice())?;
     Ok(SealedBox::seal(&pk, PREKEY_AD, plaintext, PREKEY_INFO))
 }
 
@@ -121,8 +96,8 @@ impl PrekeyRing {
         self.secrets.back().map(|(_, s)| XPublic::from(s))
     }
 
-    /// Publish the current prekey as a signed record for distribution. Returns
-    /// `None` if the ring is empty (call [`PrekeyRing::rotate`] first).
+    /// Publish the current prekey as a signed, self-verifying record for
+    /// distribution. Returns `None` if the ring is empty (rotate first).
     pub fn publish(&self, owner: &Identity) -> Option<SignedPrekey> {
         let (epoch, secret) = self.secrets.back()?;
         let kex_pub = Bytes::new(XPublic::from(secret).as_bytes().to_vec());
@@ -131,6 +106,7 @@ impl PrekeyRing {
             owner: owner.address().clone(),
             epoch: *epoch,
             kex_pub,
+            sign_pub: Bytes::new(owner.verifying_key().as_bytes().to_vec()),
             sig,
         })
     }
@@ -146,6 +122,23 @@ impl PrekeyRing {
             }
         }
         Err(CoreError::Decrypt)
+    }
+
+    /// Try to open a sealed [`Bundle`] a sender addressed to one of our recent
+    /// prekeys, with each retained prekey secret (newest first). The bundle's
+    /// `dst` is still our long-term address (the prekey only swaps the encryption
+    /// key), so we pass that plus each candidate secret to the message opener.
+    pub fn open_bundle(
+        &self,
+        recipient_addr: &lifeline_proto::Address,
+        bundle: &lifeline_proto::Bundle,
+    ) -> Option<crate::message::Opened> {
+        for (_, secret) in self.secrets.iter().rev() {
+            if let Ok(o) = crate::message::open_bundle_kex(recipient_addr, secret, bundle) {
+                return Some(o);
+            }
+        }
+        None
     }
 
     /// Number of retained prekeys (diagnostics/tests).
@@ -170,13 +163,15 @@ mod tests {
         ring.rotate();
         let pk = ring.publish(&bob).unwrap();
 
-        assert!(pk.verify(bob.verifying_key().as_bytes()).is_ok());
-        // Wrong signer.
-        assert!(pk.verify(eve.verifying_key().as_bytes()).is_err());
-        // Tampered key.
+        assert!(verify_prekey(&pk).is_ok());
+        // A prekey whose embedded sign_pub doesn't match its owner is rejected.
+        let mut forged = pk.clone();
+        forged.sign_pub = Bytes::new(eve.verifying_key().as_bytes().to_vec());
+        assert!(verify_prekey(&forged).is_err());
+        // Tampered key → signature no longer matches.
         let mut tampered = pk.clone();
         tampered.kex_pub = Bytes::new(vec![9; 32]);
-        assert!(tampered.verify(bob.verifying_key().as_bytes()).is_err());
+        assert!(verify_prekey(&tampered).is_err());
     }
 
     #[test]
@@ -189,8 +184,7 @@ mod tests {
         let pk1 = ring.publish(&bob).unwrap();
 
         // Alice seals a message to prekey 1.
-        let ct1 =
-            seal_to_prekey(&pk1, bob.verifying_key().as_bytes(), b"the drop is at noon").unwrap();
+        let ct1 = seal_to_prekey(&pk1, b"the drop is at noon").unwrap();
         assert_eq!(ring.open(&ct1).unwrap(), b"the drop is at noon");
 
         // Bob rotates; prekey 1's secret is deleted.
@@ -206,8 +200,53 @@ mod tests {
         );
 
         // A message to the current prekey still opens.
-        let ct2 = seal_to_prekey(&pk2, bob.verifying_key().as_bytes(), b"still here").unwrap();
+        let ct2 = seal_to_prekey(&pk2, b"still here").unwrap();
         assert_eq!(ring.open(&ct2).unwrap(), b"still here");
+    }
+
+    #[test]
+    fn forward_secret_bundle_opens_via_ring_only() {
+        use crate::message::{open_bundle, seal_bundle, SealOptions};
+        use lifeline_proto::{Payload, PayloadKind};
+
+        let alice = Identity::generate(0);
+        let bob = Identity::generate(0);
+        let mut ring = PrekeyRing::new(2);
+        ring.rotate();
+        let pk = ring.publish(&bob).unwrap();
+        assert!(verify_prekey(&pk).is_ok());
+
+        // Alice seals a real bundle to Bob's *prekey* (recipient record with the
+        // prekey as its encryption key) — exactly what the engine does.
+        let mut recip = bob.public();
+        recip.kex_pub = pk.kex_pub.clone();
+        let payload = Payload {
+            kind: PayloadKind::Text,
+            body: Some("meet at dawn".into()),
+            coords: None,
+            battery_pct: None,
+            attach: None,
+            group_id: None,
+        };
+        let bundle = seal_bundle(&alice, &recip, &payload, &SealOptions::normal(0)).unwrap();
+
+        // Bob's long-term key cannot open it (it was sealed to the prekey)...
+        assert!(open_bundle(&bob, &bundle).is_err());
+        // ...but the prekey ring opens it and still authenticates Alice.
+        let opened = ring
+            .open_bundle(bob.address(), &bundle)
+            .expect("ring opens FS bundle");
+        assert_eq!(opened.payload.body.as_deref(), Some("meet at dawn"));
+        assert_eq!(&opened.sender.id, alice.address());
+
+        // Once rotations prune that prekey, the message is unrecoverable — forward
+        // secrecy even against seizure of Bob's long-term identity key.
+        ring.rotate();
+        ring.rotate();
+        assert!(
+            ring.open_bundle(bob.address(), &bundle).is_none(),
+            "a pruned prekey must make the sealed bundle unrecoverable"
+        );
     }
 
     #[test]
@@ -218,8 +257,7 @@ mod tests {
         let mut ring = PrekeyRing::new(3);
         ring.rotate();
         let pk_old = ring.publish(&bob).unwrap();
-        let ct =
-            seal_to_prekey(&pk_old, bob.verifying_key().as_bytes(), b"delayed mule msg").unwrap();
+        let ct = seal_to_prekey(&pk_old, b"delayed mule msg").unwrap();
 
         ring.rotate();
         ring.rotate(); // pk_old is still within the retain=3 window

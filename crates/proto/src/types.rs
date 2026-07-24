@@ -70,6 +70,27 @@ pub struct IdentityPublic {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
     pub created_at: u64,
+    /// Current forward-secret prekey (FR-44), signed by this identity. A sender
+    /// that has heard a fresh beacon seals to this rotating key instead of the
+    /// long-term `kex_pub`, so a later key compromise can't recover the message.
+    /// Absent for peers that don't advertise one (falls back to `kex_pub`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prekey: Option<SignedPrekey>,
+}
+
+/// A published, forward-secret prekey (`core::prekey`). Carries the owner's
+/// signing key so it is self-verifying; the signing/rotation logic is in `core`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignedPrekey {
+    pub owner: Address,
+    /// Rotation counter — higher is newer.
+    pub epoch: u64,
+    /// The prekey's X25519 public key.
+    pub kex_pub: Bytes,
+    /// Owner's Ed25519 verifying key (binds to `owner`; makes this self-verifying).
+    pub sign_pub: Bytes,
+    /// Owner's signature over `(owner, epoch, kex_pub)`.
+    pub sig: Bytes,
 }
 
 /// The message envelope carried by relays (PRD §11.2). Everything a relay needs

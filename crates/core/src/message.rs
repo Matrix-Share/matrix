@@ -226,18 +226,31 @@ pub struct Opened {
 ///    anti-impersonation check (a MITM cannot forge it, FR-6 AC).
 /// 3. Decrypt the payload.
 pub fn open_bundle(recipient: &Identity, bundle: &Bundle) -> Result<Opened> {
+    open_bundle_kex(recipient.address(), recipient.kex_secret(), bundle)
+}
+
+/// Open a bundle using an explicit X25519 secret rather than the identity's
+/// long-term key. This is how the recipient opens a message a sender sealed to
+/// one of its **rotating forward-secret prekeys** — the address is unchanged
+/// (the prekey only swaps the encryption key), so the caller tries each retained
+/// prekey secret (see [`crate::prekey::PrekeyRing::open_bundle`]).
+pub(crate) fn open_bundle_kex(
+    recipient_addr: &Address,
+    kex_secret: &x25519_dalek::StaticSecret,
+    bundle: &Bundle,
+) -> Result<Opened> {
     if bundle.v != WIRE_VERSION {
         return Err(CoreError::Codec(lifeline_proto::CodecError::Decode(
             format!("unsupported wire version {}", bundle.v),
         )));
     }
-    if &bundle.dst != recipient.address() {
+    if &bundle.dst != recipient_addr {
         return Err(CoreError::Decrypt); // not for us
     }
 
     // 1. Unseal sender identity.
     let sender_auth_bytes = SealedBox::open(
-        recipient.kex_secret(),
+        kex_secret,
         bundle.bundle_id.as_slice(),
         bundle.src_sealed.as_slice(),
         INFO_SENDER,
@@ -265,7 +278,7 @@ pub fn open_bundle(recipient: &Identity, bundle: &Bundle) -> Result<Opened> {
 
     // 3. Decrypt payload, then undo the pre-encryption compression framing.
     let framed = SealedBox::open(
-        recipient.kex_secret(),
+        kex_secret,
         bundle.bundle_id.as_slice(),
         bundle.ciphertext.as_slice(),
         INFO_MSG,
@@ -280,6 +293,7 @@ pub fn open_bundle(recipient: &Identity, bundle: &Bundle) -> Result<Opened> {
             kex_pub: sender_auth.kex_pub,
             display_name: sender_auth.display_name,
             created_at: 0,
+            prekey: None,
         },
         payload,
     })

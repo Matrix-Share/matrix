@@ -132,6 +132,9 @@ impl Identity {
             kex_pub: Bytes::new(self.kex_public().as_bytes().to_vec()),
             display_name: self.display_name.clone(),
             created_at: self.created_at,
+            // The long-term record carries no prekey; a node's engine injects its
+            // current rotating prekey into its beacon (forward secrecy).
+            prekey: None,
         }
     }
 

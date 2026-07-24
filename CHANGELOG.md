@@ -65,8 +65,12 @@ surface) and hardened it:
   which a seized long-term key can't recover those messages. Proven: after
   rotation+prune an old ciphertext is unrecoverable while a current one opens; a
   message within the retention window still delivers; forged prekeys are rejected.
-  (Core mechanism; distributing prekeys via signed beacons + the seal/open
-  selection path is the remaining engine wiring.)
+  **Now wired end-to-end in the live node**: a node rotates a `PrekeyRing`,
+  advertises its current signed prekey in its beacon, senders seal to a contact's
+  verified prekey (falling back to the long-term key otherwise — a forged prekey
+  can only cost forward secrecy, never redirect a message), and the recipient
+  opens via the ring. Proven end-to-end (message + receipt delivered over the
+  prekey path). Follow-up: persist the ring across node restart.
 - **Gateway-awareness in the live node** (FR-35/36/37): a node can run as a
   **gateway** (`LIFELINE_GATEWAY`), emitting signed announces (`core::announce`,
   verified when the gateway is a known contact) gossiped hop-by-hop so every node
