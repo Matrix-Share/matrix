@@ -7,6 +7,22 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Gateway-awareness in the live node** (FR-35/36/37): a node can run as a
+  **gateway** (`LIFELINE_GATEWAY`), emitting signed announces (`core::announce`,
+  verified when the gateway is a known contact) gossiped hop-by-hop so every node
+  builds a **gradient** toward the nearest gateway; beacons now carry gateway
+  flag + gradient so `offer_round` routes the last copy *downhill*, and a gateway
+  **bridges** mesh bundles onto every off-mesh uplink. Proven: gradient forms
+  0→1→2 along a mesh line, and a mesh-only node's message escapes to an off-mesh
+  destination reachable only via the gateway. Surfaced in the GUI (gateway badge
+  + gradient).
+- **Bandwidth-adaptive routing** ("straw, not a firehose"): **payload
+  compression** (`core::compress`, DEFLATE applied to the plaintext *before*
+  encryption, kept only when smaller — shrinks every sealed bundle) and
+  **adaptive bearer selection** (`router::offer_to` holds bulky NORMAL/BULK
+  bundles off low-throughput links via a per-bearer `soft_max_bytes` so they wait
+  for a fatter bearer; SOS/ALERT and final-hop delivery always pass). Tested over
+  ultrasound vs internet.
 - **Lossy-link ARQ / selective repeat** (`transport::arq`, Dhwani noise
   robustness): unicast bundle frames are now retransmitted until acknowledged.
   The sender blasts once then re-sends only unacked fragments on an RTO timer;

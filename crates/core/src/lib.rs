@@ -26,6 +26,8 @@
 //! seam rather than shipping a ratchet that breaks under DTN conditions.
 
 pub mod alert;
+pub mod announce;
+pub mod compress;
 pub mod content;
 pub mod crypto;
 pub mod erasure;

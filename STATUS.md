@@ -25,7 +25,7 @@ is in [`GAPS.md`](GAPS.md).
 |---|---|---|
 | FR-6 Add contact by QR TOFU (MITM-resistant) | ◐ | crypto binding + header-sig verify done; **QR displayed for in-person exchange** + paste-code add; camera *scanning* needs a device (○) |
 | FR-7 BLE/Wi-Fi-Aware advertisement discovery | ◐ | beacon-based peer discovery works over the transport (`NodeEngine`, proven over the relay in `lifeline-node`); BLE/NAN *backend* ○ |
-| FR-8 DHT online / gossip announces offline | ◐ | signed gateway announces + gradient done; Kademlia DHT ○ |
+| FR-8 DHT online / gossip announces offline | ◐ | signed gateway announces + gradient now **propagate live in `NodeEngine`**: gateways emit signed announces, nodes gossip them hop-by-hop and build a gradient toward the nearest gateway (announce sig verified when the gateway is a known contact); proven forming 0→1→2 along a mesh line. Kademlia DHT (online) ○ |
 | FR-9 Contact store | ✅ | contact directory **persisted encrypted** across restarts (`core::vault` + node); verification-state field in `proto::Contact` |
 
 ## Messaging (§8.3)
@@ -67,9 +67,9 @@ is in [`GAPS.md`](GAPS.md).
 ## Gateway node (§8.7)
 | Req | State | Where |
 |---|---|---|
-| FR-35 Toggle gateway mode | ✅ | `router::set_gateway` |
+| FR-35 Toggle gateway mode | ✅ | `router::set_gateway`, now driveable in the live node via `LIFELINE_GATEWAY` (emits announces + bridges); surfaced in the GUI (gateway badge + gradient) |
 | FR-36 Signed gateway announce | ✅ | `proto::GatewayAnnounce` + `sim::make_announce` |
-| FR-37 Bridge bundles to internet/LoRa | ◐ | internet bridge ✅ (`sim` fabric); LoRa ○ |
+| FR-37 Bridge bundles to internet/LoRa | ✅ (internet) | **gateway bridging wired into the live engine**: a gateway routes the mesh downhill to itself (gradient) and pushes bundles onto every off-mesh uplink (`bridges_offmesh`) — proven with a mesh-only node's message escaping to an **off-mesh destination** reachable only via the gateway, receipt returning. LoRa radio backend ○ |
 | FR-38 Gateways handle ciphertext only | ✅ | router never decrypts; treats payload as opaque |
 | FR-39 Web gateway console | ◐ | **`lifeline-node` serves a two-view web product** (theme-aware) over HTTP/WS — **Messages** (connect flow, contacts, pinned mesh thread, per-message lifecycle chips) + **Network** dashboard (stat tiles, broadcast-to-mesh, SOS/safe, live propagation activity feed, peer list, in-GUI self-test); LoRa-over-Web-Serial console ○ |
 
@@ -127,6 +127,8 @@ is in [`GAPS.md`](GAPS.md).
 |---|---|---|
 | Web GUI product (Messages + Network views; connect flow, contacts, mesh thread, lifecycle chips, live propagation dashboard) | ✅ | `lifeline-node` + `crates/node/web/index.html` |
 | Broadcast to the mesh (fan-out to every contact, propagated) | ✅ | `NodeEngine::broadcast_text` + `POST /api/broadcast` |
+| Payload compression (pre-encryption, DEFLATE, keep-smaller) | ✅ | `core::compress` framed into `seal_bundle`/`open_bundle` — shrinks every sealed bundle on scarce bearers; never inflates |
+| Bandwidth-adaptive bearer selection ("straw, not a firehose") | ✅ | `router::offer_to` holds bulky NORMAL/BULK bundles off low-throughput links (per-bearer `soft_max_bytes`) so they wait for a fatter bearer; SOS/ALERT + final-hop always pass (tested over ultrasound vs internet) |
 | Zero-knowledge relay (internet fabric, ciphertext-only) | ✅ | `lifeline-relay` |
 | Real network transport | ✅ | `transport::ChannelInterface` + relay client |
 | In-GUI acceptance self-test | ✅ | `/api/selftest` runs the 3-cluster+mule scenario |

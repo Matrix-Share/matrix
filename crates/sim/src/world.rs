@@ -6,8 +6,8 @@ use lifeline_core::receipt::{make_delivery_receipt, verify_delivery};
 use lifeline_core::{message::open_bundle, HashLog, Identity};
 use lifeline_proto::codec::{b64url_decode, b64url_encode, from_cbor, to_cbor};
 use lifeline_proto::{
-    Address, Bundle, Bytes, DeliveryReceipt, GatewayAnnounce, IdentityPublic, LogEvent, Payload,
-    PayloadKind, Priority,
+    Address, Bundle, Bytes, DeliveryReceipt, IdentityPublic, LogEvent, Payload, PayloadKind,
+    Priority,
 };
 use lifeline_router::{DtnRouter, IngestOutcome, PeerInfo, RouterConfig};
 use lifeline_sync::SharedState;
@@ -343,7 +343,13 @@ impl World {
             if !n.is_gateway {
                 continue;
             }
-            let announce = make_announce(&n.identity, &n.caps, seq, now);
+            let announce = lifeline_core::announce::make_gateway_announce(
+                &n.identity,
+                &n.caps,
+                0.3,
+                seq,
+                now + ANNOUNCE_TTL_S,
+            );
             n.router.observe_announce(announce, 0, now);
         }
     }
@@ -420,6 +426,9 @@ impl World {
             is_gateway: n.is_gateway,
             gradient: n.router.gradient(self.now),
             known: n.router.known_ids(),
+            // The sim models opportunistic contacts abstractly, not per-bearer
+            // bandwidth, so it imposes no bearer size cap.
+            soft_max_bytes: None,
         }
     }
 
@@ -690,22 +699,4 @@ impl World {
             .iter()
             .all(|n| n.state.members(group) == baseline)
     }
-}
-
-/// Build a signed gateway announce for the sim (router trusts announces in
-/// Phase 1; signature verification is L6/Phase 3 anti-abuse).
-fn make_announce(identity: &Identity, caps: &[String], seq: u64, now: u64) -> GatewayAnnounce {
-    let mut a = GatewayAnnounce {
-        gateway: identity.address().clone(),
-        caps: caps.to_vec(),
-        load_q: GatewayAnnounce::from_load(0.3),
-        seq,
-        expires_at: now + ANNOUNCE_TTL_S,
-        sig: Bytes::default(),
-    };
-    // Sign over the canonical announce fields (excluding sig).
-    let signing =
-        to_cbor(&(&a.gateway, &a.caps, a.load_q, a.seq, a.expires_at)).expect("cbor announce");
-    a.sig = identity.sign(&signing);
-    a
 }

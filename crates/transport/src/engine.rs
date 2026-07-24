@@ -9,8 +9,10 @@
 //! in-memory interfaces for real radios and nothing else changes.
 
 use crate::arq::{ArqRx, ArqTx};
+use crate::caps::ThroughputClass;
 use crate::frame::{Fragmenter, Frame, FrameKind};
 use crate::interface::{Interface, PeerId};
+use lifeline_core::announce::{make_gateway_announce, verify_gateway_announce};
 use lifeline_core::content::{chunk, cid_of, BlockStore, Manifest, DEFAULT_BLOCK_SIZE};
 use lifeline_core::erasure::{fragment_bundle, FragmentCollector};
 use lifeline_core::group::{GroupEnvelope, GroupMessage, ReceiverKeyState, SenderKeyState};
@@ -20,11 +22,12 @@ use lifeline_core::receipt::{make_delivery_receipt, verify_delivery};
 use lifeline_core::Identity;
 use lifeline_proto::codec::{b64url_decode, b64url_encode, from_cbor, to_cbor};
 use lifeline_proto::{
-    Address, AttachChunk, Bundle, Bytes, Coords, DeliveryReceipt, IdentityPublic, Payload,
-    PayloadKind, Priority,
+    Address, AttachChunk, Bundle, Bytes, Coords, DeliveryReceipt, GatewayAnnounce, IdentityPublic,
+    Payload, PayloadKind, Priority,
 };
 use lifeline_router::{DtnRouter, IngestOutcome, PeerInfo, RouterConfig};
 use lifeline_sync::SharedState;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 /// How this node participates in custody transfer (FR-25).
@@ -59,6 +62,12 @@ pub struct EngineConfig {
     pub arq_rto: u64,
     /// ARQ retransmit rounds per message before giving up (DTN re-spray backs it).
     pub arq_max_rounds: u16,
+    /// If non-empty, this node is a **gateway** with these capabilities (e.g.
+    /// `["internet"]`, FR-35): it emits signed announces so the mesh builds a
+    /// gradient toward it, and it bridges mesh bundles onto its uplink (FR-37).
+    pub gateway_caps: Vec<String>,
+    /// Ticks between this gateway's own announce emissions.
+    pub announce_interval: u64,
 }
 
 impl Default for EngineConfig {
@@ -71,7 +80,44 @@ impl Default for EngineConfig {
             respray_copies: 6,
             arq_rto: crate::arq::DEFAULT_RTO,
             arq_max_rounds: crate::arq::DEFAULT_MAX_ROUNDS,
+            gateway_caps: Vec::new(),
+            announce_interval: 10,
         }
+    }
+}
+
+/// Node presence beacon (FR-7): identity plus enough routing hints for a
+/// neighbour to decide whether handing us a bundle moves it *toward* a gateway.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Beacon {
+    id: IdentityPublic,
+    /// Is the beaconing node itself a gateway?
+    gw: bool,
+    /// The node's current gradient (hops to nearest gateway), if any.
+    grad: Option<u16>,
+}
+
+/// What we've learned about a neighbour from its beacon, used to route downhill.
+#[derive(Debug, Clone, Default)]
+struct PeerMeta {
+    is_gateway: bool,
+    gradient: Option<u16>,
+}
+
+/// Bandwidth-adaptive routing: the largest NORMAL/BULK bundle a bearer of this
+/// throughput class should carry before we make it wait for a fatter link
+/// (gateway doc §4 — "the app is asynchronous-first, compressed, and
+/// priority-aware, so the straw is never wasted"). `None` = no limit.
+fn bearer_soft_cap(t: ThroughputClass) -> Option<u64> {
+    match t {
+        // Ultrasound/optical: only short texts, receipts, SOS trickle through.
+        ThroughputClass::VeryLow => Some(512),
+        // BLE / LoRa: modest messages; large attachments wait.
+        ThroughputClass::Low => Some(16 * 1024),
+        // Wi-Fi Aware: generous, but still not a bulk firehose for chatter.
+        ThroughputClass::Medium => Some(256 * 1024),
+        // Internet uplink: no limit.
+        ThroughputClass::High => None,
     }
 }
 
@@ -136,6 +182,15 @@ pub struct NodeEngine {
     /// Bundle ids this node *originated* (our own messages, receipts, fragments).
     /// We never release these on custody — only relayed copies carried for others.
     origin_ids: HashSet<Bytes>,
+    /// Routing hints learned from each neighbour's beacon (gateway flag +
+    /// gradient), keyed like `peer_addr`.
+    peer_meta: HashMap<(usize, PeerId), PeerMeta>,
+    /// This node's gateway capabilities (empty = not a gateway).
+    gateway_caps: Vec<String>,
+    /// Monotonic announce freshness counter + next-emit schedule (gateways only).
+    announce_seq: u64,
+    next_announce: u64,
+    announce_interval: u64,
     /// Content-addressed block store (FR-13): serves blocks by CID to peers.
     blocks: BlockStore,
     /// Manifests we are actively pulling blocks for, keyed by root CID.
@@ -156,6 +211,10 @@ struct PendingFetch {
 /// Ticks between re-requesting still-missing blocks of a pending fetch.
 const BLOCK_REREQUEST: u64 = 15;
 
+/// How long a gateway announce stays fresh (must exceed `announce_interval` so a
+/// gateway's gradient doesn't lapse between emissions).
+const ANNOUNCE_TTL_S: u64 = 300;
+
 /// Per-group sending state (FR-12).
 struct GroupState {
     sender_key: SenderKeyState,
@@ -169,7 +228,12 @@ impl NodeEngine {
             (cfg.retry_window, cfg.max_retries, cfg.respray_copies);
         let (arq_rto, arq_max_rounds) = (cfg.arq_rto, cfg.arq_max_rounds);
         let custody_role = cfg.custody_role;
-        let router = DtnRouter::new(public.id.clone(), cfg.router);
+        let gateway_caps = cfg.gateway_caps.clone();
+        let announce_interval = cfg.announce_interval.max(1);
+        let mut router = DtnRouter::new(public.id.clone(), cfg.router);
+        if !gateway_caps.is_empty() {
+            router.set_gateway(gateway_caps.clone());
+        }
         let state = SharedState::new(public.id.clone());
         NodeEngine {
             identity,
@@ -195,6 +259,11 @@ impl NodeEngine {
             arq_max_rounds,
             custody_role,
             origin_ids: HashSet::new(),
+            peer_meta: HashMap::new(),
+            gateway_caps,
+            announce_seq: 0,
+            next_announce: 0,
+            announce_interval,
             blocks: BlockStore::new(),
             pending_fetches: HashMap::new(),
             fetched: Vec::new(),
@@ -810,6 +879,7 @@ impl NodeEngine {
 
     /// One scheduler step: advertise, receive, and offer over every interface.
     pub fn tick(&mut self, now: u64) {
+        self.gateway_round(now);
         self.advertise_and_receive(now);
         self.forward_pending_onions(now);
         self.retry_fetches(now);
@@ -817,6 +887,50 @@ impl NodeEngine {
         self.arq_pump(now);
         self.retry_unverified(now);
         self.router.tick(now);
+    }
+
+    /// FR-36/FR-37: if we're a gateway, periodically emit our own signed announce
+    /// (so the mesh forms a gradient toward us) and push mesh-originated bundles
+    /// onto every off-mesh uplink so they escape to the wider network.
+    fn gateway_round(&mut self, now: u64) {
+        if !self.router.is_gateway() {
+            return;
+        }
+        if now >= self.next_announce {
+            self.announce_seq += 1;
+            let ann = make_gateway_announce(
+                &self.identity,
+                &self.gateway_caps,
+                0.3,
+                self.announce_seq,
+                now + ANNOUNCE_TTL_S,
+            );
+            self.router.observe_announce(ann, 0, now);
+            self.next_announce = now + self.announce_interval;
+        }
+        // Bridge bundles onto uplinks (internet/LoRa). Best-effort broadcast — the
+        // DTN store keeps a copy, so a lost frame is retried by the normal offer.
+        let bridged = self.router.drain_bridge();
+        if bridged.is_empty() {
+            return;
+        }
+        for p in 0..self.ports.len() {
+            if !self.ports[p].iface.caps().bridges_offmesh {
+                continue;
+            }
+            let usable = self.ports[p].iface.caps().usable_mtu();
+            for b in &bridged {
+                let Ok(bytes) = to_cbor(b) else { continue };
+                let mid = self.next_mid();
+                if let Ok(frames) = Fragmenter::fragment(FrameKind::Bundle, mid, &bytes, usable) {
+                    for f in &frames {
+                        if let Ok(enc) = f.encode() {
+                            let _ = self.ports[p].iface.broadcast(&enc);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// FR-49: forward any buffered onion layers whose next hop we now know (its
@@ -887,7 +1001,16 @@ impl NodeEngine {
     }
 
     fn advertise_and_receive(&mut self, now: u64) {
-        let beacon = to_cbor(&self.public).expect("cbor beacon");
+        // Beacon carries our gateway status + current gradient so neighbours can
+        // route bundles *downhill* toward the nearest gateway (FR-29/FR-36).
+        let beacon = to_cbor(&Beacon {
+            id: self.public.clone(),
+            gw: self.router.is_gateway(),
+            grad: self.router.gradient(now),
+        })
+        .expect("cbor beacon");
+        // Announces to gossip onward this round (distances already incremented).
+        let announces = self.router.announces_to_gossip(now);
         for p in 0..self.ports.len() {
             // Advertise our identity beacon.
             let mid = self.next_mid();
@@ -896,6 +1019,21 @@ impl NodeEngine {
                 for f in &frames {
                     if let Ok(enc) = f.encode() {
                         let _ = self.ports[p].iface.broadcast(&enc);
+                    }
+                }
+            }
+            // Gossip each known gateway announce a few hops outward (FR-36).
+            for (ann, dist) in &announces {
+                if let Ok(bytes) = to_cbor(&(ann, dist)) {
+                    let mid = self.next_mid();
+                    if let Ok(frames) =
+                        Fragmenter::fragment(FrameKind::Announce, mid, &bytes, usable)
+                    {
+                        for f in &frames {
+                            if let Ok(enc) = f.encode() {
+                                let _ = self.ports[p].iface.broadcast(&enc);
+                            }
+                        }
                     }
                 }
             }
@@ -928,15 +1066,24 @@ impl NodeEngine {
         for p in 0..self.ports.len() {
             let peers = self.ports[p].iface.scan();
             let usable = self.ports[p].iface.caps().usable_mtu();
+            // Bandwidth-adaptive routing: over a low-throughput bearer, hold back
+            // bulky NORMAL/BULK bundles (they wait for a fatter link); SOS/ALERT
+            // and final-hop delivery always go (see `offer_to`).
+            let soft_max_bytes = bearer_soft_cap(self.ports[p].iface.caps().throughput);
             for peer in peers {
                 let Some(addr) = self.peer_addr.get(&(p, peer)).cloned() else {
                     continue; // haven't learned this peer's address yet
                 };
+                // Route with what the neighbour's beacon told us: is it a gateway,
+                // and is its gradient better than ours? (offer_to sends the last
+                // copy downhill toward a gateway.)
+                let meta = self.peer_meta.get(&(p, peer)).cloned().unwrap_or_default();
                 let peer_info = PeerInfo {
                     addr,
-                    is_gateway: false,
-                    gradient: None,
+                    is_gateway: meta.is_gateway,
+                    gradient: meta.gradient,
                     known: HashSet::new(),
+                    soft_max_bytes,
                 };
                 // Offer DTN bundles (spray-and-wait decisions inside).
                 let offers = self.router.offer_to(&peer_info, now);
@@ -991,9 +1138,21 @@ impl NodeEngine {
     ) {
         match kind {
             FrameKind::Beacon => {
-                if let Ok(pubid) = from_cbor::<IdentityPublic>(&payload) {
-                    self.peer_addr.insert((p, peer), pubid.id.clone());
-                    self.contacts.entry(pubid.id.clone()).or_insert(pubid);
+                if let Ok(b) = from_cbor::<Beacon>(&payload) {
+                    self.peer_addr.insert((p, peer), b.id.id.clone());
+                    self.peer_meta.insert(
+                        (p, peer),
+                        PeerMeta {
+                            is_gateway: b.gw,
+                            gradient: b.grad,
+                        },
+                    );
+                    self.contacts.entry(b.id.id.clone()).or_insert(b.id);
+                }
+            }
+            FrameKind::Announce => {
+                if let Ok((ann, dist)) = from_cbor::<(GatewayAnnounce, u16)>(&payload) {
+                    self.observe_announce(ann, dist, now);
                 }
             }
             FrameKind::Bundle => {
@@ -1010,6 +1169,19 @@ impl NodeEngine {
             // ACKs are intercepted before reassembly; they never reach here.
             FrameKind::Ack => {}
         }
+    }
+
+    /// Record a gossiped gateway announce (FR-36). If we know the announcing
+    /// gateway's key (it's a contact), we reject a forged announce; otherwise we
+    /// accept it to let the gradient propagate past nodes we haven't met, and the
+    /// reputation layer demotes a gateway that then black-holes traffic.
+    fn observe_announce(&mut self, ann: GatewayAnnounce, dist: u16, now: u64) {
+        if let Some(gw) = self.contacts.get(&ann.gateway) {
+            if verify_gateway_announce(&ann, gw.sign_pub.as_slice()).is_err() {
+                return;
+            }
+        }
+        self.router.observe_announce(ann, dist, now);
     }
 
     fn handle_ingest(&mut self, bundle: Bundle, src: Option<Address>, now: u64) {
@@ -1277,6 +1449,22 @@ impl NodeEngine {
     /// Whether this node currently stores a copy of `bundle_id` (tests/UI).
     pub fn holds_bundle(&self, bundle_id: &Bytes) -> bool {
         self.router.holds(bundle_id)
+    }
+
+    /// Whether this node is operating as a gateway (FR-35).
+    pub fn is_gateway(&self) -> bool {
+        self.router.is_gateway()
+    }
+
+    /// This node's current gradient — hops to the nearest known gateway, or
+    /// `None` if it knows of no gateway (FR-36). A gateway's own gradient is 0.
+    pub fn gradient(&self, now: u64) -> Option<u16> {
+        self.router.gradient(now)
+    }
+
+    /// Number of distinct gateways this node currently knows about.
+    pub fn known_gateways(&self) -> usize {
+        self.router.stats().known_gateways
     }
 
     /// Router diagnostics (queue depth, forwarded copies, drops…) — FR-53.

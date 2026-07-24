@@ -39,6 +39,9 @@ pub enum FrameKind {
     /// A selective-ACK control frame for lossy-link ARQ (see [`crate::arq`]).
     /// Always a single frame; its `data` carries the ACK's base + bitmap.
     Ack,
+    /// A gossiped gateway announce `(GatewayAnnounce, distance)` — lets nodes
+    /// build a gradient toward the nearest gateway (FR-36).
+    Announce,
 }
 
 impl FrameKind {
@@ -48,6 +51,7 @@ impl FrameKind {
             FrameKind::Bundle => 1,
             FrameKind::State => 2,
             FrameKind::Ack => 3,
+            FrameKind::Announce => 4,
         }
     }
     fn from_u8(v: u8) -> Option<FrameKind> {
@@ -56,6 +60,7 @@ impl FrameKind {
             1 => Some(FrameKind::Bundle),
             2 => Some(FrameKind::State),
             3 => Some(FrameKind::Ack),
+            4 => Some(FrameKind::Announce),
             _ => None,
         }
     }
