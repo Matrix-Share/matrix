@@ -418,7 +418,7 @@ function renderNetwork(){
   const s=state.status;
   $('tiles').innerHTML=
     tile('Peers in range',s.peer_count,'devices you can reach','◉','accent')+
-    tile('Gateways',s.known_gateways,'bridges to the internet','▲')+
+    tile('Gateways',s.known_gateways,s.is_gateway?'you are a gateway':(s.gradient!=null?s.gradient+' hop'+(s.gradient===1?'':'s')+' to nearest':'bridges to the internet'),'▲',s.is_gateway?'safe':'')+
     tile('Delivered',s.verified+' / '+s.sent,'verified receipts','✓✓','safe')+
     tile('Received',s.received,'messages to you','↘')+
     tile('Relayed copies',s.forwarded_copies,'carried for others','⇄')+

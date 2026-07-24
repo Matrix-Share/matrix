@@ -54,6 +54,12 @@ pub struct PeerInfo {
     pub gradient: Option<u16>,
     /// Bundle ids the peer already holds (anti-entropy — avoids re-sending).
     pub known: HashSet<Bytes>,
+    /// Bearer bandwidth hint (FR — "straw, not a firehose"): the max bundle size
+    /// this low-bandwidth link should carry for NORMAL/BULK traffic. A heavier
+    /// bundle is held back (not marked offered) so it can wait for a fatter
+    /// bearer; SOS/ALERT and final-hop delivery always bypass it. `None` = no
+    /// limit (a high-throughput link like Wi-Fi/internet).
+    pub soft_max_bytes: Option<u64>,
 }
 
 /// Aggregate counters for diagnostics (FR-53) and sim assertions.
@@ -259,6 +265,18 @@ impl DtnRouter {
             if peer_demoted && !peer_is_dst && stored.bundle.priority != Priority::Sos {
                 continue;
             }
+            // Bearer fit ("straw, not a firehose"): hold a bulky NORMAL/BULK
+            // bundle back from a low-bandwidth link so it waits for a fatter
+            // bearer. Emergencies (SOS/ALERT) and the final hop always go — and
+            // we do NOT mark it offered, so a better link can still carry it.
+            if let Some(cap) = peer.soft_max_bytes {
+                let prio = stored.bundle.priority;
+                let heavy = stored.size > cap;
+                let emergency = prio == Priority::Sos || prio == Priority::Alert;
+                if heavy && !peer_is_dst && !emergency {
+                    continue;
+                }
+            }
             let copies = stored.bundle.copies_left;
 
             let handed = if copies > 1 {
@@ -427,6 +445,7 @@ mod tests {
             is_gateway: false,
             gradient: None,
             known: HashSet::new(),
+            soft_max_bytes: None,
         }
     }
 

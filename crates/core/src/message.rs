@@ -143,8 +143,10 @@ pub fn seal_bundle(
     // Unique bundle id for dedup (FR-26). Random 16 bytes → collision-safe.
     let bundle_id = Bytes::new(crate::crypto::random_bytes(16));
 
-    // 1. Encrypt payload to recipient, binding the bundle id as AD.
-    let payload_bytes = codec::to_cbor(payload)?;
+    // 1. Encrypt payload to recipient, binding the bundle id as AD. Compress the
+    //    plaintext first (before encryption — ciphertext is incompressible) so
+    //    the sealed bundle is as small as possible on scarce-bandwidth bearers.
+    let payload_bytes = crate::compress::frame(&codec::to_cbor(payload)?);
     let ciphertext = Bytes::new(SealedBox::seal(
         &recipient_kex,
         bundle_id.as_slice(),
@@ -254,13 +256,14 @@ pub fn open_bundle(recipient: &Identity, bundle: &Bundle) -> Result<Opened> {
         .map_err(|e| CoreError::BadKey(e.to_string()))?;
     let sender_address = Identity::derive_address(&sender_vk);
 
-    // 3. Decrypt payload.
-    let payload_bytes = SealedBox::open(
+    // 3. Decrypt payload, then undo the pre-encryption compression framing.
+    let framed = SealedBox::open(
         recipient.kex_secret(),
         bundle.bundle_id.as_slice(),
         bundle.ciphertext.as_slice(),
         INFO_MSG,
     )?;
+    let payload_bytes = crate::compress::unframe(&framed)?;
     let payload: Payload = codec::from_cbor(&payload_bytes)?;
 
     Ok(Opened {

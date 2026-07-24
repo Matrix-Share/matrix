@@ -56,6 +56,22 @@ pub fn run(
     if std::env::var("LIFELINE_CUSTODIAN").is_ok() {
         cfg.custody_role = lifeline_transport::CustodyRole::Custodian;
     }
+    // Operate as a gateway (FR-35): emit announces so the mesh forms a gradient
+    // toward us and bridge mesh bundles onto the uplink. `LIFELINE_GATEWAY` may
+    // list capabilities (e.g. `internet,lora`); any truthy value implies internet.
+    if let Ok(v) = std::env::var("LIFELINE_GATEWAY") {
+        let caps: Vec<String> = v
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty() && *s != "1")
+            .map(|s| s.to_string())
+            .collect();
+        cfg.gateway_caps = if caps.is_empty() {
+            vec!["internet".to_string()]
+        } else {
+            caps
+        };
+    }
     let mut engine = NodeEngine::new(identity, cfg);
     engine.add_interface(Box::new(ChannelInterface::new(
         InterfaceCaps::internet(),
@@ -452,6 +468,8 @@ fn build_snapshot(
             known_gateways: stats.known_gateways,
             retries: engine.retry_count(),
             arq_retransmits: engine.arq_retransmits(),
+            is_gateway: engine.is_gateway(),
+            gradient: engine.gradient(unix_now()),
         },
     }
 }

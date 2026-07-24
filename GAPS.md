@@ -49,12 +49,17 @@ ultrasound frame. The system was not yet modular across network types.
 **Still open (needs hardware or is a later phase):**
 - Radio backends (BLE, Wi-Fi Aware, ggwave ultrasound, streaming-QR, RNode LoRa)
   implementing `Interface`. The seam is done; the drivers are platform work.
-- **Lossy-link ARQ / selective repeat** — the in-memory medium is reliable; real
-  ultrasound/LoRa drop frames, so fragment retransmission is needed (ties to
-  Dhwani's "noise robustness" note).
-- **Gateway-only transports** — modeling that LoRa/internet `bridges_offmesh`
-  interfaces feed the gateway-bridge path end-to-end through the engine (today
-  proven in `sim`, not yet in the engine).
+- ~~Lossy-link ARQ / selective repeat~~ ✅ done (`transport::arq`).
+- ~~Gateway-only transports feeding the bridge path end-to-end through the
+  engine~~ ✅ done — a live `NodeEngine` gateway emits announces, the mesh builds
+  a gradient, and bundles bridge onto `bridges_offmesh` uplinks (proven with an
+  off-mesh destination).
+- **Bandwidth adaptation across bearers** — ✅ first cut done: payload
+  compression (`core::compress`) + adaptive bearer selection (`soft_max_bytes` in
+  `offer_to`, "straw not a firehose"). Still open: adaptive **bearer preference**
+  (actively pick the best available bearer per message, not just gate low ones)
+  and a **receive-only bearer** variant of `Interface` (SDR/broadcast RX, which
+  the spectrum doc flags as a real class our send+poll trait doesn't model).
 
 ---
 

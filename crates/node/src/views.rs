@@ -105,4 +105,8 @@ pub struct StatusView {
     pub retries: u64,
     /// Lossy-link ARQ frame retransmissions (FR — Dhwani noise robustness).
     pub arq_retransmits: u64,
+    /// Whether this node is operating as a gateway (FR-35).
+    pub is_gateway: bool,
+    /// Hops to the nearest known gateway (FR-36); `None` if none known.
+    pub gradient: Option<u16>,
 }
