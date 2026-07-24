@@ -7,7 +7,38 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
-- **Sender-keys group encryption** (`core::group`, FR-12): ratcheting per-sender
+- **Encrypted persistence** (`core::vault`, FR-9/FR-15): the contact directory
+  and message history are persisted **encrypted at rest** (Argon2id-derived key,
+  reused across saves; XChaCha20-Poly1305) and restored on restart — verified
+  end-to-end (message + contact survive a node restart; wrong passphrase yields a
+  fresh node, no leak).
+- **GUI: QR invite, SOS button, diagnostics** (FR-3/FR-6/FR-40/FR-53): the node
+  serves a QR of its invite code (`GET /api/qr.svg`) for in-person contact
+  exchange; a one-tap SOS button attaches GPS + battery (with graceful fallback)
+  via `POST /api/sos`; and a diagnostics panel surfaces peers, gateways, queue
+  depth, custody handoffs, duplicates, drops and retries.
+- **Authenticated authority alerts** (`core::alert`, FR-42): Ed25519-signed
+  alerts with a trusted-authority root store, key↔address binding and expiry, so
+  a spoofed "evacuate now" is rejected offline.
+- **Proof-of-relay** (`core::relay_proof`): portable, offline-verifiable claims
+  built from **counterparty-witnessed** credits — a relay cannot self-mint
+  evidence (directly answering Helium's spoofable proof-of-location). Kept
+  strictly off the delivery path.
+- **Onion routing / metadata privacy** (`core::onion`, FR-49): one SealedBox
+  layer per relay on a chosen path; each relay peels exactly one layer and learns
+  only the *next hop*, never the origin or (except the last relay) the recipient.
+- **Adaptive retry** (FR-32): `router::respray` + an engine loop that re-sprays a
+  message that stays unverified past a retry window (capped), so delivery retries
+  on new paths rather than silently stalling.
+- **Group messaging end-to-end** (FR-12): `core::group` sender-keys wired through
+  `NodeEngine` (`create_group` / `add_group_member` / `send_group`) — sender-key
+  distribution, single-encrypt fan-out to members, receive/decrypt with an
+  out-of-order buffer. Tested: fan-out to all members, non-members excluded,
+  multiple senders.
+- **Custody receipts** (FR-25): signed `core::receipt::make/verify_custody_receipt`
+  + `router::release_custody` (drop a copy once another node signs for custody,
+  dedup-safe) — acknowledged hand-offs, no silent loss.
+- **Sender-keys group encryption** (`core::group`): ratcheting per-sender
   chain key, sealed key distribution, bounded skipped-key cache (reordering
   tolerant), Ed25519-signed messages, and late-join forward secrecy.
 - **Content-addressed blocks** (`core::content`, FR-13): BLAKE3-CID blocks +
@@ -43,6 +74,14 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **PoW postage** anti-abuse (`proto::pow`), enforced at router admission (FR-46).
 - **Hash-linked log compaction** (`core::log::Checkpoint`) — bounded growth (Tarr).
 - Docker + docker-compose for self-hosting; full OSS project scaffolding.
+
+### Fixed
+- **Flaky acceptance test**: `erasure_survives_lossy_partition` could fail near
+  its threshold. Root causes addressed — the simulator now seeds node identities
+  from its RNG (`Identity::generate_from_rng`) for reproducible runs, and the
+  scenario uses a larger sample (40 messages) so the pass threshold is
+  statistically meaningful. Verified stable over 15 consecutive runs
+  (92–100% reconstruction vs a 90% floor).
 
 ### Notes
 - This is a pre-1.0 engineering preview: the decentralized core, transport

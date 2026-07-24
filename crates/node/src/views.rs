@@ -1,7 +1,16 @@
 //! Serializable views shared between the engine thread and the HTTP/WS API, plus
 //! the command type the API sends to the engine.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+/// What the node persists (encrypted at rest via `core::vault`) so contacts and
+/// chat history survive restarts (FR-9, FR-15).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PersistedState {
+    /// Contact directory as shareable invite codes (`b64url(cbor(IdentityPublic))`).
+    pub contact_codes: Vec<String>,
+    pub messages: Vec<MsgView>,
+}
 
 /// A command from the API (browser) to the engine thread.
 #[derive(Debug, Clone)]
@@ -14,6 +23,14 @@ pub enum Command {
     },
     /// Add a contact from a shared identity code (`b64url(cbor(IdentityPublic))`).
     AddContact { code: String },
+    /// One-tap SOS with optional GPS + battery (FR-40).
+    Sos {
+        lat: Option<f64>,
+        lon: Option<f64>,
+        acc_m: Option<u32>,
+        battery_pct: Option<u8>,
+        note: Option<String>,
+    },
 }
 
 /// The full UI snapshot, serialized to the browser as JSON.
@@ -41,7 +58,7 @@ pub struct PeerView {
     pub verified: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MsgView {
     pub id: String,
     /// "in", "in-sos", or "out".
@@ -64,4 +81,12 @@ pub struct StatusView {
     pub sent: usize,
     pub verified: usize,
     pub received: usize,
+    // --- Diagnostics (FR-53) ---
+    pub store_bytes: u64,
+    pub duplicates: u64,
+    pub dropped_expired: u64,
+    pub dropped_nopostage: u64,
+    pub custody_transfers: u64,
+    pub known_gateways: usize,
+    pub retries: u64,
 }

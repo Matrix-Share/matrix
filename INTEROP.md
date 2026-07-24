@@ -94,7 +94,7 @@ We are **Apache-2.0**. Compatibility summary for the named projects:
 |---|---|---|---|
 | **Hashcash** (public) | PoW "postage" to throttle spam | `proto::pow` | **Adopted.** Implemented (FR-46), enforced at router admission, difficulty by priority, SOS-exempt. |
 | **GNUnet** (AGPL-3.0) | Reputation & F2F/P2P trust | new `reputation` module | **Migrate the design.** AGPL blocks linking; implement an Apache-2.0 reputation-gossip that demotes black-hole relays (Kademlia/Douceur answer, `GAPS.md`), informed by GNUnet's approach. |
-| **Helium** (varies) | Proof-of-relay incentive (DePIN) | optional off-path ledger | **Reference, deferred (Phase 3).** Kept strictly *off* the delivery path (Nakamoto caution). Design proof-of-relay to resist the location-spoofing that hurt Helium. |
+| **Helium** (varies) | Proof-of-relay incentive (DePIN) | optional off-path ledger | **Design adopted** (`core::relay_proof`): credits are signed by the *counterparty* next hop, so a relay cannot self-mint evidence — directly answering the location-spoofing that hurt Helium. Kept strictly *off* the delivery path. |
 
 ---
 

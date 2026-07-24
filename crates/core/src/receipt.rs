@@ -11,7 +11,7 @@
 use crate::identity::{verify_sig, Identity};
 use crate::message::header_signing_bytes_of;
 use crate::{CoreError, Result};
-use lifeline_proto::{Bundle, Bytes, DeliveryReceipt};
+use lifeline_proto::{Bundle, Bytes, CustodyReceipt, DeliveryReceipt};
 
 /// Bytes signed for a delivery receipt: `bundle_id || delivered_at(be64)`.
 fn receipt_signing_bytes(bundle_id: &Bytes, delivered_at: u64) -> Vec<u8> {
@@ -92,6 +92,45 @@ fn derive_addr(sign_pub: &[u8]) -> Result<lifeline_proto::Address> {
     Ok(Identity::derive_address(&vk))
 }
 
+// --- Custody receipts (PRD FR-25 / §11.5) ---
+
+/// Bytes signed for a custody receipt: `bundle_id || "custody" || at(be64)`.
+fn custody_signing_bytes(bundle_id: &Bytes, at: u64) -> Vec<u8> {
+    let mut m = Vec::with_capacity(bundle_id.len() + 15);
+    m.extend_from_slice(bundle_id.as_slice());
+    m.extend_from_slice(b"custody");
+    m.extend_from_slice(&at.to_be_bytes());
+    m
+}
+
+/// A relay signs this when it **accepts responsibility** for a bundle (FR-25),
+/// so the previous holder can safely drop its copy — hand-offs are acknowledged,
+/// never silent.
+pub fn make_custody_receipt(custodian: &Identity, bundle_id: &Bytes, at: u64) -> CustodyReceipt {
+    let sig = custodian.sign(&custody_signing_bytes(bundle_id, at));
+    CustodyReceipt {
+        bundle_id: bundle_id.clone(),
+        custodian: custodian.address().clone(),
+        at,
+        sig,
+    }
+}
+
+/// Verify a custody receipt offline: the signature is valid under
+/// `custodian_sign_pub` and that key matches the receipt's custodian address.
+pub fn verify_custody_receipt(receipt: &CustodyReceipt, custodian_sign_pub: &[u8]) -> Result<()> {
+    if derive_addr(custodian_sign_pub)? != receipt.custodian {
+        return Err(CoreError::Log(
+            "custodian key does not match address".into(),
+        ));
+    }
+    verify_sig(
+        custodian_sign_pub,
+        &custody_signing_bytes(&receipt.bundle_id, receipt.at),
+        receipt.sig.as_slice(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -107,6 +146,23 @@ mod tests {
             attach: None,
             group_id: None,
         }
+    }
+
+    #[test]
+    fn custody_receipt_verifies_and_rejects_forgery() {
+        let relay = Identity::generate(0);
+        let eve = Identity::generate(0);
+        let bundle_id = Bytes::new(vec![3; 16]);
+        let cr = make_custody_receipt(&relay, &bundle_id, 1234);
+
+        // Valid under the real custodian's key.
+        assert!(verify_custody_receipt(&cr, relay.verifying_key().as_bytes()).is_ok());
+        // A different key (wrong custodian address) fails.
+        assert!(verify_custody_receipt(&cr, eve.verifying_key().as_bytes()).is_err());
+        // Tampered timestamp fails.
+        let mut tampered = cr.clone();
+        tampered.at = 9999;
+        assert!(verify_custody_receipt(&tampered, relay.verifying_key().as_bytes()).is_err());
     }
 
     #[test]

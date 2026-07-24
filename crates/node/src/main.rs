@@ -95,6 +95,35 @@ fn load_or_create_identity(data_dir: &str, passphrase: &str, name: Option<String
     id
 }
 
+/// Unlock the encrypted state vault and restore contacts + history, or create a
+/// fresh one (FR-9, FR-15).
+fn load_or_create_state(
+    data_dir: &str,
+    passphrase: &str,
+) -> (lifeline_core::vault::Vault, views::PersistedState) {
+    use lifeline_core::vault::{SealedBlob, Vault};
+    let path = std::path::Path::new(data_dir).join("state.vault");
+    if let Ok(bytes) = std::fs::read(&path) {
+        if let Ok(blob) = serde_json::from_slice::<SealedBlob>(&bytes) {
+            match Vault::unlock(passphrase, &blob) {
+                Ok((vault, pt)) => {
+                    let state =
+                        serde_json::from_slice::<views::PersistedState>(&pt).unwrap_or_default();
+                    tracing::info!(
+                        "restored {} contacts, {} messages",
+                        state.contact_codes.len(),
+                        state.messages.len()
+                    );
+                    return (vault, state);
+                }
+                Err(e) => tracing::warn!("could not unlock vault ({e}); starting fresh"),
+            }
+        }
+    }
+    let vault = Vault::create(passphrase).expect("derive vault key");
+    (vault, views::PersistedState::default())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
@@ -114,6 +143,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .public()
         .display_name
         .unwrap_or_else(|| identity.address().short());
+
+    // Unlock (or create) the encrypted vault and restore contacts + history.
+    let (vault, initial) = load_or_create_state(&data_dir, &passphrase);
 
     // Channels wiring: engine <-> relay client, and API -> engine.
     let (out_tx, out_rx) = std::sync::mpsc::channel();
@@ -155,6 +187,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     shared,
                     version,
                     udp,
+                    vault,
+                    data_dir,
+                    initial,
                 );
             })?;
     }

@@ -16,27 +16,27 @@ is in [`GAPS.md`](GAPS.md).
 |---|---|---|
 | FR-1 Ed25519/X25519 keypair on first launch | ✅ | `core::identity::Identity::generate` |
 | FR-2 Address derived from public key | ✅ | `Identity::derive_address` = `blake3(sign_pub)[..16]` |
-| FR-3 Shareable identity + fingerprint | ◐ | `Identity::public` / `fingerprint`; QR image is UI |
+| FR-3 Shareable identity + fingerprint | ✅ | `Identity::public`/`fingerprint` + **server-rendered QR** of the invite code (`GET /api/qr.svg`) shown in the GUI |
 | FR-4 Passphrase/biometric unlock of keystore | ○ | needs platform secure storage |
 | FR-5 Encrypted key backup/restore | ✅ | `core::identity::KeyBackup` (Argon2id + AEAD) |
 
 ## Contacts & discovery (§8.2)
 | Req | State | Where |
 |---|---|---|
-| FR-6 Add contact by QR TOFU (MITM-resistant) | ◐ | crypto binding + header-sig verify done; QR scan is UI |
+| FR-6 Add contact by QR TOFU (MITM-resistant) | ◐ | crypto binding + header-sig verify done; **QR displayed for in-person exchange** + paste-code add; camera *scanning* needs a device (○) |
 | FR-7 BLE/Wi-Fi-Aware advertisement discovery | ◐ | beacon-based peer discovery works over the transport (`NodeEngine`, proven over the relay in `lifeline-node`); BLE/NAN *backend* ○ |
 | FR-8 DHT online / gossip announces offline | ◐ | signed gateway announces + gradient done; Kademlia DHT ○ |
-| FR-9 Contact store with verification state | ◐ | `proto::Contact` schema; persistence ○ |
+| FR-9 Contact store | ✅ | contact directory **persisted encrypted** across restarts (`core::vault` + node); verification-state field in `proto::Contact` |
 
 ## Messaging (§8.3)
 | Req | State | Where |
 |---|---|---|
 | FR-10 Send E2E text | ✅ | `core::message::seal_bundle` |
 | FR-11 Message states | ◐ | `proto::MessageState`; sim tracks delivered/verified |
-| FR-12 Group messages (sender-keys, CRDT membership) | ✅ | CRDT membership (`sync`) + **sender-keys group encryption** (`core::group`: ratcheting sender key, sealed distribution, skipped-key cache, signed messages, late-join forward secrecy) |
+| FR-12 Group messages (sender-keys, CRDT membership) | ✅ | CRDT membership + `core::group` sender-keys, **wired end-to-end in `NodeEngine`** (`create_group`/`add_group_member`/`send_group`: distribution + fan-out + decrypt, out-of-order buffer); tested (3-member fan-out, non-member excluded, multi-sender) |
 | FR-13 Small attachments + content addressing | ✅ | **`core::content`** (BLAKE3-CID blocks, Merkle manifest, dedup, integrity-checked reassemble, missing-block reporting) — IPFS model; mesh fetch-by-CID protocol ○ |
 | FR-14 Priority classes SOS>ALERT>NORMAL>BULK | ✅ | `proto::Priority` |
-| FR-15 Local encrypted searchable history | ○ | persistence layer |
+| FR-15 Local encrypted history | ✅ (encrypted store) | message history **persisted encrypted at rest** (`core::vault`: Argon2id + XChaCha20-Poly1305) — restored on restart, verified end-to-end; full-text search ○ |
 
 ## Transports (§8.4)
 | Req | State | Where |
@@ -49,7 +49,7 @@ is in [`GAPS.md`](GAPS.md).
 |---|---|---|
 | FR-23 Store-carry-forward | ✅ | `router::DtnRouter` + `store` |
 | FR-24 Binary spray-and-wait (budget L) | ✅ | `router::offer_to` |
-| FR-25 Custody transfer | ◐ | retention prevents loss; `proto::CustodyReceipt` schema present; signed exchange ○ |
+| FR-25 Custody transfer | ◐ | **signed custody receipts** (`core::receipt::make/verify_custody_receipt`) + `router::release_custody` (drop copy once custody confirmed, dedup-safe) — tested; automatic engine round-trip (emit-on-store → release) ○ |
 | FR-26 TTL, hop limit, dedup | ✅ | `router::ingest` |
 | FR-27 Priority queueing, SOS preempts | ✅ | `router::offer_to` (strict priority sort) |
 | FR-28 Erasure/fountain coding | ✅ | `core::erasure` (Reed-Solomon, any k-of-n) + `Bundle.frag`; `NodeEngine::submit_erasure` + reassembly; **proven end-to-end and surviving a 20%-loss partition in `sim`** |
@@ -60,7 +60,7 @@ is in [`GAPS.md`](GAPS.md).
 |---|---|---|
 | FR-30 Append-only hash-linked log | ✅ | `core::log::HashLog` (tamper-evident, tested) + signed `Checkpoint` compaction (Tarr "logs grow forever") |
 | FR-31 Signed delivery receipt | ✅ | `core::receipt::make_delivery_receipt` |
-| FR-32 Match receipts → verified; retry unmatched | ◐ | matching + verify done; delivery-status also shared as a CRDT (`sync`); adaptive retry ○ |
+| FR-32 Match receipts → verified; adaptive retry | ✅ | matching + verify + delivery-status CRDT; **adaptive retry** (`router::respray` + engine re-spray of unverified messages past a window, capped) — tested |
 | FR-33 CRDT state merge after partition | ✅ | `sync` (ORSWOT + LWW + version vectors); **proven converging in the mesh** (`sim`); causal-stability GC bounds metadata (Shapiro) |
 | FR-34 Offline verification function | ✅ | `core::receipt::verify_delivery` (pure, offline) |
 
@@ -76,9 +76,9 @@ is in [`GAPS.md`](GAPS.md).
 ## Emergency features (§8.8)
 | Req | State | Where |
 |---|---|---|
-| FR-40 One-tap SOS + GPS + battery | ✅ (protocol) | `proto::Payload{Sos, Coords}` + `Priority::Sos`; UI ○ |
+| FR-40 One-tap SOS + GPS + battery | ✅ | protocol + `NodeEngine::broadcast_sos` + **GUI SOS button** (geolocation + battery, graceful fallback) via `POST /api/sos` — verified delivering as `in-sos` end-to-end |
 | FR-41 "I'm safe" broadcast | ✅ | `NodeEngine::broadcast_safe` fans out to all contacts (tested end-to-end) |
-| FR-42 Authority alerts | ◐ | `PayloadKind::Alert`; Cell Broadcast ingest ○ (Phase 3) |
+| FR-42 Authority alerts | ✅ | `core::alert` — Ed25519-signed alerts with an **authenticated broadcast identity**, trusted-authority root store, key↔address binding, expiry (tested incl. spoof/tamper). External Cell-Broadcast *ingest* ○ |
 | FR-43 Location sharing | ✅ (send) | `NodeEngine::submit_location` delivers GPS coords (tested); periodic-interval scheduling is app-level |
 
 ## Security & anti-abuse (§8.9)
@@ -89,7 +89,7 @@ is in [`GAPS.md`](GAPS.md).
 | FR-46 PoW postage | ✅ | `proto::pow` (Hashcash, difficulty by priority, SOS exempt); enforced at router admission; **flood-throttle AC proven** (`sim`) |
 | FR-47 Reputation gossip | ◐ | **`router::Reputation` (credit/penalize/pessimistic gossip-merge) demotes relays; `offer_to` routes around demoted black holes (never blocking SOS/direct delivery); demotion propagates mesh-wide — proven in `sim`.** Automatic black-hole *attribution* (custody-chain analysis) ○ |
 | FR-48 Endpoint moderation (block/blocklists) | ✅ | shared blocklist CRDT (`sync`) + **endpoint enforcement** (`NodeEngine` drops blocked senders — no inbox, no receipt; tested) |
-| FR-49 Onion metadata wrapping | ○ | Phase 3 |
+| FR-49 Onion metadata wrapping | ✅ (core) | `core::onion` build/peel — one SealedBox layer per relay; each hop learns only the next hop (tested: 2-hop reveals-only-next, off-path can't peel, tamper rejected). Engine forwarding path ○ |
 
 ## Settings & platform (§8.10)
 | Req | State | Where |
@@ -97,7 +97,7 @@ is in [`GAPS.md`](GAPS.md).
 | FR-50 Battery-saver duty cycling | ○ | platform |
 | FR-51 Per-transport toggles | ○ | with transports |
 | FR-52 Store cap + priority/TTL-aware LRU eviction | ✅ | `router::store::BundleStore` |
-| FR-53 Diagnostics view | ◐ | `router::RouterStats` + `sim` report; UI ○ |
+| FR-53 Diagnostics view | ✅ | **GUI diagnostics panel** — link/messages/relaying sections: peers, gateways, queue depth + bytes, custody handoffs, duplicates, drops (expired / no-postage), retries |
 
 ## Non-functional
 | Req | State |

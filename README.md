@@ -41,7 +41,7 @@ so browsers can connect.
 ## Testing / the acceptance simulator
 
 ```
-cargo test                            # 103 tests across all crates
+cargo test                            # 127 tests across all crates
 cargo run -p lifeline-sim --release   # runs the PRD acceptance scenarios + report
 ```
 

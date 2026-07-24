@@ -25,6 +25,7 @@
 //! ratchet is tracked as follow-up work behind the [`crypto::SecureChannel`]
 //! seam rather than shipping a ratchet that breaks under DTN conditions.
 
+pub mod alert;
 pub mod content;
 pub mod crypto;
 pub mod erasure;
@@ -32,7 +33,10 @@ pub mod group;
 pub mod identity;
 pub mod log;
 pub mod message;
+pub mod onion;
 pub mod receipt;
+pub mod relay_proof;
+pub mod vault;
 
 pub use identity::{Identity, KeyBackup};
 pub use log::HashLog;

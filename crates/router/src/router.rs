@@ -68,6 +68,8 @@ pub struct RouterStats {
     pub dropped_norroom: u64,
     pub dropped_nopostage: u64,
     pub forwarded_copies: u64,
+    /// Copies dropped after another node signed for custody (FR-25).
+    pub custody_transfers: u64,
     pub known_gateways: usize,
 }
 
@@ -351,6 +353,39 @@ impl DtnRouter {
     pub fn is_demoted(&self, addr: &Address) -> bool {
         self.reputation.is_demoted(addr)
     }
+
+    // --- Adaptive retry (FR-32) ---
+
+    /// Re-spray a bundle we still hold: reset its copy budget and forget which
+    /// peers we already offered it to, so it spreads again on new contacts. Used
+    /// by the sender when a message stays unverified past its retry window.
+    /// Returns `true` if we held the bundle.
+    pub fn respray(&mut self, bundle_id: &Bytes, copies: u16) -> bool {
+        if let Some(s) = self.store.get_mut(bundle_id) {
+            s.bundle.copies_left = copies.max(1);
+            s.offered_to.clear();
+            true
+        } else {
+            false
+        }
+    }
+
+    // --- Custody transfer (FR-25) ---
+
+    /// Release our copy of a bundle because another node has signed for custody
+    /// (the caller has verified the [`lifeline_proto::CustodyReceipt`]). Frees
+    /// storage without silent loss — the custodian is now responsible. Returns
+    /// `true` if a copy was held and dropped.
+    pub fn release_custody(&mut self, bundle_id: &Bytes) -> bool {
+        let removed = self.store.remove(bundle_id).is_some();
+        if removed {
+            // Remember it so we don't re-accept our own released copy.
+            self.seen.insert(bundle_id.clone());
+            self.stats.custody_transfers += 1;
+            self.refresh_store_stats();
+        }
+        removed
+    }
 }
 
 #[cfg(test)]
@@ -520,6 +555,38 @@ mod tests {
         let mut sos = bundle(32, addr(9), Priority::Sos, 0);
         sos.postage = None;
         assert_eq!(r.ingest(sos, 1), IngestOutcome::Stored);
+    }
+
+    #[test]
+    fn respray_resets_budget_and_offered_set() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        r.ingest(bundle(60, addr(9), Priority::Normal, 0), 1);
+        // Offer to a peer: consumes budget and records the peer.
+        let first = r.offer_to(&peer(addr(2)), 2);
+        assert_eq!(first.len(), 1);
+        // Same peer, no re-offer.
+        assert!(r.offer_to(&peer(addr(2)), 3).is_empty());
+        // Respray → budget restored + offered set cleared → offers again.
+        assert!(r.respray(&Bytes::new(vec![60; 16]), 6));
+        let again = r.offer_to(&peer(addr(2)), 4);
+        assert_eq!(again.len(), 1, "respray must let it re-offer");
+    }
+
+    #[test]
+    fn release_custody_drops_held_copy() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        let b = bundle(50, addr(9), Priority::Normal, 0);
+        let id = b.bundle_id.clone();
+        r.ingest(b, 1);
+        assert_eq!(r.stats().store_len, 1);
+
+        // Another node took custody → release our copy.
+        assert!(r.release_custody(&id));
+        assert_eq!(r.stats().store_len, 0);
+        assert_eq!(r.stats().custody_transfers, 1);
+        // We won't re-accept the released copy (dedup via `seen`).
+        let dup = bundle(50, addr(9), Priority::Normal, 0);
+        assert_eq!(r.ingest(dup, 1), IngestOutcome::Duplicate);
     }
 
     #[test]
