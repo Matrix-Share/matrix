@@ -557,16 +557,9 @@ impl World {
             return;
         };
         // Sender of the original message is this node (receipt was addressed here).
-        let sender_pub = self.nodes[idx].public.sign_pub.clone();
         let recipient_pub = opened.sender.sign_pub.clone();
         let original = self.sent[pos].original.clone();
-        if verify_delivery(
-            &original,
-            &dr,
-            sender_pub.as_slice(),
-            recipient_pub.as_slice(),
-        )
-        .is_ok()
+        if verify_delivery(&original, &dr, recipient_pub.as_slice()).is_ok()
             && self.sent[pos].verified_tick.is_none()
         {
             self.sent[pos].verified_tick = Some(tick);

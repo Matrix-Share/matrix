@@ -18,7 +18,8 @@ fn announce_signing_bytes(a: &GatewayAnnounce) -> Vec<u8> {
     to_cbor(&(&a.gateway, &a.caps, a.load_q, a.seq, a.expires_at)).expect("cbor announce")
 }
 
-/// Build a signed gateway announce for `caps`, fresh until `expires_at`.
+/// Build a signed gateway announce for `caps`, fresh until `expires_at`. The
+/// announce carries the gateway's verifying key so it is self-verifying.
 pub fn make_gateway_announce(
     gateway: &Identity,
     caps: &[String],
@@ -28,6 +29,7 @@ pub fn make_gateway_announce(
 ) -> GatewayAnnounce {
     let mut a = GatewayAnnounce {
         gateway: gateway.address().clone(),
+        sign_pub: Bytes::new(gateway.verifying_key().as_bytes().to_vec()),
         caps: caps.to_vec(),
         load_q: GatewayAnnounce::from_load(load),
         seq,
@@ -38,14 +40,15 @@ pub fn make_gateway_announce(
     a
 }
 
-/// Verify an announce's signature against the gateway's signing key, and that
-/// the key matches the announced gateway address. Offline, pure.
-pub fn verify_gateway_announce(a: &GatewayAnnounce, gateway_sign_pub: &[u8]) -> Result<()> {
-    if address_of(gateway_sign_pub)? != a.gateway {
+/// Verify an announce **self-containedly**: its embedded `sign_pub` binds to the
+/// announced gateway address, and the signature is valid under it. Offline, pure
+/// — any node can reject a forged announce without knowing the gateway.
+pub fn verify_gateway_announce(a: &GatewayAnnounce) -> Result<()> {
+    if address_of(a.sign_pub.as_slice())? != a.gateway {
         return Err(CoreError::Log("gateway key does not match address".into()));
     }
     verify_sig(
-        gateway_sign_pub,
+        a.sign_pub.as_slice(),
         &announce_signing_bytes(a),
         a.sig.as_slice(),
     )
@@ -60,12 +63,14 @@ mod tests {
         let gw = Identity::generate(0);
         let eve = Identity::generate(0);
         let a = make_gateway_announce(&gw, &["internet".into()], 0.3, 1, 10_000);
-        assert!(verify_gateway_announce(&a, gw.verifying_key().as_bytes()).is_ok());
-        // Wrong key → rejected.
-        assert!(verify_gateway_announce(&a, eve.verifying_key().as_bytes()).is_err());
+        assert!(verify_gateway_announce(&a).is_ok());
+        // Forged sign_pub that doesn't match the gateway address → rejected.
+        let mut forged = a.clone();
+        forged.sign_pub = Bytes::new(eve.verifying_key().as_bytes().to_vec());
+        assert!(verify_gateway_announce(&forged).is_err());
         // Tampered caps → signature no longer matches.
         let mut tampered = a.clone();
         tampered.caps.push("lora".into());
-        assert!(verify_gateway_announce(&tampered, gw.verifying_key().as_bytes()).is_err());
+        assert!(verify_gateway_announce(&tampered).is_err());
     }
 }

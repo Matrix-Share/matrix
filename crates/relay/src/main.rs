@@ -16,7 +16,16 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc, Mutex};
 
-type Peers = Arc<Mutex<HashMap<u64, mpsc::UnboundedSender<Down>>>>;
+type Peers = Arc<Mutex<HashMap<u64, mpsc::Sender<Down>>>>;
+
+/// Per-connection outbound queue depth. A consumer that reads slower than this
+/// simply drops frames (backpressure) rather than letting the relay buffer
+/// without bound — closes the slow-reader memory-DoS.
+const QUEUE_BOUND: usize = 256;
+
+/// Max simultaneous connections. Bounds total memory (each connection can pin up
+/// to one `MAX_FRAME` read buffer) and refuses a connection-exhaustion flood.
+const MAX_CONNS: u64 = 1024;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -32,12 +41,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let peers: Peers = Arc::new(Mutex::new(HashMap::new()));
     let next_id = Arc::new(AtomicU64::new(1));
+    let active = Arc::new(AtomicU64::new(0));
 
     loop {
         let (socket, remote) = listener.accept().await?;
+        // Connection cap: refuse (and immediately drop) beyond the ceiling so a
+        // flood of half-open connections can't exhaust memory/fds.
+        if active.load(Ordering::Relaxed) >= MAX_CONNS {
+            tracing::warn!("connection cap reached; refusing {remote}");
+            drop(socket);
+            continue;
+        }
+        active.fetch_add(1, Ordering::Relaxed);
         socket.set_nodelay(true).ok();
         let id = next_id.fetch_add(1, Ordering::Relaxed);
         let peers = peers.clone();
+        let active = active.clone();
         tokio::spawn(async move {
             if let Err(e) = handle_conn(id, socket, peers.clone()).await {
                 tracing::debug!("conn {id} ({remote}) ended: {e}");
@@ -45,6 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Cleanup + notify others of departure.
             peers.lock().await.remove(&id);
             broadcast(&peers, id, Down::Leave { id }).await;
+            active.fetch_sub(1, Ordering::Relaxed);
             tracing::info!("peer {id} disconnected");
         });
     }
@@ -57,8 +77,9 @@ async fn handle_conn(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (mut rd, mut wr) = socket.into_split();
 
-    // Per-connection outbound queue.
-    let (tx, mut rx) = mpsc::unbounded_channel::<Down>();
+    // Per-connection outbound queue — bounded, so a slow/idle reader drops frames
+    // instead of ballooning the relay's memory.
+    let (tx, mut rx) = mpsc::channel::<Down>(QUEUE_BOUND);
 
     // Register + greet with the current peer list; announce our arrival.
     let existing: Vec<u64> = {
@@ -67,7 +88,7 @@ async fn handle_conn(
         guard.insert(id, tx.clone());
         existing
     };
-    tx.send(Down::Welcome {
+    tx.try_send(Down::Welcome {
         your_id: id,
         peers: existing,
     })
@@ -93,7 +114,7 @@ async fn handle_conn(
                 match to {
                     Some(target) => {
                         if let Some(peer) = peers.lock().await.get(&target) {
-                            peer.send(frame).ok();
+                            peer.try_send(frame).ok();
                         }
                     }
                     None => broadcast(&peers, id, frame).await,
@@ -110,7 +131,9 @@ async fn broadcast(peers: &Peers, except: u64, msg: Down) {
     let guard = peers.lock().await;
     for (&pid, tx) in guard.iter() {
         if pid != except {
-            tx.send(msg.clone()).ok();
+            // Non-blocking: a peer whose queue is full drops this frame rather
+            // than stalling the broadcast (and holding the peers lock).
+            tx.try_send(msg.clone()).ok();
         }
     }
 }

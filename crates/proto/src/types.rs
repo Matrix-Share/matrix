@@ -99,8 +99,6 @@ pub struct Bundle {
     pub copies_left: u16,
     /// Double-Ratchet-encrypted payload (opaque to relays).
     pub ciphertext: Bytes,
-    /// Sender signature over the immutable header fields.
-    pub sig: Bytes,
     /// Proof-of-work "postage" gating admission for NORMAL/BULK traffic
     /// (Hashcash-style, FR-46, §12.5). Absent for exempt classes (SOS). Not part
     /// of the signed header — it binds to `bundle_id`, which *is* signed, so it
@@ -230,6 +228,11 @@ pub struct CustodyReceipt {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GatewayAnnounce {
     pub gateway: Address,
+    /// The gateway's Ed25519 verifying key, so the announce is **self-verifying**:
+    /// any node can check `address_of(sign_pub) == gateway` and the signature,
+    /// without needing the gateway as a contact. Prevents forged announces from
+    /// poisoning the gradient.
+    pub sign_pub: Bytes,
     /// Capabilities, e.g. `["internet","lora_in865"]`.
     pub caps: Vec<String>,
     /// Coarse load 0..=1, encoded as 0..=255 for a compact integer wire.
@@ -326,7 +329,6 @@ mod tests {
             hops: 0,
             copies_left: 6,
             ciphertext: Bytes::new(vec![7; 64]),
-            sig: Bytes::new(vec![5; 64]),
             postage: Some(Bytes::new(vec![0; 8])),
             frag: None,
         };
@@ -349,7 +351,6 @@ mod tests {
             hops: 0,
             copies_left: 6,
             ciphertext: Bytes::default(),
-            sig: Bytes::default(),
             postage: None,
             frag: None,
         };

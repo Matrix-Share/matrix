@@ -36,7 +36,7 @@ impl Stored {
 /// Approximate serialized size of a bundle for cap accounting.
 fn approx_size(b: &Bundle) -> u64 {
     // Header overhead + the two big blobs. Good enough for eviction decisions.
-    (b.ciphertext.len() + b.src_sealed.len() + b.sig.len() + b.bundle_id.len() + 64) as u64
+    (b.ciphertext.len() + b.src_sealed.len() + b.bundle_id.len() + 64) as u64
 }
 
 /// Local bundle store keyed by `bundle_id`.
@@ -154,6 +154,12 @@ impl BundleStore {
             // Don't sacrifice a more important bundle for a less important one.
             if prio.as_u8() < incoming.bundle.priority.as_u8() {
                 break;
+            }
+            // Never evict an SOS bundle to make room (not even for another SOS):
+            // an SOS flood must not push already-held emergencies out of the
+            // store. SOS only leaves via delivery or TTL expiry.
+            if prio == Priority::Sos {
+                continue;
             }
             self.remove(&id);
         }

@@ -13,6 +13,11 @@ use std::collections::HashMap;
 /// "propagate a few hops"). Also caps the gradient value.
 pub const GATEWAY_ANNOUNCE_HOPS: u16 = 6;
 
+/// Cap on distinct cached gateways — bounds memory against a flood of forged
+/// announces bearing fabricated gateway addresses. A real deployment has a
+/// handful of gateways, so this is generous.
+pub const MAX_GATEWAYS: usize = 256;
+
 #[derive(Debug, Clone)]
 struct CachedAnnounce {
     announce: GatewayAnnounce,
@@ -46,6 +51,20 @@ impl GatewayCache {
                 false
             }
             _ => {
+                // Bound the cache: if full and this is a new gateway, drop the
+                // farthest (least useful) known gateway to make room.
+                if !self.by_gateway.contains_key(&announce.gateway)
+                    && self.by_gateway.len() >= MAX_GATEWAYS
+                {
+                    if let Some(worst) = self
+                        .by_gateway
+                        .iter()
+                        .max_by_key(|(_, c)| c.distance)
+                        .map(|(a, _)| a.clone())
+                    {
+                        self.by_gateway.remove(&worst);
+                    }
+                }
                 self.by_gateway.insert(
                     announce.gateway.clone(),
                     CachedAnnounce { announce, distance },

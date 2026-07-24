@@ -24,6 +24,35 @@ use serde::{Deserialize, Serialize};
 const INFO_ONION: &[u8] = b"lifeline/v1/onion";
 const ONION_AD: &[u8] = b"lifeline/onion-layer";
 
+/// Cell size for padding the delivered payload. Quantizing the innermost
+/// message to a fixed multiple hides its exact length from the last relay (which
+/// can see the final layer's size). NOTE: this hides *message length*; the onion
+/// still shrinks by one layer per hop, so full traffic-analysis resistance
+/// (constant-size cells re-padded at every hop, Tor-style) remains future work.
+const CELL: usize = 256;
+
+/// Length-prefix and zero-pad `p` up to the next [`CELL`] multiple.
+fn pad_cell(p: &[u8]) -> Vec<u8> {
+    let mut v = Vec::with_capacity(4 + p.len() + CELL);
+    v.extend_from_slice(&(p.len() as u32).to_le_bytes());
+    v.extend_from_slice(p);
+    let pad = (CELL - (v.len() % CELL)) % CELL;
+    v.resize(v.len() + pad, 0);
+    v
+}
+
+/// Recover the original payload from a padded cell.
+fn unpad_cell(v: &[u8]) -> Result<Vec<u8>> {
+    if v.len() < 4 {
+        return Err(CoreError::Decrypt);
+    }
+    let len = u32::from_le_bytes(v[..4].try_into().unwrap()) as usize;
+    if 4 + len > v.len() {
+        return Err(CoreError::Decrypt);
+    }
+    Ok(v[4..4 + len].to_vec())
+}
+
 /// One decrypted onion layer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct OnionLayer {
@@ -57,7 +86,8 @@ pub fn build_onion(
     let recipient_kex = crypto::x25519_pub_from_slice(recipient.kex_pub.as_slice())?;
     let inner_layer = OnionLayer {
         next: None,
-        inner: Bytes::new(payload.to_vec()),
+        // Pad to a fixed cell so the last relay can't read the message length.
+        inner: Bytes::new(pad_cell(payload)),
     };
     let mut blob = SealedBox::seal(
         &recipient_kex,
@@ -91,7 +121,7 @@ pub fn peel_onion(me: &crate::Identity, onion: &[u8]) -> Result<Peeled> {
             inner: layer.inner,
         }),
         None => Ok(Peeled::Deliver {
-            payload: layer.inner.0,
+            payload: unpad_cell(&layer.inner.0)?,
         }),
     }
 }

@@ -379,7 +379,7 @@ function convRow(key,{name,pinned,last}){
   const d=document.createElement('div');d.className='conv'+(sel===key?' sel':'')+(pinned?' pinned':'');
   const unread=last&&last.dir.startsWith('in')&&last.ts>(lastSeen[key]||0)&&sel!==key;
   const pre=last?((last.dir.startsWith('out')?'You: ':'')+last.body):(pinned?'SOS · broadcasts · I\'m safe':'Tap to message');
-  d.innerHTML=`<span class="avatar" style="width:38px;height:38px;background:${pinned?'':avc(key)}">${pinned?'📡':initials(name)}</span>
+  d.innerHTML=`<span class="avatar" style="width:38px;height:38px;background:${pinned?'':avc(key)}">${pinned?'📡':esc(initials(name))}</span>
     <span class="meta"><span class="nm">${esc(name)}<span class="t">${last?ago(last.ts):''}</span></span>
     <span class="pre">${esc(pre)}</span></span>${unread?'<span class="unread"></span>':''}`;
   d.onclick=()=>{sel=key;lastSeen[key]=now();localStorage.setItem('ll-seen',JSON.stringify(lastSeen));
@@ -433,7 +433,7 @@ function renderNetwork(){
   // peers
   const p=$('peers');const dir=state.directory;
   $('peersHd').textContent=`Peers in range · ${dir.length}`;
-  p.innerHTML=dir.length?dir.map(x=>`<div class="peer"><span class="avatar" style="width:32px;height:32px;font-size:12px;background:${avc(x.address)}">${initials(x.name)}</span>
+  p.innerHTML=dir.length?dir.map(x=>`<div class="peer"><span class="avatar" style="width:32px;height:32px;font-size:12px;background:${avc(x.address)}">${esc(initials(x.name))}</span>
     <span><div class="nm">${esc(x.name)}</div><div class="ad mono">${x.address.slice(0,16)}…</div></span><span class="rolechip">${x.verified?'verified':'leaf'}</span></div>`).join(''):'<div class="empty">No peers discovered yet.</div>';
 }
 

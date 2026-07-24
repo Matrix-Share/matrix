@@ -9,13 +9,18 @@
 //! is the whole point of "verifiable delivery without a blockchain".
 
 use crate::identity::{verify_sig, Identity};
-use crate::message::header_signing_bytes_of;
 use crate::{CoreError, Result};
 use lifeline_proto::{Bundle, Bytes, CustodyReceipt, DeliveryReceipt};
 
-/// Bytes signed for a delivery receipt: `bundle_id || delivered_at(be64)`.
+/// Domain separator so a delivery-receipt signature can never be confused with a
+/// signature over some other `bundle_id || u64` context (defense-in-depth,
+/// matching the tagging used by custody/announce/alert/relay-credit).
+const DELIVERY_DOMAIN: &[u8] = b"lifeline/v1/delivery-receipt";
+
+/// Bytes signed for a delivery receipt: `DOMAIN || bundle_id || delivered_at(be64)`.
 fn receipt_signing_bytes(bundle_id: &Bytes, delivered_at: u64) -> Vec<u8> {
-    let mut m = Vec::with_capacity(bundle_id.len() + 8);
+    let mut m = Vec::with_capacity(DELIVERY_DOMAIN.len() + bundle_id.len() + 8);
+    m.extend_from_slice(DELIVERY_DOMAIN);
     m.extend_from_slice(bundle_id.as_slice());
     m.extend_from_slice(&delivered_at.to_be_bytes());
     m
@@ -40,17 +45,21 @@ pub fn make_delivery_receipt(
 /// Offline delivery verification (PRD §12.4).
 ///
 /// Returns `Ok(())` iff:
-/// 1. `receipt.bundle_id == bundle.bundle_id`, and
-/// 2. `receipt.sig` verifies over `bundle_id || delivered_at` under
-///    `recipient_sign_pub`, and
-/// 3. `bundle.sig` verifies over the canonical header under `sender_sign_pub`,
-///    and the receipt's `recipient` matches the bundle's `dst`.
+/// 1. `receipt.bundle_id == bundle.bundle_id` and `receipt.recipient == bundle.dst`, and
+/// 2. `receipt.sig` verifies over the canonical receipt bytes under
+///    `recipient_sign_pub`, whose key binds to the `dst` address.
+///
+/// The **sender** holds their own authored `bundle`, so this gives them complete
+/// proof that the recipient acknowledged that exact message. Note it does *not*
+/// re-verify the sender's signature: since HIGH-1 that signature lives inside the
+/// recipient-sealed envelope (true sealed sender), so it is deliberately *not*
+/// third-party-verifiable — you cannot both hide the sender from observers and
+/// let arbitrary third parties confirm the sender.
 ///
 /// Runs fully offline — no network, no clock dependence, no ledger.
 pub fn verify_delivery(
     bundle: &Bundle,
     receipt: &DeliveryReceipt,
-    sender_sign_pub: &[u8],
     recipient_sign_pub: &[u8],
 ) -> Result<()> {
     // 1. The receipt must be for this exact bundle.
@@ -75,10 +84,6 @@ pub fn verify_delivery(
         &receipt_signing_bytes(&receipt.bundle_id, receipt.delivered_at),
         receipt.sig.as_slice(),
     )?;
-
-    // 3. Sender's signature over the bundle header.
-    let header = header_signing_bytes_of(bundle)?;
-    verify_sig(sender_sign_pub, &header, bundle.sig.as_slice())?;
 
     Ok(())
 }
@@ -181,13 +186,7 @@ mod tests {
         let receipt = make_delivery_receipt(&bob, &bundle.bundle_id, 2100);
 
         // Alice (or anyone with the two public keys) verifies delivery offline.
-        assert!(verify_delivery(
-            &bundle,
-            &receipt,
-            alice.verifying_key().as_bytes(),
-            bob.verifying_key().as_bytes(),
-        )
-        .is_ok());
+        assert!(verify_delivery(&bundle, &receipt, bob.verifying_key().as_bytes(),).is_ok());
     }
 
     #[test]
@@ -207,13 +206,7 @@ mod tests {
         let mut forged = make_delivery_receipt(&eve, &bundle.bundle_id, 2100);
         forged.recipient = bob.address().clone();
         // Verifying with Bob's key must fail (Eve signed it).
-        assert!(verify_delivery(
-            &bundle,
-            &forged,
-            alice.verifying_key().as_bytes(),
-            bob.verifying_key().as_bytes(),
-        )
-        .is_err());
+        assert!(verify_delivery(&bundle, &forged, bob.verifying_key().as_bytes(),).is_err());
     }
 
     #[test]
@@ -235,12 +228,6 @@ mod tests {
         )
         .unwrap();
         let receipt = make_delivery_receipt(&bob, &b2.bundle_id, 2100);
-        assert!(verify_delivery(
-            &b1,
-            &receipt,
-            alice.verifying_key().as_bytes(),
-            bob.verifying_key().as_bytes(),
-        )
-        .is_err());
+        assert!(verify_delivery(&b1, &receipt, bob.verifying_key().as_bytes(),).is_err());
     }
 }

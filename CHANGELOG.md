@@ -6,6 +6,55 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+Fixes from an internal cryptography audit of the E2E core (NFR-1; an independent
+audit remains a pre-launch gate):
+- **True sealed sender (HIGH)**: the sender's Ed25519 signature was over the
+  relay-visible header and carried in cleartext, so an observer with a suspect
+  list could trial-verify it to deanonymize the sender. The signature now lives
+  **inside the recipient-sealed envelope** (`SenderAuth`); the `Bundle` carries no
+  wire signature. Integrity and sender-authentication are preserved for the
+  recipient; delivery proof is now sender-private by design (you cannot both hide
+  the sender and let third parties verify them).
+- **Group impersonation (HIGH)**: `ReceiverKeyState::from_distribution` now binds
+  `address_of(sign_pub) == owner`, and the engine rejects any group op whose
+  claimed `owner` isn't the E2E-authenticated bundle sender — closing a hole
+  where a member could forge messages attributed to another member.
+- **Decompression bomb (MED)**: payload inflate is now bounded
+  (`decompress_to_vec_with_limit`, 16 MiB ceiling) so an authenticated peer can't
+  OOM a recipient.
+- **Zeroization**: group chain/skipped keys and derived AEAD keys are wiped on
+  drop.
+- **Onion length-hiding**: the delivered payload is padded to fixed cells so the
+  last relay can't read the message length (full constant-cell routing is future
+  work).
+- Delivery-receipt signing bytes are domain-separated; the honest forward-secrecy
+  posture is documented (no rotation yet — a ratchet is the follow-up);
+  `generate_from_rng` is marked testing-only; identity local secret arrays are
+  zeroized.
+
+A second pass audited the transport/router/app layers (the Bridgefy-class mesh
+surface) and hardened it:
+- **Local API is now loopback-only by default** (`127.0.0.1`) with **Host-header
+  validation** — closes the "any device on the LAN can read history / send as the
+  user / fire a false SOS" exposure and DNS-rebinding. The insecure default vault
+  passphrase now logs a prominent warning.
+- **Self-verifying gateway announces**: `GatewayAnnounce` carries the gateway's
+  key; the engine verifies **every** announce (not just from known contacts),
+  rejects implausibly far-future expiry, and throttles re-gossip — closing
+  gradient-poisoning and announce-flood vectors.
+- **Bounded mesh-control collections** (memory-exhaustion DoS): router dedup
+  (`seen`) and `bridged` sets, gateway cache, reputation map, `bridge_out`, the
+  ARQ reassembly map, and discovered-peer/contact maps are all capped with
+  eviction.
+- **Abuse clamps**: `copies_left` is clamped to `[1, 16]` (no spray storm); SOS
+  bundles are never evicted (an SOS flood can't push out held emergencies);
+  block-fetch accepts **solicited** responses only (no unsolicited store-fill).
+- **Relay hardening**: bounded per-connection queue (drop-on-full, no slow-reader
+  OOM) and a max-connections cap.
+- **GUI**: the last unescaped DOM sink (`initials()`) is now escaped
+  (defense-in-depth; message bodies were already escaped — no XSS was reachable).
+
 ### Added
 - **Gateway-awareness in the live node** (FR-35/36/37): a node can run as a
   **gateway** (`LIFELINE_GATEWAY`), emitting signed announces (`core::announce`,

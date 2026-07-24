@@ -2,8 +2,10 @@
 
 use crate::views::{Command, Snapshot};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::State;
-use axum::response::{Html, IntoResponse};
+use axum::extract::{Request, State};
+use axum::http::StatusCode;
+use axum::middleware::{self, Next};
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
@@ -20,6 +22,24 @@ pub struct AppState {
     pub version: Arc<AtomicU64>,
 }
 
+/// Reject requests whose `Host` header isn't a loopback name. When the API is
+/// bound to localhost (the default), this is the defence against **DNS
+/// rebinding**: a malicious web page the user visits can't rebind its hostname to
+/// 127.0.0.1 and then drive this API, because its requests still carry the
+/// attacker's `Host`. Requests with no Host (e.g. HTTP/1.0) are allowed through
+/// only for loopback tooling; browsers always send one.
+async fn guard_host(req: Request, next: Next) -> Result<Response, StatusCode> {
+    if let Some(host) = req.headers().get(axum::http::header::HOST) {
+        let host = host.to_str().unwrap_or("");
+        let name = host.rsplit_once(':').map(|(h, _)| h).unwrap_or(host);
+        let ok = matches!(name, "localhost" | "127.0.0.1" | "::1" | "[::1]");
+        if !ok {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+    Ok(next.run(req).await)
+}
+
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(index))
@@ -34,6 +54,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/location", post(post_location))
         .route("/api/qr.svg", get(get_qr))
         .route("/api/ws", get(ws_handler))
+        .layer(middleware::from_fn(guard_host))
         .with_state(state)
 }
 

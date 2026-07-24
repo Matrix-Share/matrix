@@ -132,10 +132,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    let node_addr = env_or("LIFELINE_NODE_ADDR", "0.0.0.0:8080");
+    // Bind the local API to loopback by default: every route is unauthenticated,
+    // so exposing it on 0.0.0.0 would let any device on the network read the
+    // user's history and send messages / trigger SOS as them. Operators who
+    // deliberately expose it (e.g. behind their own auth proxy) must opt in.
+    let node_addr = env_or("LIFELINE_NODE_ADDR", "127.0.0.1:8080");
     let relay_addr = env_or("LIFELINE_RELAY_ADDR", "127.0.0.1:7000");
     let data_dir = env_or("LIFELINE_DATA_DIR", "./data");
     let passphrase = env_or("LIFELINE_PASSPHRASE", "lifeline-dev");
+    if passphrase == "lifeline-dev" {
+        tracing::warn!(
+            "LIFELINE_PASSPHRASE is unset — using the INSECURE default 'lifeline-dev'. \
+             Data at rest (identity + message history) is NOT protected. Set \
+             LIFELINE_PASSPHRASE to a strong secret in production."
+        );
+    }
     let name = std::env::var("LIFELINE_NAME").ok();
 
     let identity = load_or_create_identity(&data_dir, &passphrase, name.clone());

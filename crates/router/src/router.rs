@@ -1,5 +1,6 @@
 //! The per-node DTN router state machine (PRD §8.5, §12.1, §12.5).
 
+use crate::bounded::BoundedSet;
 use crate::gateway::GatewayCache;
 use crate::store::{BundleStore, DEFAULT_STORE_CAP_BYTES};
 use lifeline_proto::{Address, Bundle, Bytes, GatewayAnnounce, Priority};
@@ -7,6 +8,15 @@ use std::collections::HashSet;
 
 /// Capability string for an internet-uplink gateway (PRD §11.6).
 pub const CAP_INTERNET: &str = "internet";
+
+/// Cap on the dedup / bridged membership caches — bounds memory against a flood
+/// of unique `bundle_id`s (which the store byte-cap does not cover).
+const MAX_SEEN: usize = 200_000;
+/// Cap on the gateway's pending-uplink queue (holds full bundle clones).
+const MAX_BRIDGE_OUT: usize = 4096;
+/// Upper clamp on a bundle's spray copy budget, so a malicious peer can't inject
+/// `copies_left = u16::MAX` and trigger a replication storm (FR-24).
+const MAX_COPIES: u16 = 16;
 
 /// Router tunables.
 #[derive(Debug, Clone)]
@@ -87,11 +97,13 @@ pub struct DtnRouter {
     caps: Vec<String>,
 
     store: BundleStore,
-    /// Ids ever delivered-to-us or dropped — for dedup across their lifetime.
-    seen: HashSet<Bytes>,
-    /// Ids already pushed to the internet fabric by this (gateway) node.
-    bridged: HashSet<Bytes>,
-    /// Queue of bundles this internet gateway should push over its uplink.
+    /// Ids ever delivered-to-us or dropped — for dedup. Bounded (LRU) so a flood
+    /// of unique ids can't exhaust memory; TTL means an evicted id can't usefully
+    /// return anyway.
+    seen: BoundedSet<Bytes>,
+    /// Ids already pushed to the internet fabric by this (gateway) node (bounded).
+    bridged: BoundedSet<Bytes>,
+    /// Queue of bundles this internet gateway should push over its uplink (capped).
     bridge_out: Vec<Bundle>,
 
     gateways: GatewayCache,
@@ -108,8 +120,8 @@ impl DtnRouter {
             is_gateway: false,
             caps: Vec::new(),
             store,
-            seen: HashSet::new(),
-            bridged: HashSet::new(),
+            seen: BoundedSet::new(MAX_SEEN),
+            bridged: BoundedSet::new(MAX_SEEN),
             bridge_out: Vec::new(),
             gateways: GatewayCache::new(),
             reputation: crate::reputation::Reputation::new(),
@@ -198,15 +210,19 @@ impl DtnRouter {
         }
 
         // Internet gateway: queue this non-local bundle for the uplink (FR-37).
+        // The queue is capped (drop-oldest) so a flood with the uplink down can't
+        // grow it without bound.
         if self.is_gateway && self.has_internet() && !self.bridged.contains(&bundle.bundle_id) {
             self.bridged.insert(bundle.bundle_id.clone());
+            if self.bridge_out.len() >= MAX_BRIDGE_OUT {
+                self.bridge_out.remove(0);
+            }
             self.bridge_out.push(bundle.clone());
         }
 
-        // Clamp copies so a malicious peer can't inflate the spray budget.
-        if bundle.copies_left == 0 {
-            bundle.copies_left = 1;
-        }
+        // Clamp copies to `[1, MAX_COPIES]` so a malicious peer can't inject a
+        // huge `copies_left` and trigger a spray/replication storm (FR-24).
+        bundle.copies_left = bundle.copies_left.clamp(1, MAX_COPIES);
         if self.store.insert(bundle, now) {
             self.refresh_store_stats();
             IngestOutcome::Stored
@@ -433,7 +449,6 @@ mod tests {
             hops: 0,
             copies_left: 6,
             ciphertext: Bytes::new(vec![0; 64]),
-            sig: Bytes::new(vec![0; 64]),
             postage: None,
             frag: None,
         }
@@ -455,6 +470,23 @@ mod tests {
         let b = bundle(1, addr(1), Priority::Normal, 0);
         assert_eq!(r.ingest(b, 10), IngestOutcome::Delivered);
         assert_eq!(r.stats().delivered, 1);
+    }
+
+    #[test]
+    fn inflated_copy_budget_is_clamped_on_ingest() {
+        // A malicious peer injects copies_left = u16::MAX to trigger a spray storm.
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        let mut b = bundle(2, addr(9), Priority::Normal, 0); // relayed (not for us)
+        b.copies_left = u16::MAX;
+        assert_eq!(r.ingest(b, 10), IngestOutcome::Stored);
+        // Offer it to a peer and confirm the handed budget is bounded, not 32k+.
+        let handed = r.offer_to(&peer(addr(2)), 11);
+        assert_eq!(handed.len(), 1);
+        assert!(
+            handed[0].copies_left <= MAX_COPIES,
+            "spray budget must be clamped to MAX_COPIES, got {}",
+            handed[0].copies_left
+        );
     }
 
     #[test]
