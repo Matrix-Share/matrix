@@ -36,6 +36,7 @@ pub mod identity;
 pub mod log;
 pub mod message;
 pub mod onion;
+pub mod prekey;
 pub mod receipt;
 pub mod relay_proof;
 pub mod vault;

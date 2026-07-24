@@ -56,6 +56,17 @@ surface) and hardened it:
   (defense-in-depth; message bodies were already escaped — no XSS was reachable).
 
 ### Added
+- **Forward-secret prekeys** (`core::prekey`; audit MED-1): rotating,
+  identity-signed recipient encryption keys with a retention window — the
+  DTN-friendly alternative to a Double Ratchet (whose proofs assume timely,
+  in-order delivery that store-carry-forward breaks). The recipient mints and
+  publishes a signed prekey, retains a small ring of recent prekey secrets (≥ the
+  message TTL so in-flight messages still open), then deletes older ones — after
+  which a seized long-term key can't recover those messages. Proven: after
+  rotation+prune an old ciphertext is unrecoverable while a current one opens; a
+  message within the retention window still delivers; forged prekeys are rejected.
+  (Core mechanism; distributing prekeys via signed beacons + the seal/open
+  selection path is the remaining engine wiring.)
 - **Gateway-awareness in the live node** (FR-35/36/37): a node can run as a
   **gateway** (`LIFELINE_GATEWAY`), emitting signed announces (`core::announce`,
   verified when the gateway is a known contact) gossiped hop-by-hop so every node

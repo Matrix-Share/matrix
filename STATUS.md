@@ -84,7 +84,7 @@ is in [`GAPS.md`](GAPS.md).
 ## Security & anti-abuse (§8.9)
 | Req | State | Where |
 |---|---|---|
-| FR-44 E2E encryption everywhere | ✅ | `core::message` / `core::crypto` |
+| FR-44 E2E encryption everywhere | ✅ | `core::message` / `core::crypto`; **forward-secret rotating prekeys** available (`core::prekey` — signed, retention-windowed, DTN-friendly; proven to make a seized long-term key unable to recover pruned messages). Engine wiring (prekey-in-beacon + seal/open selection) ○ |
 | FR-45 Sealed sender | ✅ | `core::message` — sender identity **and its signature** sealed to the recipient, so a relay/observer with a suspect list can't trial-verify a cleartext signature to deanonymize the sender (hardened after the internal audit; the `Bundle` carries no wire signature) |
 | FR-46 PoW postage | ✅ | `proto::pow` (Hashcash, difficulty by priority, SOS exempt); enforced at router admission; **flood-throttle AC proven** (`sim`) |
 | FR-47 Reputation gossip | ◐ | **`router::Reputation` (credit/penalize/pessimistic gossip-merge) demotes relays; `offer_to` routes around demoted black holes (never blocking SOS/direct delivery); demotion propagates mesh-wide — proven in `sim`.** Automatic black-hole *attribution* (custody-chain analysis) ○ |
