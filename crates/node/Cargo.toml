@@ -22,6 +22,9 @@ lifeline-relay = { path = "../relay" }
 serde.workspace = true
 serde_json = "1"
 ciborium.workspace = true
+# QR rendering for the invite code (FR-3): we build the SVG ourselves from the
+# module matrix, so only the encoder is needed.
+qrcode = { version = "0.14", default-features = false }
 
 tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "sync", "time", "signal"] }
 axum = { version = "0.7", features = ["ws"] }

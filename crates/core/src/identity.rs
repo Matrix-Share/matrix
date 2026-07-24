@@ -31,10 +31,23 @@ pub struct Identity {
 }
 
 impl Identity {
-    /// Generate a brand-new identity (FR-1).
+    /// Generate a brand-new identity (FR-1) using the OS CSPRNG.
     pub fn generate(now: u64) -> Self {
-        let signing = SigningKey::generate(&mut rand::rngs::OsRng);
-        let kex_secret = XSecret::random_from_rng(rand::rngs::OsRng);
+        Self::generate_from_rng(&mut rand::rngs::OsRng, now)
+    }
+
+    /// Generate an identity from a caller-supplied CSPRNG.
+    ///
+    /// Production code should use [`Identity::generate`]; this exists so the
+    /// simulator can seed identities and get **reproducible** runs. (Message
+    /// nonces and bundle ids still come from the OS CSPRNG — deterministic
+    /// nonces would be a crypto footgun — so sim runs are statistically, not
+    /// bit-for-bit, reproducible.)
+    pub fn generate_from_rng<R: rand_core::CryptoRngCore + ?Sized>(rng: &mut R, now: u64) -> Self {
+        let signing = SigningKey::generate(rng);
+        let mut kex_bytes = [0u8; 32];
+        rng.fill_bytes(&mut kex_bytes);
+        let kex_secret = XSecret::from(kex_bytes);
         let address = Self::derive_address(&signing.verifying_key());
         Identity {
             signing,
@@ -135,6 +148,16 @@ impl Drop for Identity {
 
 /// Verify an Ed25519 signature given the raw 32-byte public key (used by relays
 /// and recipients to check headers, receipts, and log entries).
+/// Derive the network address a raw Ed25519 public key maps to (FR-2). Used to
+/// bind a claimed address to the key that signed for it.
+pub fn address_of(sign_pub: &[u8]) -> Result<lifeline_proto::Address> {
+    let arr: [u8; 32] = sign_pub
+        .try_into()
+        .map_err(|_| CoreError::BadKey("ed25519 pub len".into()))?;
+    let vk = VerifyingKey::from_bytes(&arr).map_err(|e| CoreError::BadKey(e.to_string()))?;
+    Ok(Identity::derive_address(&vk))
+}
+
 pub fn verify_sig(sign_pub: &[u8], msg: &[u8], sig: &[u8]) -> Result<()> {
     let vk_arr: [u8; 32] = sign_pub
         .try_into()

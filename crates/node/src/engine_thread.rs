@@ -46,6 +46,9 @@ pub fn run(
     shared: Arc<Mutex<Snapshot>>,
     version: Arc<AtomicU64>,
     udp: Option<UdpInterface>,
+    vault: lifeline_core::vault::Vault,
+    data_dir: String,
+    initial: crate::views::PersistedState,
 ) {
     let mut engine = NodeEngine::new(identity, EngineConfig::default());
     engine.add_interface(Box::new(ChannelInterface::new(
@@ -59,6 +62,13 @@ pub fn run(
         engine.add_interface(Box::new(udp));
     }
 
+    // Restore persisted contacts (FR-9) and message history (FR-15).
+    for code in &initial.contact_codes {
+        if let Some(p) = decode_code(code) {
+            engine.add_contact(p);
+        }
+    }
+
     let identity_view = IdentityView {
         address: engine.address().to_text(),
         name: name.clone(),
@@ -66,12 +76,17 @@ pub fn run(
     };
     let my_addr = engine.address().to_text();
 
-    let mut messages: Vec<MsgView> = Vec::new();
+    let mut messages: Vec<MsgView> = initial.messages;
     // bundle_id (b64) -> index into `messages` for outbound status updates.
     let mut sent_index: HashMap<String, usize> = HashMap::new();
+    let state_path = std::path::Path::new(&data_dir).join("state.vault");
+    let mut dirty = false;
+    let mut last_save_tick = 0u64;
+    let mut tick_no = 0u64;
 
     loop {
         let now = unix_now();
+        tick_no += 1;
 
         // 1. Apply queued commands.
         while let Ok(cmd) = cmd_rx.try_recv() {
@@ -79,7 +94,39 @@ pub fn run(
                 Command::AddContact { code } => {
                     if let Some(p) = decode_code(&code) {
                         engine.add_contact(p);
+                        dirty = true;
                     }
+                }
+                Command::Sos {
+                    lat,
+                    lon,
+                    acc_m,
+                    battery_pct,
+                    note,
+                } => {
+                    let coords = match (lat, lon) {
+                        (Some(lat), Some(lon)) => Some(lifeline_proto::Coords {
+                            lat,
+                            lon,
+                            acc_m: acc_m.unwrap_or(0),
+                        }),
+                        _ => None,
+                    };
+                    let ids = engine.broadcast_sos(coords, battery_pct, note.clone(), now);
+                    for id in ids {
+                        let idx = messages.len();
+                        messages.push(MsgView {
+                            id: id.to_b64url(),
+                            dir: "out-sos".into(),
+                            peer: String::new(),
+                            peer_name: "everyone".into(),
+                            body: note.clone().unwrap_or_else(|| "SOS".into()),
+                            ts: now,
+                            status: "sent".into(),
+                        });
+                        sent_index.insert(id.to_b64url(), idx);
+                    }
+                    dirty = true;
                 }
                 Command::Send { to, body, priority } => {
                     let Ok(addr) = Address::from_text(&to) else {
@@ -99,6 +146,7 @@ pub fn run(
                             status: "sent".into(),
                         });
                         sent_index.insert(id.to_b64url(), idx);
+                        dirty = true;
                     }
                 }
             }
@@ -124,15 +172,35 @@ pub fn run(
                 ts: now,
                 status: "received".into(),
             });
+            dirty = true;
         }
 
         // 4. Update outbound delivery-proof status.
         for (bid, verified) in engine.sent_status() {
             if verified {
                 if let Some(&idx) = sent_index.get(&bid.to_b64url()) {
-                    messages[idx].status = "verified".into();
+                    if messages[idx].status != "verified" {
+                        messages[idx].status = "verified".into();
+                        dirty = true;
+                    }
                 }
             }
+        }
+
+        // 5. Persist encrypted state periodically when something changed (FR-9/15).
+        if dirty && tick_no.saturating_sub(last_save_tick) >= 20 {
+            let persisted = crate::views::PersistedState {
+                contact_codes: engine.directory().iter().map(encode_code).collect(),
+                messages: messages.clone(),
+            };
+            if let Ok(bytes) = serde_json::to_vec(&persisted) {
+                let blob = vault.seal(&bytes);
+                if let Ok(json) = serde_json::to_vec(&blob) {
+                    let _ = std::fs::write(&state_path, json);
+                }
+            }
+            last_save_tick = tick_no;
+            dirty = false;
         }
 
         // 5. Publish snapshot.
@@ -225,6 +293,13 @@ fn build_snapshot(
             sent: sent.len(),
             verified,
             received,
+            store_bytes: stats.store_bytes,
+            duplicates: stats.duplicates,
+            dropped_expired: stats.dropped_expired,
+            dropped_nopostage: stats.dropped_nopostage,
+            custody_transfers: stats.custody_transfers,
+            known_gateways: stats.known_gateways,
+            retries: engine.retry_count(),
         },
     }
 }

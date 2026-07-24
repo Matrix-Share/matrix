@@ -71,6 +71,16 @@ fn signing_bytes(
     v
 }
 
+/// What a group-control payload carries: either a sender-key distribution or an
+/// encrypted group message. Both travel inside a normal bundle addressed to a
+/// member (so the bundle's own E2E encryption protects the chain key in a
+/// distribution — no extra sealing needed on that path).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum GroupEnvelope {
+    Distribution(SenderKeyDistribution),
+    Message(GroupMessage),
+}
+
 /// A group message on the wire (PRD FR-12).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GroupMessage {

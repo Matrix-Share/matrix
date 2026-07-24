@@ -50,6 +50,15 @@
   code{background:var(--bg);padding:1px 5px;border-radius:5px}
   .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:8px;opacity:0;transition:opacity .2s}
   .toast.show{opacity:1}
+  .qrwrap{background:#fff;border-radius:8px;padding:6px;display:flex;justify-content:center;margin-bottom:8px}
+  .qrwrap img{width:100%;max-width:180px;height:auto;display:block;image-rendering:pixelated}
+  .hintsm{color:var(--muted);font-size:11px;margin-top:8px;line-height:1.45}
+  .card.sos{border-color:#6b2544}
+  button.danger{background:var(--pink);color:#2b0713;width:100%;font-size:15px;padding:11px}
+  button.danger:active{transform:scale(.99)}
+  .diag{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:12px;color:var(--muted)}
+  .diag b{color:var(--ink);font-weight:600;text-align:right}
+  .diag .sec{grid-column:1/-1;color:var(--accent);font-size:10px;text-transform:uppercase;letter-spacing:.4px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -64,10 +73,20 @@
   <aside class="side">
     <div class="card">
       <h2>Your identity</h2>
+      <div class="qrwrap"><img id="qr" src="/api/qr.svg" alt="Your invite QR code" /></div>
       <div class="mono" id="meAddr">…</div>
       <div class="row">
         <button id="copyBtn" class="ghost">Copy my invite code</button>
       </div>
+      <div class="hintsm">Have someone scan this in person to add you as a
+        <b>verified</b> contact.</div>
+    </div>
+
+    <div class="card sos">
+      <h2>Emergency</h2>
+      <button id="sosBtn" class="danger">🆘 &nbsp;Send SOS</button>
+      <div class="hintsm" id="sosHint">Highest priority. Attaches your GPS and
+        battery if allowed, and takes any path out.</div>
     </div>
 
     <div class="card">
@@ -131,19 +150,33 @@ function render(){
     dir.appendChild(d);
   });
 
-  // stats
+  // diagnostics (FR-53)
   const s=state.status;
   $("stats").innerHTML =
-    stat("Interfaces", s.interfaces.join(", ")||"—") +
-    stat("Relay", s.relay_connected?"connected":"offline") +
-    stat("Sent / verified", s.sent+" / "+s.verified) +
-    stat("Received", s.received) +
-    stat("Relayed copies", s.forwarded_copies) +
-    stat("Store", s.store_len);
+    '<div class="diag">' +
+    '<div class="sec">Link</div>' +
+    row("Interfaces", s.interfaces.join(", ")||"—") +
+    row("Relay", s.relay_connected?"connected":"offline") +
+    row("Peers in range", s.peer_count) +
+    row("Known gateways", s.known_gateways) +
+    '<div class="sec">Messages</div>' +
+    row("Sent / verified", s.sent+" / "+s.verified) +
+    row("Received", s.received) +
+    row("Retries", s.retries) +
+    '<div class="sec">Relaying</div>' +
+    row("Copies forwarded", s.forwarded_copies) +
+    row("Queue", s.store_len+" ("+fmtBytes(s.store_bytes)+")") +
+    row("Custody handoffs", s.custody_transfers) +
+    row("Duplicates suppressed", s.duplicates) +
+    row("Dropped: expired", s.dropped_expired) +
+    row("Dropped: no postage", s.dropped_nopostage) +
+    '</div>';
 
   renderChat();
 }
 function stat(k,v){ return `<div class="stat"><span>${k}</span><b>${escapeHtml(String(v))}</b></div>`; }
+function row(k,v){ return `<div>${k}</div><b>${escapeHtml(String(v))}</b>`; }
+function fmtBytes(n){ if(n<1024) return n+" B"; if(n<1048576) return (n/1024).toFixed(1)+" KB"; return (n/1048576).toFixed(1)+" MB"; }
 function escapeHtml(s){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 function renderChat(){
@@ -154,7 +187,7 @@ function renderChat(){
   if(msgs.length===0){ chat.innerHTML='<div class="hint">No messages yet. Say hello — it will be end-to-end encrypted and delivery-verified.</div>'; return; }
   msgs.forEach(m=>{
     const b=document.createElement("div");
-    const out = m.dir==="out";
+    const out = m.dir.startsWith("out");
     b.className="bubble "+(out?"out":"in")+(m.dir==="in-sos"?" sos":"");
     let status = out ? (m.status==="verified"?'<span class="tick">✓✓ verified</span>':"sent · …") : "received";
     b.innerHTML = `<div>${escapeHtml(m.body)}</div><div class="meta">${status}</div>`;
@@ -185,6 +218,33 @@ async function send(){
   await post("/api/send",{to:sel, body, priority});
   $("msg").value="";
 }
+// --- SOS (FR-40): one tap, best-effort GPS + battery, highest priority ---
+function getPosition(){
+  return new Promise(res=>{
+    if(!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(
+      p=>res({lat:p.coords.latitude, lon:p.coords.longitude, acc_m:Math.round(p.coords.accuracy||0)}),
+      ()=>res(null), {enableHighAccuracy:true, timeout:5000, maximumAge:60000});
+  });
+}
+async function getBattery(){
+  try{ const b = await navigator.getBattery(); return Math.round(b.level*100); }
+  catch(e){ return null; }
+}
+$("sosBtn").onclick = async ()=>{
+  const btn = $("sosBtn"); btn.disabled = true;
+  $("sosHint").textContent = "Getting location…";
+  const [pos, battery_pct] = await Promise.all([getPosition(), getBattery()]);
+  const body = { note: "SOS", battery_pct };
+  if(pos){ body.lat=pos.lat; body.lon=pos.lon; body.acc_m=pos.acc_m; }
+  await post("/api/sos", body);
+  $("sosHint").textContent = pos
+    ? `SOS sent with GPS (±${pos.acc_m}m)${battery_pct!=null?` · battery ${battery_pct}%`:""}.`
+    : "SOS sent (no location permission — message still went out).";
+  toast("SOS sent to all contacts");
+  setTimeout(()=>{ btn.disabled=false; }, 2000);
+};
+
 $("testBtn").onclick = async ()=>{
   $("testOut").textContent="running acceptance simulator…";
   const r = await (await fetch("/api/selftest")).json();

@@ -171,7 +171,9 @@ impl World {
     /// Add a node in `cluster`. Returns its index. Set `caps` non-empty and
     /// pass `is_gateway = true` to make it a gateway (FR-35).
     pub fn add_node(&mut self, cluster: usize, is_gateway: bool, caps: Vec<String>) -> usize {
-        let identity = Identity::generate(self.now);
+        // Seed identities from the world's RNG so a given seed reproduces the
+        // same set of nodes/addresses (message nonces still use the OS CSPRNG).
+        let identity = Identity::generate_from_rng(&mut self.rng, self.now);
         let public = identity.public();
         let cfg = RouterConfig {
             require_postage: self.require_postage,

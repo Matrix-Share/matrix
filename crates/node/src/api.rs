@@ -27,8 +27,75 @@ pub fn router(state: AppState) -> Router {
         .route("/api/send", post(post_send))
         .route("/api/contacts", post(post_contact))
         .route("/api/selftest", get(get_selftest))
+        .route("/api/sos", post(post_sos))
+        .route("/api/qr.svg", get(get_qr))
         .route("/api/ws", get(ws_handler))
         .with_state(state)
+}
+
+#[derive(Deserialize)]
+struct SosReq {
+    lat: Option<f64>,
+    lon: Option<f64>,
+    acc_m: Option<u32>,
+    battery_pct: Option<u8>,
+    note: Option<String>,
+}
+
+/// One-tap SOS (FR-40): highest priority, with GPS + battery if the browser
+/// granted them.
+async fn post_sos(State(st): State<AppState>, Json(req): Json<SosReq>) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::Sos {
+        lat: req.lat,
+        lon: req.lon,
+        acc_m: req.acc_m,
+        battery_pct: req.battery_pct,
+        note: req.note,
+    });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+/// Render this node's invite code as a QR image (FR-3) so another device can
+/// scan it in person to add a verified contact (FR-6, TOFU).
+async fn get_qr(State(st): State<AppState>) -> impl IntoResponse {
+    let code = { st.shared.lock().unwrap().identity.code.clone() };
+    let svg = qr_svg(&code).unwrap_or_else(|| {
+        "<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'></svg>".into()
+    });
+    ([(axum::http::header::CONTENT_TYPE, "image/svg+xml")], svg)
+}
+
+/// Encode `data` as a QR code and emit a self-contained SVG (one rect per dark
+/// module, plus a quiet zone).
+fn qr_svg(data: &str) -> Option<String> {
+    use qrcode::{Color, QrCode};
+    if data.is_empty() {
+        return None;
+    }
+    let code = QrCode::new(data.as_bytes()).ok()?;
+    let width = code.width();
+    let quiet = 4usize;
+    let total = width + quiet * 2;
+    let colors = code.to_colors();
+
+    let mut svg = String::with_capacity(total * total * 8);
+    svg.push_str(&format!(
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {total} {total}' \
+         shape-rendering='crispEdges' width='240' height='240'>\
+         <rect width='{total}' height='{total}' fill='#ffffff'/>"
+    ));
+    for y in 0..width {
+        for x in 0..width {
+            if colors[y * width + x] == Color::Dark {
+                let (px, py) = (x + quiet, y + quiet);
+                svg.push_str(&format!(
+                    "<rect x='{px}' y='{py}' width='1' height='1' fill='#000000'/>"
+                ));
+            }
+        }
+    }
+    svg.push_str("</svg>");
+    Some(svg)
 }
 
 async fn index() -> Html<&'static str> {

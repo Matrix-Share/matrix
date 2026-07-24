@@ -104,11 +104,11 @@ The component-reference doc pairs each paper with a *what-to-improve* note. Stat
 | **Sender-keys group encryption** | PRD FR-12 | Medium — CRDT membership already converges |
 | **Content-addressed blocks (IPFS/IPLD)** | PRD FR-13; Benet | Medium — for large attachments & cached alerts |
 | **Lossy-link ARQ / selective repeat** | Dhwani noise robustness | Medium — needed for real ultrasound/LoRa/UDP-loss |
-| **Onion/metadata privacy** | PRD FR-49; gateway §5 | Phase 3 |
-| **Official alert ingest (India Cell Broadcast)** | PRD FR-42; gateway Phase 3 | Phase 3 |
+| ~~Onion/metadata privacy~~ | PRD FR-49; gateway §5 | ✅ done (`core::onion`; engine forwarding path ○) |
+| **Official alert ingest (India Cell Broadcast)** | PRD FR-42 | ◐ signed-alert trust done (`core::alert`); external CB feed ○ |
 | **Endpoint moderation enforcement** | PRD FR-48 | Low — blocklist CRDT done; drop-enforcement wiring |
 | **BP7 interop mapping** | RFC 9171 | Low — credibility/interop |
-| **Incentive / proof-of-relay** | Helium; kept off delivery path | Phase 3, optional |
+| ~~Incentive / proof-of-relay~~ | Helium; kept off delivery path | ✅ done (`core::relay_proof`, witness-signed credits — self-witnessing rejected) |
 
 ## 4. Recommended next slice
 Recently completed: erasure coding (FR-28), reputation (FR-47), parser
