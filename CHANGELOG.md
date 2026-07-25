@@ -55,6 +55,27 @@ surface) and hardened it:
 - **GUI**: the last unescaped DOM sink (`initials()`) is now escaped
   (defense-in-depth; message bodies were already escaped — no XSS was reachable).
 
+### Changed
+- **Protocol evolution hardening (NFR-9 interoperability).** From an independent
+  architecture review: the wire format could not evolve without partitioning the
+  mesh. Fixed:
+  - `WIRE_VERSION` is now **load-bearing** — stamped as `Bundle.v` and **checked
+    at ingest** (`DtnRouter::ingest` rejects an incompatible version before the
+    dedup/store/deliver paths; new `dropped_version` stat). Documented evolution
+    policy: additive optional fields and new enum values do *not* bump it; only a
+    structurally incompatible header change does.
+  - `Priority` and `PayloadKind` now **wire-encode as integer discriminants** (via
+    `serde(from/into = u8)`) instead of variant-name strings, and decode unknown
+    values to a **safe fallback** — an unknown `Priority` → `Bulk` (still relayed,
+    never preempts; it rides in the cleartext header every hop reads), an unknown
+    `PayloadKind` → `Unknown` (the engine ignores it). So a new priority/payload
+    class rolls out gradually **without hard-erroring un-upgraded nodes**. Bumped
+    `WIRE_VERSION` → 2.
+  - The engine's inbound payload dispatch is now an **exhaustive `match`** (no
+    wildcard), so adding a `PayloadKind` is a compile error until it is routed —
+    closing a silent-misroute gap where a new control type fell through to the app
+    inbox.
+
 ### Added
 - **Black-hole attribution — live reputation feedback (FR-47).** The reputation
   *scoring* primitive existed but nothing fed it from live evidence; now the
