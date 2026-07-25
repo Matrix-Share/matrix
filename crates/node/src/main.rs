@@ -10,9 +10,13 @@
 //! * `LIFELINE_NAME`       — display name (default derived from address).
 //! * `LIFELINE_DATA_DIR`   — where the identity is persisted (default `./data`).
 //! * `LIFELINE_PASSPHRASE` — passphrase wrapping the stored identity (dev default).
+//! * `LIFELINE_NOSTR_RELAY`— comma-separated Nostr relay URLs to bridge onto as
+//!   an extra bearer (requires the `nostr` build feature), e.g. `wss://relay.damus.io`.
 
 mod api;
 mod engine_thread;
+#[cfg(feature = "nostr")]
+mod nostr_bridge;
 mod relay_client;
 mod views;
 
@@ -56,6 +60,38 @@ fn build_udp() -> Option<UdpInterface> {
 
 fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_string())
+}
+
+/// Build the optional Nostr bearer from `LIFELINE_NOSTR_RELAY` (comma-separated
+/// relay URLs). Returns the engine-facing `ChannelInterface` and spawns the
+/// background client tasks; `None` if the env var is empty. `nostr` feature only.
+#[cfg(feature = "nostr")]
+fn build_nostr(
+    identity: &Identity,
+    handle: &tokio::runtime::Handle,
+) -> Option<lifeline_transport::ChannelInterface> {
+    use lifeline_transport::{ChannelInterface, InterfaceCaps};
+    let urls: Vec<String> = std::env::var("LIFELINE_NOSTR_RELAY")
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if urls.is_empty() {
+        return None;
+    }
+    let (out_tx, out_rx) = std::sync::mpsc::channel();
+    let (in_tx, in_rx) = std::sync::mpsc::channel();
+    let peers = Arc::new(Mutex::new(Vec::<u64>::new()));
+    let iface = ChannelInterface::new(
+        InterfaceCaps::overlay("nostr", 16 * 1024),
+        out_tx,
+        in_rx,
+        peers.clone(),
+    );
+    let seed = nostr_bridge::seed_from_identity(identity);
+    nostr_bridge::spawn(handle, urls, seed, out_rx, in_tx, peers);
+    Some(iface)
 }
 
 /// Load a persisted identity or generate + save a new one (FR-1, FR-5).
@@ -180,6 +216,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Optional infrastructureless LAN transport.
     let udp = build_udp();
 
+    // Optional global-internet bearer over the Nostr relay network. Derive the
+    // seed + spawn the client here (needs the identity before it moves into the
+    // engine thread, and the current Tokio runtime handle).
+    #[cfg(feature = "nostr")]
+    let nostr_iface = build_nostr(&identity, &tokio::runtime::Handle::current());
+    #[cfg(not(feature = "nostr"))]
+    let nostr_iface: Option<lifeline_transport::ChannelInterface> = None;
+
     // Engine thread.
     {
         let shared = shared.clone();
@@ -201,6 +245,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     vault,
                     data_dir,
                     initial,
+                    nostr_iface,
                 );
             })?;
     }

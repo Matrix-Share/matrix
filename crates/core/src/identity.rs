@@ -124,6 +124,23 @@ impl Identity {
         &self.kex_secret
     }
 
+    /// Derive a stable 32-byte secret for a subsystem that needs its own keypair
+    /// — e.g. a **bearer-level Nostr identity** — without ever exposing the
+    /// long-term signing secret. Domain-separated, so distinct `domain`s yield
+    /// independent, mutually-unlinkable keys, and deterministic, so the derived
+    /// account (and thus its offline mailbox address) survives restarts.
+    pub fn derive_subkey(&self, domain: &[u8]) -> [u8; 32] {
+        let mut sk = self.signing.to_bytes();
+        let mut input = Vec::with_capacity(18 + domain.len() + 32);
+        input.extend_from_slice(b"lifeline/subkey/v1");
+        input.extend_from_slice(domain);
+        input.extend_from_slice(&sk);
+        let out = crypto::blake3_32(&input);
+        sk.zeroize(); // scrub the copies of the signing secret
+        input.zeroize();
+        out
+    }
+
     /// The public identity record for sharing (QR, announces) (FR-3, §11.1).
     pub fn public(&self) -> IdentityPublic {
         IdentityPublic {

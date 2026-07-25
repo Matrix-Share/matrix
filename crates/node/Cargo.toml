@@ -18,6 +18,8 @@ lifeline-sync = { path = "../sync" }
 lifeline-transport = { path = "../transport" }
 lifeline-sim = { path = "../sim" }
 lifeline-relay = { path = "../relay" }
+# Optional: live connectivity over the Nostr relay network (`nostr` feature).
+lifeline-bridge = { path = "../bridge", features = ["ws"], optional = true }
 
 serde.workspace = true
 serde_json = "1"
@@ -30,3 +32,8 @@ tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "sync",
 axum = { version = "0.7", features = ["ws"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+# Bridge the node onto the global Nostr relay network as an extra bearer.
+# Off by default so the base daemon avoids the async-WebSocket/TLS/secp stack.
+nostr = ["dep:lifeline-bridge"]
