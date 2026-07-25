@@ -11,7 +11,18 @@ use serde::{Deserialize, Serialize};
 
 /// Message priority classes (PRD FR-14): `SOS(0) > ALERT(1) > NORMAL(2) > BULK(3)`.
 /// Lower numeric value = higher priority, so `Ord` sorts SOS first.
+///
+/// **Wire-encoded as its `u8` discriminant** (via `serde(from/into)`), not a
+/// variant-name string, so it is compact *and* forward-compatible: a future
+/// priority class emitted by a newer node decodes on an older node as [`Bulk`]
+/// (the safest fallback — still relayed, never preempts) instead of hard-erroring
+/// the whole relay path. This lives in the cleartext header that every hop
+/// decodes, so graceful degradation here is what stops a one-variant change from
+/// partitioning the mesh.
+///
+/// [`Bulk`]: Priority::Bulk
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(from = "u8", into = "u8")]
 #[repr(u8)]
 pub enum Priority {
     /// One-tap SOS; preempts all other traffic at every hop (FR-27, FR-40).
@@ -36,6 +47,20 @@ impl Priority {
     }
     pub fn as_u8(self) -> u8 {
         self as u8
+    }
+}
+
+impl From<u8> for Priority {
+    /// Unknown (future) priority classes degrade to `Bulk` so relays still carry
+    /// the bundle rather than rejecting it — forward compatibility over precision.
+    fn from(v: u8) -> Self {
+        Priority::from_u8(v).unwrap_or(Priority::Bulk)
+    }
+}
+
+impl From<Priority> for u8 {
+    fn from(p: Priority) -> u8 {
+        p.as_u8()
     }
 }
 
@@ -179,30 +204,71 @@ pub struct Payload {
 }
 
 /// Payload discriminant (PRD §11.3 `type`).
+///
+/// **Wire-encoded as its `u8` discriminant** (via `serde(from/into)`) so it is
+/// forward-compatible: a payload type introduced by a newer node decodes on an
+/// older node as [`Unknown`] — which the engine silently ignores — instead of
+/// hard-erroring. Because this lives *inside* the recipient-decrypted ciphertext
+/// (never in the relay header), a new type only affects endpoint↔endpoint
+/// compatibility; relays forward it regardless. New variants must be appended
+/// with an explicit, never-reused discriminant.
+///
+/// [`Unknown`]: PayloadKind::Unknown
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(from = "u8", into = "u8")]
+#[repr(u8)]
 pub enum PayloadKind {
-    Text,
-    Sos,
-    Safe,
-    Location,
-    Alert,
-    Receipt,
-    GroupOp,
-    AttachChunk,
+    Text = 0,
+    Sos = 1,
+    Safe = 2,
+    Location = 3,
+    Alert = 4,
+    Receipt = 5,
+    GroupOp = 6,
+    AttachChunk = 7,
     /// A signed custody-transfer acknowledgement (FR-25): a committed custodian
     /// tells the previous hop it has accepted responsibility for a bundle, so
     /// the previous hop may free its relayed copy.
-    Custody,
+    Custody = 8,
     /// An onion-routing layer (FR-49): the body is one still-encrypted onion
     /// whose outer layer is sealed to this hop. The hop peels it to learn only
     /// the next hop, then forwards — hiding who is talking to whom.
-    Onion,
+    Onion = 9,
     /// A request for a content-addressed block by CID (FR-13): body is the CID.
-    BlockRequest,
+    BlockRequest = 10,
     /// A content-addressed block in reply to a request (FR-13): body carries the
     /// `(cid, bytes)` so the receiver can verify the hash before storing.
-    BlockResponse,
+    BlockResponse = 11,
+    /// A payload type this build does not understand (a value from a newer peer).
+    /// Never constructed locally; the engine drops it. Reserved discriminant so
+    /// it round-trips distinctly from any real kind.
+    Unknown = 255,
+}
+
+impl From<u8> for PayloadKind {
+    fn from(v: u8) -> Self {
+        match v {
+            0 => PayloadKind::Text,
+            1 => PayloadKind::Sos,
+            2 => PayloadKind::Safe,
+            3 => PayloadKind::Location,
+            4 => PayloadKind::Alert,
+            5 => PayloadKind::Receipt,
+            6 => PayloadKind::GroupOp,
+            7 => PayloadKind::AttachChunk,
+            8 => PayloadKind::Custody,
+            9 => PayloadKind::Onion,
+            10 => PayloadKind::BlockRequest,
+            11 => PayloadKind::BlockResponse,
+            _ => PayloadKind::Unknown,
+        }
+    }
+}
+
+impl From<PayloadKind> for u8 {
+    fn from(k: PayloadKind) -> u8 {
+        k as u8
+    }
 }
 
 /// GPS coordinates attached to SOS / location payloads (PRD §11.3, FR-40/43).
@@ -334,6 +400,42 @@ mod tests {
         assert!(Priority::Sos < Priority::Alert);
         assert!(Priority::Alert < Priority::Normal);
         assert!(Priority::Normal < Priority::Bulk);
+    }
+
+    #[test]
+    fn priority_wire_is_compact_int_and_forward_compatible() {
+        // Encodes as a single-byte integer, not a variant-name string.
+        let enc = to_cbor(&Priority::Normal).unwrap();
+        assert_eq!(enc, vec![0x02], "Priority should be its u8 discriminant");
+        // A future priority class (say 7) decodes to the safe Bulk fallback,
+        // rather than erroring the whole (cleartext-header) decode.
+        let future: Priority = from_cbor(&to_cbor(&7u8).unwrap()).unwrap();
+        assert_eq!(future, Priority::Bulk);
+        // Known values still round-trip exactly.
+        for p in [
+            Priority::Sos,
+            Priority::Alert,
+            Priority::Normal,
+            Priority::Bulk,
+        ] {
+            assert_eq!(from_cbor::<Priority>(&to_cbor(&p).unwrap()).unwrap(), p);
+        }
+    }
+
+    #[test]
+    fn payloadkind_wire_is_forward_compatible() {
+        // Known kinds round-trip as their integer discriminant.
+        for k in [
+            PayloadKind::Text,
+            PayloadKind::Custody,
+            PayloadKind::BlockResponse,
+        ] {
+            assert_eq!(from_cbor::<PayloadKind>(&to_cbor(&k).unwrap()).unwrap(), k);
+        }
+        // A payload type from a newer peer (discriminant 42) decodes to Unknown,
+        // which the engine drops — no hard error, so endpoints stay interoperable.
+        let future: PayloadKind = from_cbor(&to_cbor(&42u8).unwrap()).unwrap();
+        assert_eq!(future, PayloadKind::Unknown);
     }
 
     #[test]

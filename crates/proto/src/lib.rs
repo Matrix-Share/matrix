@@ -22,6 +22,29 @@ pub use address::Address;
 pub use codec::{Bytes, CodecError};
 pub use types::*;
 
-/// Current wire-format version. Bump on any breaking change to the structs
-/// below; nodes advertise and check this to stay interoperable (NFR-9).
-pub const WIRE_VERSION: u8 = 1;
+/// Current wire-format version, stamped into every [`Bundle`]'s `v` field and
+/// **checked at ingest** (see [`accepts_version`]).
+///
+/// Evolution policy (NFR-9 interoperability):
+/// * **Additive, optional struct fields** do NOT bump this — CBOR encodes structs
+///   as name-keyed maps and every optional field is `skip_serializing_if`, so
+///   older nodes ignore unknown fields and newer nodes tolerate missing ones.
+/// * **New enum values** ([`Priority`], [`PayloadKind`]) do NOT bump this — both
+///   encode as integer discriminants and decode unknown values to a safe
+///   fallback, so a new class rolls out gradually without partitioning the mesh.
+/// * Only a **structurally incompatible** header change bumps this. Two nodes
+///   whose versions differ reject each other's bundles at ingest rather than
+///   mis-parsing them.
+///
+/// v2: `Priority`/`PayloadKind` moved from variant-name strings to
+/// forward-compatible integer discriminants.
+pub const WIRE_VERSION: u8 = 2;
+
+/// Whether this node will accept a bundle stamped with wire version `v`.
+///
+/// Currently exact-match: the header layout is a single structural version, so a
+/// mismatch means the peer may lay the header out differently and we must not
+/// guess. (A future major/minor split would widen this to "same major".)
+pub const fn accepts_version(v: u8) -> bool {
+    v == WIRE_VERSION
+}

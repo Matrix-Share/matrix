@@ -1359,18 +1359,28 @@ impl NodeEngine {
                 None => return,
             },
         };
-        if opened.payload.kind == lifeline_proto::PayloadKind::Receipt {
-            self.process_receipt(opened);
-        } else if opened.payload.kind == PayloadKind::Custody {
-            self.process_custody(opened, now);
-        } else if opened.payload.kind == PayloadKind::Onion {
-            self.handle_onion(opened, bundle.priority, now);
-        } else if opened.payload.kind == PayloadKind::BlockRequest {
-            self.handle_block_request(opened, now);
-        } else if opened.payload.kind == PayloadKind::BlockResponse {
-            self.handle_block_response(opened);
-        } else {
-            self.deliver_message(&bundle, opened, now);
+        // Exhaustive dispatch: no wildcard, so adding a `PayloadKind` variant is a
+        // compile error until it is routed here — closing the silent-misroute gap
+        // where a new control type would have fallen through to `deliver_message`.
+        match opened.payload.kind {
+            // Control payloads handled internally (never surfaced to the app).
+            PayloadKind::Receipt => self.process_receipt(opened),
+            PayloadKind::Custody => self.process_custody(opened, now),
+            PayloadKind::Onion => self.handle_onion(opened, bundle.priority, now),
+            PayloadKind::BlockRequest => self.handle_block_request(opened, now),
+            PayloadKind::BlockResponse => self.handle_block_response(opened),
+            // Application payloads delivered to the inbox (+ delivery receipt).
+            PayloadKind::Text
+            | PayloadKind::Sos
+            | PayloadKind::Safe
+            | PayloadKind::Location
+            | PayloadKind::Alert
+            | PayloadKind::GroupOp
+            | PayloadKind::AttachChunk => self.deliver_message(&bundle, opened, now),
+            // Forward-compat: a payload type a newer peer defined. Ignore it
+            // (we already relayed the encrypted bundle for endpoints that do
+            // understand it) rather than mis-handling it.
+            PayloadKind::Unknown => {}
         }
     }
 

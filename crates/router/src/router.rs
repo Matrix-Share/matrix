@@ -83,6 +83,8 @@ pub struct RouterStats {
     pub dropped_hoplimit: u64,
     pub dropped_norroom: u64,
     pub dropped_nopostage: u64,
+    /// Bundles dropped because their wire version is incompatible (NFR-9).
+    pub dropped_version: u64,
     pub forwarded_copies: u64,
     /// Copies dropped after another node signed for custody (FR-25).
     pub custody_transfers: u64,
@@ -174,6 +176,17 @@ impl DtnRouter {
 
     /// Ingest a bundle received from a peer (§12.1 step 4/6).
     pub fn ingest(&mut self, mut bundle: Bundle, now: u64) -> IngestOutcome {
+        // Wire-version gate (NFR-9): reject a bundle whose header layout we may not
+        // parse the same way, rather than mis-routing it. Checked before anything
+        // else so an incompatible peer can't reach the store or delivery paths.
+        // (Enum *values* evolve compatibly on their own — see `proto::WIRE_VERSION`;
+        // this guards only structurally incompatible versions.)
+        if !lifeline_proto::accepts_version(bundle.v) {
+            self.seen.insert(bundle.bundle_id.clone());
+            self.stats.dropped_version += 1;
+            return IngestOutcome::Dropped("wire version");
+        }
+
         // Dedup across the bundle's whole lifetime.
         if self.seen.contains(&bundle.bundle_id) || self.store.contains(&bundle.bundle_id) {
             self.stats.duplicates += 1;
@@ -506,6 +519,22 @@ mod tests {
         let b = bundle(1, addr(1), Priority::Normal, 0);
         assert_eq!(r.ingest(b, 10), IngestOutcome::Delivered);
         assert_eq!(r.stats().delivered, 1);
+    }
+
+    #[test]
+    fn rejects_incompatible_wire_version() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        // A bundle even addressed to us must be rejected if its header version is
+        // one we can't be sure we parse the same way (NFR-9).
+        let mut b = bundle(1, addr(1), Priority::Normal, 0);
+        b.v = WIRE_VERSION.wrapping_add(1);
+        assert_eq!(r.ingest(b, 10), IngestOutcome::Dropped("wire version"));
+        assert_eq!(r.stats().dropped_version, 1);
+        assert_eq!(
+            r.stats().delivered,
+            0,
+            "must not deliver an incompatible bundle"
+        );
     }
 
     #[test]
