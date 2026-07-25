@@ -9,12 +9,22 @@
 //! Provided here:
 //! * [`nostr`] — a real Nostr adapter (secp256k1 Schnorr events, bundle↔event
 //!   codec, relay-backed store-and-forward). Lets Lifeline nodes reach each other
-//!   over the global, already-adopted Nostr relay network.
+//!   over the global, already-adopted Nostr relay network. A live WebSocket relay
+//!   client (`ws` feature) hits real relays; see [`ws`].
+//! * [`meshtastic`] (`meshtastic` feature) — a real Meshtastic adapter: genuine
+//!   `ServiceEnvelope`/`MeshPacket` protobuf carried over MQTT, so Lifeline rides
+//!   actual LoRa mesh hardware and public Meshtastic brokers. Live MQTT client
+//!   behind the `mqtt` feature.
 //! * [`skeleton`] — a documented, compiling template for the next network
-//!   (Reticulum, Meshtastic, Matrix, a plain relay): copy it, fill in the TODOs.
+//!   (Reticulum, Matrix, a plain relay): copy it, fill in the TODOs.
 
 pub mod nostr;
 pub mod skeleton;
+
+/// Meshtastic adapter (real `ServiceEnvelope`/`MeshPacket` protobuf over MQTT).
+/// Behind the `meshtastic` feature; the live MQTT transport needs `mqtt` too.
+#[cfg(feature = "meshtastic")]
+pub mod meshtastic;
 
 /// Live WebSocket Nostr relay client (async). Behind the `ws` feature so the
 /// core codec + adapters build without the async/TLS stack.

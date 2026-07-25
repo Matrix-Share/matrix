@@ -21,8 +21,19 @@ tokio = { version = "1", features = ["rt", "macros", "net", "time", "sync"], opt
 tokio-tungstenite = { version = "0.24", features = ["connect", "rustls-tls-webpki-roots"], optional = true }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"], optional = true }
 
+# Optional: the Meshtastic adapter. `prost` gives us the real Meshtastic
+# protobuf wire format (ServiceEnvelope/MeshPacket); `rumqttc` is the live
+# (synchronous) MQTT client for the `mqtt` feature.
+prost = { version = "0.13", optional = true }
+rumqttc = { version = "0.24", optional = true }
+tracing = { version = "0.1", optional = true }
+
 [features]
 ws = ["dep:tokio", "dep:tokio-tungstenite", "dep:futures-util"]
+# Meshtastic packet codec + `ExternalNet` adapter (testable over a mock bus).
+meshtastic = ["dep:prost"]
+# Live MQTT transport for the Meshtastic adapter (real brokers / devices).
+mqtt = ["meshtastic", "dep:rumqttc", "dep:tracing"]
 
 [dev-dependencies]
 lifeline-core = { path = "../core" }

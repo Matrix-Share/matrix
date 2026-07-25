@@ -56,6 +56,22 @@ surface) and hardened it:
   (defense-in-depth; message bodies were already escaped — no XSS was reachable).
 
 ### Added
+- **Meshtastic (MQTT) adapter — second external network.** `lifeline-bridge::meshtastic`
+  (`meshtastic` feature) speaks the **real Meshtastic wire format** — genuine
+  `ServiceEnvelope`/`MeshPacket` protobuf (`prost`, hand-derived subset, byte-
+  compatible with real packets) carried on a private application port — so
+  Lifeline frames flow over actual Meshtastic LoRa hardware and public MQTT
+  brokers. Because MQTT clients are synchronous, `MeshtasticNet` implements
+  `ExternalNet` **directly** and is driven by the engine tick — no async runtime,
+  no channel bridging: the cleanest possible demonstration that the seam extends
+  to a structurally different network (announce/node-number addressing vs Nostr's
+  pubkey events). Network I/O sits behind the small `MeshBus` trait: an in-memory
+  `MockBroker`/`MockBus` makes the whole path testable without a broker (four
+  tests: protobuf round-trip, two-adapter exchange, unknown-peer drop, channel
+  isolation), and the live `MqttBus` (`mqtt` feature, `rumqttc`) talks to real
+  brokers/devices. Wired into the node behind the `meshtastic` feature:
+  `LIFELINE_MESHTASTIC_MQTT=host:1883` adds it as an extra engine bearer via
+  `BridgeInterface`, node number derived from the identity (`derive_subkey`).
 - **Live WebSocket Nostr client + node bearer.** `lifeline-bridge::ws` (`ws`
   feature) is an async `tokio-tungstenite` client that connects to **real Nostr
   relays** (`wss://…`): it subscribes with NIP-01 REQ filters (the shared

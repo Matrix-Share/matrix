@@ -49,9 +49,9 @@ pub fn run(
     vault: lifeline_core::vault::Vault,
     data_dir: String,
     initial: crate::views::PersistedState,
-    // Optional extra bearer (e.g. the Nostr client): a `ChannelInterface` whose
-    // far ends a background bridge drives. `None` when that feature is off.
-    extra_iface: Option<ChannelInterface>,
+    // Optional extra bearers (the Nostr client's `ChannelInterface`, a Meshtastic
+    // `BridgeInterface`, …). Built in `main` behind their features; empty if none.
+    extra_ifaces: Vec<Box<dyn lifeline_transport::Interface + Send>>,
 ) {
     // A node self-hosted as infrastructure (a gateway / always-on relay) can run
     // as a committed custodian so battery-limited carriers offload to it (FR-25).
@@ -86,9 +86,9 @@ pub fn run(
     if let Some(udp) = udp {
         engine.add_interface(Box::new(udp));
     }
-    // Optional global-internet bearer over the Nostr relay network.
-    if let Some(iface) = extra_iface {
-        engine.add_interface(Box::new(iface));
+    // Optional extra bearers (Nostr relay network, Meshtastic mesh, …).
+    for iface in extra_ifaces {
+        engine.add_interface(iface);
     }
 
     // Restore persisted contacts (FR-9) and message history (FR-15).

@@ -18,8 +18,9 @@ lifeline-sync = { path = "../sync" }
 lifeline-transport = { path = "../transport" }
 lifeline-sim = { path = "../sim" }
 lifeline-relay = { path = "../relay" }
-# Optional: live connectivity over the Nostr relay network (`nostr` feature).
-lifeline-bridge = { path = "../bridge", features = ["ws"], optional = true }
+# Optional: live connectivity over external networks (Nostr / Meshtastic). The
+# specific bridge features are pulled by the node's own `nostr`/`meshtastic`.
+lifeline-bridge = { path = "../bridge", optional = true }
 
 serde.workspace = true
 serde_json = "1"
@@ -36,4 +37,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 [features]
 # Bridge the node onto the global Nostr relay network as an extra bearer.
 # Off by default so the base daemon avoids the async-WebSocket/TLS/secp stack.
-nostr = ["dep:lifeline-bridge"]
+nostr = ["dep:lifeline-bridge", "lifeline-bridge/ws"]
+# Bridge the node onto the Meshtastic LoRa mesh over MQTT as an extra bearer.
+meshtastic = ["dep:lifeline-bridge", "lifeline-bridge/mqtt"]
