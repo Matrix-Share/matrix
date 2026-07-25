@@ -56,6 +56,20 @@ surface) and hardened it:
   (defense-in-depth; message bodies were already escaped — no XSS was reachable).
 
 ### Added
+- **Kademlia DHT (`lifeline-dht`) — online peer & rendezvous discovery.** A new
+  crate implementing the Kademlia DHT (Maymounkov & Mazières) over Lifeline's
+  existing 128-bit `Address` keyspace (which already carried an `xor_distance`
+  metric for exactly this "L3 discovery layer"). A node with internet can locate
+  *where a peer is reachable* or *who is registered at a rendezvous key* with no
+  central directory: `RoutingTable` (k-buckets across 128 XOR buckets, LRU with
+  incumbent-retention against eviction flooding), iterative α-parallel
+  `FIND_NODE`/`FIND_VALUE` lookups, `STORE` to the k closest, and `bootstrap`.
+  **Transport-agnostic** by the same seam philosophy as the rest of Lifeline —
+  the lookup is pure logic driven over a synchronous `DhtRpc` request→response,
+  so it rides any carrier and is fully testable against an in-memory network.
+  Verified: iterative lookup **converges to the globally-closest node** across a
+  60-node network, a value stored by one node is **resolved by a distant one**,
+  and bootstrap populates the table (5 tests).
 - **Meshtastic (MQTT) adapter — second external network.** `lifeline-bridge::meshtastic`
   (`meshtastic` feature) speaks the **real Meshtastic wire format** — genuine
   `ServiceEnvelope`/`MeshPacket` protobuf (`prost`, hand-derived subset, byte-

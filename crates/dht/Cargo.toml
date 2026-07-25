@@ -1,0 +1,11 @@
+[package]
+name = "lifeline-dht"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Kademlia DHT for Project Lifeline: online peer + rendezvous discovery over an XOR keyspace, transport-agnostic (drives over any request/response RPC), so nodes find each other and locate content without a central registry."
+
+[dependencies]
+lifeline-proto = { path = "../proto" }
+serde.workspace = true

@@ -778,6 +778,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "lifeline-dht"
+version = "0.1.0"
+dependencies = [
+ "lifeline-proto",
+ "serde",
+]
+
+[[package]]
 name = "lifeline-node"
 version = "0.1.0"
 dependencies = [
