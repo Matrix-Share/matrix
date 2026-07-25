@@ -739,6 +739,7 @@ version = "0.1.0"
 dependencies = [
  "futures-util",
  "lifeline-core",
+ "lifeline-engine",
  "lifeline-proto",
  "lifeline-transport",
  "prost",
@@ -786,6 +787,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "lifeline-engine"
+version = "0.1.0"
+dependencies = [
+ "lifeline-core",
+ "lifeline-proto",
+ "lifeline-router",
+ "lifeline-sync",
+ "lifeline-transport",
+ "serde",
+]
+
+[[package]]
 name = "lifeline-node"
 version = "0.1.0"
 dependencies = [
@@ -793,6 +806,7 @@ dependencies = [
  "ciborium",
  "lifeline-bridge",
  "lifeline-core",
+ "lifeline-engine",
  "lifeline-proto",
  "lifeline-relay",
  "lifeline-router",
@@ -869,8 +883,6 @@ version = "0.1.0"
 dependencies = [
  "lifeline-core",
  "lifeline-proto",
- "lifeline-router",
- "lifeline-sync",
  "serde",
  "thiserror",
 ]

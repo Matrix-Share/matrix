@@ -9,12 +9,16 @@
 //! This crate is what makes Lifeline **completely modular across network
 //! types**. Every physical channel — BLE, Wi-Fi Aware, ultrasound, optical,
 //! LoRa, internet — is a plug-in implementing one small [`Interface`] contract.
-//! A [`NodeEngine`] runs any number of interfaces **concurrently** (FR-22),
-//! carries the *same* opaque [`lifeline_proto::Bundle`] over all of them, and
-//! lets the DTN router pick paths. Because interfaces have wildly different MTUs
-//! (ultrasound tens of bytes, LoRa ~222 B, internet ~64 KB), the engine
-//! **fragments and reassembles** bundles per interface (see [`frame`]) — the
-//! piece that lets one message physically cross any medium.
+//! Because interfaces have wildly different MTUs (ultrasound tens of bytes, LoRa
+//! ~222 B, internet ~64 KB), this crate also carries the **fragmentation and
+//! reassembly** ([`frame`]) and **lossy-link ARQ** ([`arq`]) that let one message
+//! physically cross any medium.
+//!
+//! It is a **lightweight seam**: it depends only on [`lifeline_proto`] (+
+//! `lifeline_core` for its error type), *not* on the router, CRDTs, or the node
+//! runtime — so implementing a new bearer needs the `Interface`/`ExternalNet`
+//! contract and nothing else. The runtime that *drives* interfaces, the
+//! `NodeEngine`, lives in the separate `lifeline-engine` crate.
 //!
 //! The concrete interfaces here run over an in-process [`SharedMedium`] so the
 //! whole stack is testable without radios; a real BLE/LoRa/internet backend is
@@ -24,7 +28,6 @@ pub mod arq;
 pub mod bridge;
 pub mod caps;
 pub mod channel;
-pub mod engine;
 pub mod frame;
 pub mod interface;
 pub mod medium;
@@ -34,7 +37,6 @@ pub use arq::{ArqRx, ArqTx};
 pub use bridge::{peer_id_from_identity, BridgeInterface, ExternalNet};
 pub use caps::{InterfaceCaps, InterfaceKind, RangeClass, ThroughputClass};
 pub use channel::{ChannelInterface, Outbound};
-pub use engine::{CustodyRole, EngineConfig, Inbound, NodeEngine};
 pub use frame::{Fragmenter, Frame, FrameKind, Reassembler};
 pub use interface::{Interface, PeerId};
 pub use medium::{MemoryInterface, SharedMedium};

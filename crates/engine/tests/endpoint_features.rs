@@ -2,8 +2,9 @@
 //! location sharing (FR-43), and blocklist enforcement (FR-48).
 
 use lifeline_core::Identity;
+use lifeline_engine::{EngineConfig, NodeEngine};
 use lifeline_proto::PayloadKind;
-use lifeline_transport::{EngineConfig, InterfaceCaps, NodeEngine, SharedMedium};
+use lifeline_transport::{InterfaceCaps, SharedMedium};
 
 fn drive(engines: &mut [NodeEngine], ticks: u64) {
     for t in 0..ticks {

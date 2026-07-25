@@ -6,6 +6,7 @@ members = [
     "crates/router",
     "crates/sync",
     "crates/transport",
+    "crates/engine",
     "crates/relay",
     "crates/node",
     "crates/sim",

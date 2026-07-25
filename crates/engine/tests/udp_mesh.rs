@@ -3,8 +3,9 @@
 //! decrypt → signed receipt → offline verification).
 
 use lifeline_core::Identity;
+use lifeline_engine::{EngineConfig, NodeEngine};
 use lifeline_proto::{Payload, PayloadKind, Priority};
-use lifeline_transport::{EngineConfig, NodeEngine, UdpInterface};
+use lifeline_transport::UdpInterface;
 use std::net::{Ipv4Addr, SocketAddrV4};
 
 fn text(body: &str) -> Payload {

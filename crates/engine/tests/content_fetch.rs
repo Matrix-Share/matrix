@@ -4,7 +4,8 @@
 //! reassembles the exact bytes. A block already cached is never re-fetched.
 
 use lifeline_core::Identity;
-use lifeline_transport::{EngineConfig, InterfaceCaps, NodeEngine, SharedMedium};
+use lifeline_engine::{EngineConfig, NodeEngine};
+use lifeline_transport::{InterfaceCaps, SharedMedium};
 
 fn object(n: usize) -> Vec<u8> {
     (0..n as u32)

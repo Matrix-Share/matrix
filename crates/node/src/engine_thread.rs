@@ -3,11 +3,10 @@
 
 use crate::views::{Command, IdentityView, MsgView, PeerView, Snapshot, StatusView};
 use lifeline_core::Identity;
+use lifeline_engine::{EngineConfig, NodeEngine};
 use lifeline_proto::codec::{b64url_decode, b64url_encode, from_cbor, to_cbor};
 use lifeline_proto::{Address, IdentityPublic, Payload, PayloadKind, Priority};
-use lifeline_transport::{
-    ChannelInterface, EngineConfig, InterfaceCaps, NodeEngine, Outbound, UdpInterface,
-};
+use lifeline_transport::{ChannelInterface, InterfaceCaps, Outbound, UdpInterface};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::Receiver;
@@ -85,7 +84,7 @@ pub fn run(
     // as a committed custodian so battery-limited carriers offload to it (FR-25).
     let mut cfg = EngineConfig::default();
     if std::env::var("LIFELINE_CUSTODIAN").is_ok() {
-        cfg.custody_role = lifeline_transport::CustodyRole::Custodian;
+        cfg.custody_role = lifeline_engine::CustodyRole::Custodian;
     }
     // Operate as a gateway (FR-35): emit announces so the mesh forms a gradient
     // toward us and bridge mesh bundles onto the uplink. `LIFELINE_GATEWAY` may

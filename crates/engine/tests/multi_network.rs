@@ -3,8 +3,9 @@
 //! This is the concrete proof of "bind to no single transport" (spectrum §3).
 
 use lifeline_core::Identity;
+use lifeline_engine::{EngineConfig, NodeEngine};
 use lifeline_proto::{Payload, PayloadKind, Priority};
-use lifeline_transport::{EngineConfig, InterfaceCaps, NodeEngine, SharedMedium};
+use lifeline_transport::{InterfaceCaps, SharedMedium};
 
 fn text(body: &str) -> Payload {
     Payload {

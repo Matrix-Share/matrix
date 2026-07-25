@@ -37,6 +37,7 @@ mqtt = ["meshtastic", "dep:rumqttc", "dep:tracing"]
 
 [dev-dependencies]
 lifeline-core = { path = "../core" }
+lifeline-engine = { path = "../engine" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
 tokio-tungstenite = { version = "0.24", features = ["connect"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }

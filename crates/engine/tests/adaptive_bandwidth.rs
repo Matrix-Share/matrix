@@ -5,8 +5,9 @@
 //! bulky message flows freely once a high-bandwidth path exists.
 
 use lifeline_core::Identity;
+use lifeline_engine::{EngineConfig, NodeEngine};
 use lifeline_proto::{Coords, Payload, PayloadKind, Priority};
-use lifeline_transport::{EngineConfig, InterfaceCaps, NodeEngine, SharedMedium};
+use lifeline_transport::{InterfaceCaps, SharedMedium};
 
 /// High-entropy body of `n` chars — deliberately *incompressible*, so payload
 /// compression can't shrink it under the bearer's size cap.
