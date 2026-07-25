@@ -113,11 +113,23 @@ pub struct DtnRouter {
     /// Source-side black-hole attribution: which peers took custody of our
     /// bundles, and whether those bundles were delivered (FR-47).
     attribution: crate::attribution::ForwardLedger,
+    /// Pluggable forwarding strategy (default: binary spray-and-wait).
+    policy: Box<dyn crate::policy::RoutingPolicy>,
     stats: RouterStats,
 }
 
 impl DtnRouter {
+    /// A router with the default forwarding strategy (binary spray-and-wait).
     pub fn new(me: Address, cfg: RouterConfig) -> Self {
+        Self::with_policy(me, cfg, Box::new(crate::policy::SprayAndWaitPolicy))
+    }
+
+    /// A router with a custom [`RoutingPolicy`] (epidemic, PRoPHET, …).
+    pub fn with_policy(
+        me: Address,
+        cfg: RouterConfig,
+        policy: Box<dyn crate::policy::RoutingPolicy>,
+    ) -> Self {
         let store = BundleStore::new(cfg.store_cap_bytes);
         DtnRouter {
             me,
@@ -131,6 +143,7 @@ impl DtnRouter {
             gateways: GatewayCache::new(),
             reputation: crate::reputation::Reputation::new(),
             attribution: crate::attribution::ForwardLedger::new(),
+            policy,
             stats: RouterStats::default(),
         }
     }
@@ -293,46 +306,29 @@ impl DtnRouter {
                 continue;
             };
             let peer_is_dst = peer.addr == stored.bundle.dst;
-            // Skip demoted relays for normal traffic (but not for direct
-            // delivery or SOS).
-            if peer_demoted && !peer_is_dst && stored.bundle.priority != Priority::Sos {
-                continue;
-            }
-            // Bearer fit ("straw, not a firehose"): hold a bulky NORMAL/BULK
-            // bundle back from a low-bandwidth link so it waits for a fatter
-            // bearer. Emergencies (SOS/ALERT) and the final hop always go — and
-            // we do NOT mark it offered, so a better link can still carry it.
-            if let Some(cap) = peer.soft_max_bytes {
-                let prio = stored.bundle.priority;
-                let heavy = stored.size > cap;
-                let emergency = prio == Priority::Sos || prio == Priority::Alert;
-                if heavy && !peer_is_dst && !emergency {
-                    continue;
-                }
-            }
-            let copies = stored.bundle.copies_left;
-
-            let handed = if copies > 1 {
-                // Spray phase: give half the budget away, keep the rest.
-                let give = copies / 2;
-                let keep = copies - give;
-                stored.bundle.copies_left = keep;
-                Some(give)
-            } else if peer_is_dst || peer_helps_gateway {
-                // Wait phase: pass the last copy only toward the destination or
-                // downhill toward a gateway (DTN escape hatch).
-                Some(1)
-            } else {
-                None
+            // The router owns the *mechanism* (iteration, budget mutation, stats);
+            // the pluggable `RoutingPolicy` owns the *decision*. Context is passed
+            // by value so the policy never borrows store internals.
+            let ctx = crate::policy::OfferContext {
+                peer_is_dst,
+                peer_demoted,
+                peer_helps_gateway,
+                priority: stored.bundle.priority,
+                size: stored.size,
+                copies_left: stored.bundle.copies_left,
+                soft_max_bytes: peer.soft_max_bytes,
             };
-
-            if let Some(give) = handed {
-                stored.offered_to.insert(peer.addr.clone());
-                let mut copy = stored.bundle.clone();
-                copy.copies_left = give;
-                copy.hops = stored.bundle.hops.saturating_add(1);
-                self.stats.forwarded_copies += 1;
-                out.push(copy);
+            match self.policy.decide(&ctx) {
+                crate::policy::OfferAction::Hold => continue,
+                crate::policy::OfferAction::Forward { give, keep } => {
+                    stored.bundle.copies_left = keep;
+                    stored.offered_to.insert(peer.addr.clone());
+                    let mut copy = stored.bundle.clone();
+                    copy.copies_left = give;
+                    copy.hops = stored.bundle.hops.saturating_add(1);
+                    self.stats.forwarded_copies += 1;
+                    out.push(copy);
+                }
             }
         }
         self.refresh_store_stats();
