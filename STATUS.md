@@ -25,7 +25,7 @@ is in [`GAPS.md`](GAPS.md).
 |---|---|---|
 | FR-6 Add contact by QR TOFU (MITM-resistant) | ◐ | crypto binding + header-sig verify done; **QR displayed for in-person exchange** + paste-code add; camera *scanning* needs a device (○) |
 | FR-7 BLE/Wi-Fi-Aware advertisement discovery | ◐ | beacon-based peer discovery works over the transport (`NodeEngine`, proven over the relay in `lifeline-node`); BLE/NAN *backend* ○ |
-| FR-8 DHT online / gossip announces offline | ◐ | signed gateway announces + gradient now **propagate live in `NodeEngine`**: gateways emit signed announces, nodes gossip them hop-by-hop and build a gradient toward the nearest gateway (announce sig verified when the gateway is a known contact); proven forming 0→1→2 along a mesh line. Kademlia DHT (online) ○ |
+| FR-8 DHT online / gossip announces offline | ◐ | **offline:** signed gateway announces + gradient **propagate live in `NodeEngine`** (gossip hop-by-hop, sig-verified, proven forming 0→1→2 along a mesh line). **online:** Kademlia DHT implemented (`lifeline-dht`) — k-bucket routing + iterative `FIND_NODE`/`FIND_VALUE`/`STORE`, transport-agnostic (`DhtRpc` seam), verified converging + resolving values across a 60-node in-memory network. Binding the RPC to a live bearer is the remaining wiring step |
 | FR-9 Contact store | ✅ | contact directory **persisted encrypted** across restarts (`core::vault` + node); verification-state field in `proto::Contact` |
 
 ## Messaging (§8.3)
