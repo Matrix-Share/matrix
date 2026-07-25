@@ -90,6 +90,13 @@ pub fn run(
             engine.add_contact(p);
         }
     }
+    // Restore the forward-secret prekey ring (FR-44) so messages sealed to our
+    // pre-restart prekeys still open, and we don't churn to a fresh key.
+    if let Some(pk) = &initial.prekeys {
+        if let Ok(state) = from_cbor::<lifeline_core::prekey::PrekeyRingState>(pk.as_slice()) {
+            engine.restore_prekeys(&state);
+        }
+    }
 
     let identity_view = IdentityView {
         address: engine.address().to_text(),
@@ -297,6 +304,11 @@ pub fn run(
             let persisted = crate::views::PersistedState {
                 contact_codes: engine.directory().iter().map(encode_code).collect(),
                 messages: messages.clone(),
+                // Persist the current prekey ring so a restart keeps forward-secret
+                // in-flight messages openable (FR-44).
+                prekeys: to_cbor(&engine.export_prekeys())
+                    .ok()
+                    .map(lifeline_proto::Bytes::new),
             };
             if let Ok(bytes) = serde_json::to_vec(&persisted) {
                 let blob = vault.seal(&bytes);

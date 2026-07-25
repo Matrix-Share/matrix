@@ -23,8 +23,10 @@ use crate::identity::{address_of, verify_sig, Identity};
 use crate::{CoreError, Result};
 use lifeline_proto::codec::to_cbor;
 use lifeline_proto::{Address, Bytes, SignedPrekey};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use x25519_dalek::{PublicKey as XPublic, StaticSecret as XSecret};
+use zeroize::Zeroize;
 
 /// Domain separators.
 const PREKEY_SIGN_DOMAIN: &[u8] = b"lifeline/v1/prekey";
@@ -57,6 +59,25 @@ pub fn seal_to_prekey(prekey: &SignedPrekey, plaintext: &[u8]) -> Result<Vec<u8>
     verify_prekey(prekey)?;
     let pk = crate::crypto::x25519_pub_from_slice(prekey.kex_pub.as_slice())?;
     Ok(SealedBox::seal(&pk, PREKEY_AD, plaintext, PREKEY_INFO))
+}
+
+/// A serializable snapshot of a [`PrekeyRing`]'s retained secrets, for persisting
+/// the ring **encrypted at rest** (via `core::vault`). Holds raw X25519 secrets,
+/// so it zeroizes them on drop.
+#[derive(Serialize, Deserialize, Default)]
+pub struct PrekeyRingState {
+    pub retain: u32,
+    pub next_epoch: u64,
+    /// `(epoch, 32-byte x25519 secret)` for each retained prekey.
+    pub secrets: Vec<(u64, Bytes)>,
+}
+
+impl Drop for PrekeyRingState {
+    fn drop(&mut self) {
+        for (_, b) in self.secrets.iter_mut() {
+            b.0.zeroize();
+        }
+    }
 }
 
 /// The recipient's ring of recent prekey secrets, newest last.
@@ -139,6 +160,40 @@ impl PrekeyRing {
             }
         }
         None
+    }
+
+    /// Snapshot the ring's secrets for **encrypted-at-rest persistence** so a
+    /// node restart doesn't lose in-flight forward-secret messages (nor
+    /// re-advertise a fresh key that makes sealed-in-flight messages unopenable).
+    /// Only the currently *retained* secrets are exported — already-pruned
+    /// prekeys stay gone, so forward secrecy is preserved across a restart too.
+    pub fn export(&self) -> PrekeyRingState {
+        PrekeyRingState {
+            retain: self.retain as u32,
+            next_epoch: self.next_epoch,
+            secrets: self
+                .secrets
+                .iter()
+                .map(|(e, s)| (*e, Bytes::new(s.to_bytes().to_vec())))
+                .collect(),
+        }
+    }
+
+    /// Restore a ring from a persisted snapshot (see [`PrekeyRing::export`]).
+    pub fn import(state: &PrekeyRingState) -> Self {
+        let secrets = state
+            .secrets
+            .iter()
+            .filter_map(|(e, b)| {
+                let arr: [u8; 32] = b.as_slice().try_into().ok()?;
+                Some((*e, XSecret::from(arr)))
+            })
+            .collect();
+        PrekeyRing {
+            secrets,
+            retain: (state.retain as usize).max(1),
+            next_epoch: state.next_epoch,
+        }
     }
 
     /// Number of retained prekeys (diagnostics/tests).
@@ -246,6 +301,57 @@ mod tests {
         assert!(
             ring.open_bundle(bob.address(), &bundle).is_none(),
             "a pruned prekey must make the sealed bundle unrecoverable"
+        );
+    }
+
+    #[test]
+    fn export_import_survives_restart_and_preserves_forward_secrecy() {
+        use crate::message::{seal_bundle, SealOptions};
+        use lifeline_proto::{Payload, PayloadKind};
+
+        let alice = Identity::generate(0);
+        let bob = Identity::generate(0);
+        let mut ring = PrekeyRing::new(2);
+        ring.rotate();
+        let pk = ring.publish(&bob).unwrap();
+
+        // A message is sealed to Bob's current prekey while Bob is "up".
+        let mut recip = bob.public();
+        recip.kex_pub = pk.kex_pub.clone();
+        let payload = Payload {
+            kind: PayloadKind::Text,
+            body: Some("still reachable after restart".into()),
+            coords: None,
+            battery_pct: None,
+            attach: None,
+            group_id: None,
+        };
+        let bundle = seal_bundle(&alice, &recip, &payload, &SealOptions::normal(0)).unwrap();
+
+        // Bob "restarts": persist the ring, drop it, restore from the snapshot.
+        let restored = {
+            let state = ring.export();
+            drop(ring);
+            PrekeyRing::import(&state)
+        };
+        // The in-flight message still opens after the restart.
+        assert_eq!(
+            restored
+                .open_bundle(bob.address(), &bundle)
+                .unwrap()
+                .payload
+                .body
+                .as_deref(),
+            Some("still reachable after restart")
+        );
+
+        // Forward secrecy still holds: rotate past the retained prekey and it's gone.
+        let mut r = restored;
+        r.rotate();
+        r.rotate();
+        assert!(
+            r.open_bundle(bob.address(), &bundle).is_none(),
+            "forward secrecy is preserved across a restart"
         );
     }
 
