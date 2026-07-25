@@ -15,5 +15,17 @@ sha2.workspace = true
 secp256k1 = { version = "0.29", features = ["rand-std", "hashes"] }
 rand.workspace = true
 
+# Optional: a live WebSocket Nostr relay client (`ws` feature). Kept off by
+# default so the core codec + adapters build without the async/TLS stack.
+tokio = { version = "1", features = ["rt", "macros", "net", "time", "sync"], optional = true }
+tokio-tungstenite = { version = "0.24", features = ["connect", "rustls-tls-webpki-roots"], optional = true }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"], optional = true }
+
+[features]
+ws = ["dep:tokio", "dep:tokio-tungstenite", "dep:futures-util"]
+
 [dev-dependencies]
 lifeline-core = { path = "../core" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
+tokio-tungstenite = { version = "0.24", features = ["connect"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }

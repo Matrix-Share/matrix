@@ -150,9 +150,14 @@ mailboxing, reuses our existing seams (zero engine changes), and lets us lead
 with the capabilities Nostr lacks (forward secrecy, verifiable delivery,
 multi-bearer offline, erasure).
 
-1. **Phase 1 — directed mailbox.** `nostr_client` task + `ChannelInterface`;
-   node Nostr identity; publish/subscribe gift-wrapped bundles to a mapped
-   recipient over a configurable relay set; offline mailbox via 24h lookback.
+1. **Phase 1 — directed mailbox.** ✅ **Done.** `lifeline-bridge::nostr` (codec +
+   in-memory relay, proven end-to-end) and `lifeline-bridge::ws` (live async
+   `tokio-tungstenite` client hitting real `wss://` relays, reconnect+backoff,
+   verified against an in-process relay in `tests/nostr_ws.rs`). Wired into the
+   node behind the `nostr` feature: `LIFELINE_NOSTR_RELAY=wss://relay.damus.io`
+   adds Nostr as an extra engine bearer via a `ChannelInterface`, with the node's
+   Nostr keypair derived from its long-term identity (`Identity::derive_subkey`,
+   stable across restarts, unlinkable from the public Lifeline identity).
    *Outcome: two Lifeline nodes talk over public Nostr relays, no `lifeline-relay`.*
 2. **Phase 2 — geohash emergency broadcast.** `kind:20000 #g` SOS/regional
    channels; per-geohash ephemeral keys. *Outcome: reach "anyone near a location"

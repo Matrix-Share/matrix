@@ -16,6 +16,11 @@
 pub mod nostr;
 pub mod skeleton;
 
+/// Live WebSocket Nostr relay client (async). Behind the `ws` feature so the
+/// core codec + adapters build without the async/TLS stack.
+#[cfg(feature = "ws")]
+pub mod ws;
+
 /// Lowercase-hex encode (Nostr's wire encoding for pubkeys/ids/sigs).
 pub(crate) fn hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);

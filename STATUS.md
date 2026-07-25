@@ -132,7 +132,8 @@ is in [`GAPS.md`](GAPS.md).
 | Zero-knowledge relay (internet fabric, ciphertext-only) | ✅ | `lifeline-relay` |
 | Real network transport | ✅ | `transport::ChannelInterface` + relay client |
 | Extensible external-network seam | ✅ | `transport::ExternalNet` + `BridgeInterface` — any network becomes an engine interface via one trait (template in `lifeline-bridge::skeleton`) |
-| **Nostr connectivity** | ✅ | `lifeline-bridge::nostr` — real secp256k1 NIP-01 events + relay store-and-forward; **two full nodes exchange an E2E message + receipt over a Nostr relay** with no engine change. Real WebSocket relay client is the thin remaining drop-in ([`docs/nostr-integration.md`](docs/nostr-integration.md)) |
+| **Nostr connectivity** | ✅ | `lifeline-bridge::nostr` — real secp256k1 NIP-01 events + relay store-and-forward; **two full nodes exchange an E2E message + receipt over a Nostr relay** with no engine change ([`docs/nostr-integration.md`](docs/nostr-integration.md)) |
+| **Live WebSocket Nostr client** | ✅ | `lifeline-bridge::ws` (`ws` feature) — async `tokio-tungstenite` client hits **real relays** (`wss://…`), REQ/EVENT over NIP-01, reconnect+backoff; proven end-to-end against an in-process relay (`tests/nostr_ws.rs`). Wired into the node behind the `nostr` feature: `LIFELINE_NOSTR_RELAY=wss://relay.damus.io` adds Nostr as an extra bearer, keypair derived from the node identity (`Identity::derive_subkey`) |
 | In-GUI acceptance self-test | ✅ | `/api/selftest` runs the 3-cluster+mule scenario |
 | Docker / docker-compose self-hosting | ✅ | `Dockerfile`, `docker-compose.yml` |
 | Identity persistence (encrypted at rest) | ✅ | Argon2id `KeyBackup` in `LIFELINE_DATA_DIR` |

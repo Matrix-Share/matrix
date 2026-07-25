@@ -34,7 +34,28 @@ use std::rc::Rc;
 /// Lifeline frames ride in this event kind (regular range 1000–9999 → relays
 /// store it, so an offline recipient can fetch it on reconnect).
 pub const LIFELINE_KIND: u32 = 1998;
-const CHANNEL: &str = "lifeline-mesh";
+/// Shared discovery-channel tag value (`["L","lifeline-mesh"]`).
+pub const CHANNEL: &str = "lifeline-mesh";
+
+/// Build a signed Lifeline frame-carrying event: a broadcast to the discovery
+/// channel (`to_pubkey == None`) or a message directed to a recipient's pubkey.
+/// Shared by the in-memory adapter and the live WebSocket client.
+pub fn frame_event(
+    id: &NostrIdentity,
+    to_pubkey: Option<&str>,
+    frame: &[u8],
+    created_at: u64,
+) -> NostrEvent {
+    let content = b64url_encode(frame);
+    let tags = match to_pubkey {
+        None => vec![vec!["L".into(), CHANNEL.into()]],
+        Some(pk) => vec![
+            vec!["L".into(), "lifeline".into()],
+            vec!["p".into(), pk.to_string()],
+        ],
+    };
+    NostrEvent::build(id, LIFELINE_KIND, tags, content, created_at)
+}
 /// MTU: a frame becomes one event's base64 content; 16 KiB keeps events a size
 /// every relay accepts. Larger bundles fragment into several events.
 const NOSTR_MTU: usize = 16 * 1024;
@@ -238,20 +259,14 @@ impl ExternalNet for NostrNet {
 
     fn publish(&mut self, to: Option<PeerId>, frame: &[u8]) -> lifeline_transport::Result<()> {
         self.clock += 1;
-        let content = b64url_encode(frame);
-        let tags = match to {
-            None => vec![vec!["L".into(), CHANNEL.into()]],
-            Some(peer) => {
-                let Some(pk) = self.peers.get(&peer) else {
-                    return Ok(()); // unknown peer's Nostr key not learned yet — drop
-                };
-                vec![
-                    vec!["L".into(), "lifeline".into()],
-                    vec!["p".into(), pk.clone()],
-                ]
-            }
+        let to_pubkey = match to {
+            None => None,
+            Some(peer) => match self.peers.get(&peer) {
+                Some(pk) => Some(pk.clone()),
+                None => return Ok(()), // unknown peer's Nostr key not learned yet — drop
+            },
         };
-        let ev = NostrEvent::build(&self.id, LIFELINE_KIND, tags, content, self.clock);
+        let ev = frame_event(&self.id, to_pubkey.as_deref(), frame, self.clock);
         self.relay.publish(ev);
         Ok(())
     }

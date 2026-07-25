@@ -56,6 +56,23 @@ surface) and hardened it:
   (defense-in-depth; message bodies were already escaped — no XSS was reachable).
 
 ### Added
+- **Live WebSocket Nostr client + node bearer.** `lifeline-bridge::ws` (`ws`
+  feature) is an async `tokio-tungstenite` client that connects to **real Nostr
+  relays** (`wss://…`): it subscribes with NIP-01 REQ filters (the shared
+  `#L`=lifeline-mesh discovery channel + our own `#p` inbox), publishes outbound
+  frames as signed EVENTs, verifies + de-dups inbound events, and learns the
+  `PeerId ↔ nostr-pubkey` map — reusing the exact `nostr` codec, so it is a
+  drop-in for the in-memory adapter. Proven end-to-end over a real WebSocket
+  against an in-process relay (filter matching, offline replay, directed `#p`
+  routing) in `crates/bridge/tests/nostr_ws.rs`. Wired into the node behind the
+  **`nostr`** feature: `LIFELINE_NOSTR_RELAY=wss://relay.damus.io,wss://…` adds
+  Nostr as an extra engine bearer (one reconnecting client per relay, exponential
+  backoff, outbound fan-out), bridged to the engine through an ordinary
+  `ChannelInterface` — **no engine change**. The node's Nostr keypair is derived
+  from its long-term identity via the new `Identity::derive_subkey` (domain-
+  separated, stable across restarts so the offline mailbox address persists, and
+  unlinkable from the public Lifeline identity). Completes Phase 1 of
+  [`docs/nostr-integration.md`](docs/nostr-integration.md).
 - **External-network seam + Nostr connectivity.** New `transport::ExternalNet`
   trait + `BridgeInterface`: any message-passing network becomes a first-class
   engine interface by implementing **one trait** — the extension point for "more
