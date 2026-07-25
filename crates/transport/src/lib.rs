@@ -21,6 +21,7 @@
 //! a drop-in that implements [`Interface`] with the same [`InterfaceCaps`].
 
 pub mod arq;
+pub mod bridge;
 pub mod caps;
 pub mod channel;
 pub mod engine;
@@ -30,6 +31,7 @@ pub mod medium;
 pub mod udp;
 
 pub use arq::{ArqRx, ArqTx};
+pub use bridge::{peer_id_from_identity, BridgeInterface, ExternalNet};
 pub use caps::{InterfaceCaps, InterfaceKind, RangeClass, ThroughputClass};
 pub use channel::{ChannelInterface, Outbound};
 pub use engine::{CustodyRole, EngineConfig, Inbound, NodeEngine};

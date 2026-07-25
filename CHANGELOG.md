@@ -56,6 +56,22 @@ surface) and hardened it:
   (defense-in-depth; message bodies were already escaped — no XSS was reachable).
 
 ### Added
+- **External-network seam + Nostr connectivity.** New `transport::ExternalNet`
+  trait + `BridgeInterface`: any message-passing network becomes a first-class
+  engine interface by implementing **one trait** — the extension point for "more
+  connectivity" (Reticulum, Meshtastic, Matrix, plain relays), with a
+  documented, compiling template (`lifeline-bridge::skeleton`). The first adapter,
+  **`lifeline-bridge::nostr`**, is a real Nostr integration: secp256k1 Schnorr
+  NIP-01 events (`id = sha256(canonical array)`, verified like any Nostr client),
+  a bundle↔event codec (opaque Lifeline ciphertext in event content, a shared
+  `["L","lifeline-mesh"]` discovery channel, `["p", …]`-tagged directed messages),
+  and relay-backed store-and-forward. **Proven end-to-end**: two full `NodeEngine`s
+  discover each other, exchange an E2E-encrypted message, and return the signed
+  delivery receipt entirely as signed Nostr events over a (mock) relay — **no
+  `lifeline-relay`, no engine change**. This plugs Lifeline into the global,
+  already-adopted Nostr relay network while leading with what Nostr lacks (forward
+  secrecy, verifiable delivery, multi-bearer offline). Strategy + NIP mapping:
+  [`docs/nostr-integration.md`](docs/nostr-integration.md).
 - **Forward-secret prekeys** (`core::prekey`; audit MED-1): rotating,
   identity-signed recipient encryption keys with a retention window — the
   DTN-friendly alternative to a Double Ratchet (whose proofs assume timely,

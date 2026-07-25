@@ -131,6 +131,8 @@ is in [`GAPS.md`](GAPS.md).
 | Bandwidth-adaptive bearer selection ("straw, not a firehose") | ✅ | `router::offer_to` holds bulky NORMAL/BULK bundles off low-throughput links (per-bearer `soft_max_bytes`) so they wait for a fatter bearer; SOS/ALERT + final-hop always pass (tested over ultrasound vs internet) |
 | Zero-knowledge relay (internet fabric, ciphertext-only) | ✅ | `lifeline-relay` |
 | Real network transport | ✅ | `transport::ChannelInterface` + relay client |
+| Extensible external-network seam | ✅ | `transport::ExternalNet` + `BridgeInterface` — any network becomes an engine interface via one trait (template in `lifeline-bridge::skeleton`) |
+| **Nostr connectivity** | ✅ | `lifeline-bridge::nostr` — real secp256k1 NIP-01 events + relay store-and-forward; **two full nodes exchange an E2E message + receipt over a Nostr relay** with no engine change. Real WebSocket relay client is the thin remaining drop-in ([`docs/nostr-integration.md`](docs/nostr-integration.md)) |
 | In-GUI acceptance self-test | ✅ | `/api/selftest` runs the 3-cluster+mule scenario |
 | Docker / docker-compose self-hosting | ✅ | `Dockerfile`, `docker-compose.yml` |
 | Identity persistence (encrypted at rest) | ✅ | Argon2id `KeyBackup` in `LIFELINE_DATA_DIR` |
