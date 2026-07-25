@@ -17,13 +17,20 @@
 
 use crate::{CoreError, Result};
 use miniz_oxide::deflate::compress_to_vec;
-use miniz_oxide::inflate::decompress_to_vec;
+use miniz_oxide::inflate::decompress_to_vec_with_limit;
 
 const RAW: u8 = 0x00;
 const DEFLATE: u8 = 0x01;
 
 /// Below this size, compression's header overhead isn't worth it — stay raw.
 const MIN_COMPRESS: usize = 64;
+
+/// Hard ceiling on a decompressed payload (16 MiB). DEFLATE reaches ~1000:1, so
+/// a tiny sealed bundle could otherwise inflate to gigabytes at the recipient —
+/// a decompression bomb from an (authenticated but still adversarial) peer. This
+/// bound comfortably covers legitimate payloads (attachments travel as
+/// content-addressed blocks, not one giant message) while refusing an OOM.
+pub const MAX_DECOMPRESSED: usize = 16 * 1024 * 1024;
 
 /// DEFLATE level (0..=10). 6 is a good speed/ratio balance for text-ish payloads.
 const LEVEL: u8 = 6;
@@ -51,8 +58,10 @@ pub fn unframe(framed: &[u8]) -> Result<Vec<u8>> {
     let (&marker, body) = framed.split_first().ok_or(CoreError::Decrypt)?;
     match marker {
         RAW => Ok(body.to_vec()),
-        DEFLATE => decompress_to_vec(body)
-            .map_err(|_| CoreError::Log("payload decompression failed".into())),
+        // Bounded inflate: refuse anything that would exceed the ceiling rather
+        // than allocating unboundedly (decompression-bomb defence).
+        DEFLATE => decompress_to_vec_with_limit(body, MAX_DECOMPRESSED)
+            .map_err(|_| CoreError::Log("payload decompression failed or too large".into())),
         _ => Err(CoreError::Log("unknown payload framing marker".into())),
     }
 }
@@ -85,6 +94,23 @@ mod tests {
         let framed = frame(&data);
         assert!(framed.len() <= data.len() + 1, "framing never inflates");
         assert_eq!(unframe(&framed).unwrap(), data);
+    }
+
+    #[test]
+    fn decompression_bomb_is_refused() {
+        // A highly compressible blob that inflates past the ceiling must be
+        // rejected, not allocated.
+        let huge = vec![0u8; MAX_DECOMPRESSED + 1024];
+        let bomb = compress_to_vec(&huge, LEVEL);
+        let mut framed = vec![DEFLATE];
+        framed.extend_from_slice(&bomb);
+        assert!(
+            unframe(&framed).is_err(),
+            "over-limit inflate must be refused"
+        );
+        // A payload right at the limit still works.
+        let ok = vec![7u8; 1024];
+        assert_eq!(unframe(&frame(&ok)).unwrap(), ok);
     }
 
     #[test]

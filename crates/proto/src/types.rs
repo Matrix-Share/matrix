@@ -70,6 +70,27 @@ pub struct IdentityPublic {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
     pub created_at: u64,
+    /// Current forward-secret prekey (FR-44), signed by this identity. A sender
+    /// that has heard a fresh beacon seals to this rotating key instead of the
+    /// long-term `kex_pub`, so a later key compromise can't recover the message.
+    /// Absent for peers that don't advertise one (falls back to `kex_pub`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prekey: Option<SignedPrekey>,
+}
+
+/// A published, forward-secret prekey (`core::prekey`). Carries the owner's
+/// signing key so it is self-verifying; the signing/rotation logic is in `core`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignedPrekey {
+    pub owner: Address,
+    /// Rotation counter — higher is newer.
+    pub epoch: u64,
+    /// The prekey's X25519 public key.
+    pub kex_pub: Bytes,
+    /// Owner's Ed25519 verifying key (binds to `owner`; makes this self-verifying).
+    pub sign_pub: Bytes,
+    /// Owner's signature over `(owner, epoch, kex_pub)`.
+    pub sig: Bytes,
 }
 
 /// The message envelope carried by relays (PRD §11.2). Everything a relay needs
@@ -99,8 +120,6 @@ pub struct Bundle {
     pub copies_left: u16,
     /// Double-Ratchet-encrypted payload (opaque to relays).
     pub ciphertext: Bytes,
-    /// Sender signature over the immutable header fields.
-    pub sig: Bytes,
     /// Proof-of-work "postage" gating admission for NORMAL/BULK traffic
     /// (Hashcash-style, FR-46, §12.5). Absent for exempt classes (SOS). Not part
     /// of the signed header — it binds to `bundle_id`, which *is* signed, so it
@@ -230,6 +249,11 @@ pub struct CustodyReceipt {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GatewayAnnounce {
     pub gateway: Address,
+    /// The gateway's Ed25519 verifying key, so the announce is **self-verifying**:
+    /// any node can check `address_of(sign_pub) == gateway` and the signature,
+    /// without needing the gateway as a contact. Prevents forged announces from
+    /// poisoning the gradient.
+    pub sign_pub: Bytes,
     /// Capabilities, e.g. `["internet","lora_in865"]`.
     pub caps: Vec<String>,
     /// Coarse load 0..=1, encoded as 0..=255 for a compact integer wire.
@@ -326,7 +350,6 @@ mod tests {
             hops: 0,
             copies_left: 6,
             ciphertext: Bytes::new(vec![7; 64]),
-            sig: Bytes::new(vec![5; 64]),
             postage: Some(Bytes::new(vec![0; 8])),
             frag: None,
         };
@@ -349,7 +372,6 @@ mod tests {
             hops: 0,
             copies_left: 6,
             ciphertext: Bytes::default(),
-            sig: Bytes::default(),
             postage: None,
             frag: None,
         };

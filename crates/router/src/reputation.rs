@@ -20,6 +20,11 @@ use std::collections::BTreeMap;
 pub const DEFAULT_SCORE: f32 = 0.5;
 /// Below this, a relay is avoided when alternatives exist.
 pub const DEMOTE_THRESHOLD: f32 = 0.25;
+/// Cap on distinct tracked relays — bounds memory against a gossiped snapshot
+/// stuffed with millions of fabricated addresses. When full, we only accept new
+/// entries that are *demotions* (bad news, which is the point of gossip); neutral
+/// or positive scores for unknown relays are dropped.
+pub const MAX_TRACKED: usize = 100_000;
 
 /// Per-relay reputation held by one node.
 #[derive(Debug, Clone, Default)]
@@ -57,9 +62,16 @@ impl Reputation {
     }
 
     /// Merge a peer's reputation view in (pessimistic: keep the lower score, so
-    /// a demotion propagates across the mesh).
+    /// a demotion propagates across the mesh). Bounded: once at capacity, we only
+    /// accept gossip about relays we already track or that arrives as a demotion,
+    /// so a snapshot stuffed with fabricated addresses can't exhaust memory.
     pub fn gossip_merge(&mut self, other: &Reputation) {
         for (addr, &their) in &other.scores {
+            let known = self.scores.contains_key(addr);
+            if !known && (self.scores.len() >= MAX_TRACKED || their >= DEFAULT_SCORE) {
+                // Don't grow the map for an unknown, non-demoted relay.
+                continue;
+            }
             let mine = self.score(addr);
             self.scores.insert(addr.clone(), mine.min(their));
         }

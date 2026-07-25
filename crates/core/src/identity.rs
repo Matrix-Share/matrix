@@ -38,16 +38,21 @@ impl Identity {
 
     /// Generate an identity from a caller-supplied CSPRNG.
     ///
-    /// Production code should use [`Identity::generate`]; this exists so the
-    /// simulator can seed identities and get **reproducible** runs. (Message
-    /// nonces and bundle ids still come from the OS CSPRNG — deterministic
-    /// nonces would be a crypto footgun — so sim runs are statistically, not
-    /// bit-for-bit, reproducible.)
+    /// ⚠️ **Testing / simulation only.** This mints a node's *long-term* signing
+    /// and key-exchange secrets from `rng`. Calling it with a seeded/deterministic
+    /// RNG in production would produce fully predictable identities — an
+    /// attacker who knows the seed owns the key. Production code MUST use
+    /// [`Identity::generate`] (OS CSPRNG). It exists so the simulator can get
+    /// **reproducible** runs. (Message nonces and bundle ids still come from the
+    /// OS CSPRNG regardless — deterministic nonces would be a crypto footgun — so
+    /// sim runs are statistically, not bit-for-bit, reproducible.)
+    #[doc(hidden)]
     pub fn generate_from_rng<R: rand_core::CryptoRngCore + ?Sized>(rng: &mut R, now: u64) -> Self {
         let signing = SigningKey::generate(rng);
         let mut kex_bytes = [0u8; 32];
         rng.fill_bytes(&mut kex_bytes);
         let kex_secret = XSecret::from(kex_bytes);
+        kex_bytes.zeroize(); // wipe the raw secret copy off the stack
         let address = Self::derive_address(&signing.verifying_key());
         Identity {
             signing,
@@ -66,14 +71,16 @@ impl Identity {
         created_at: u64,
         display_name: Option<String>,
     ) -> Result<Self> {
-        let sign_arr: [u8; 32] = sign_secret
+        let mut sign_arr: [u8; 32] = sign_secret
             .try_into()
             .map_err(|_| CoreError::BadKey("ed25519 secret len".into()))?;
-        let kex_arr: [u8; 32] = kex_secret
+        let mut kex_arr: [u8; 32] = kex_secret
             .try_into()
             .map_err(|_| CoreError::BadKey("x25519 secret len".into()))?;
         let signing = SigningKey::from_bytes(&sign_arr);
         let kex_secret = XSecret::from(kex_arr);
+        sign_arr.zeroize(); // wipe the raw secret copies off the stack
+        kex_arr.zeroize();
         let address = Self::derive_address(&signing.verifying_key());
         Ok(Identity {
             signing,
@@ -125,6 +132,9 @@ impl Identity {
             kex_pub: Bytes::new(self.kex_public().as_bytes().to_vec()),
             display_name: self.display_name.clone(),
             created_at: self.created_at,
+            // The long-term record carries no prekey; a node's engine injects its
+            // current rotating prekey into its beacon (forward secrecy).
+            prekey: None,
         }
     }
 

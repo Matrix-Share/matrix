@@ -5,15 +5,17 @@
 //!
 //! Envelope layout produced here:
 //! * `ciphertext`  — the CBOR payload, sealed to the recipient's X25519 key.
-//! * `src_sealed`  — the sender's identity (`sign_pub`, `kex_pub`, name),
-//!   sealed to the same recipient so **only the recipient learns who sent it**
-//!   (sealed sender, FR-45). Relays cannot.
-//! * `sig`         — the sender's Ed25519 signature over the immutable header;
-//!   verifiable by the recipient *after* unsealing the sender key, which is
-//!   what defeats impersonation/MITM (FR-6 AC, FR-44).
+//! * `src_sealed`  — the sender's identity (`sign_pub`, `kex_pub`, name) **and
+//!   the sender's Ed25519 signature over the header**, all sealed to the
+//!   recipient. Only the recipient learns who sent it *and* can verify the
+//!   signature (true sealed sender, FR-45): a relay/observer with a suspect list
+//!   cannot trial-verify a cleartext signature to deanonymize the sender. The
+//!   signed header binds `bundle_id`, `dst`, `priority`, TTL and the ciphertext
+//!   hash, defeating impersonation/MITM and tamper (FR-6 AC, FR-44).
 //!
-//! Mutable in-flight fields (`hops`, `copies_left`) are excluded from the signed
-//! header so relays can legitimately update them without breaking the signature.
+//! The wire `Bundle` therefore carries **no cleartext signature**. Mutable
+//! in-flight fields (`hops`, `copies_left`) are outside the signed header so
+//! relays can legitimately update them.
 
 use crate::crypto::{SealedBox, SecureChannel};
 use crate::identity::{verify_sig, Identity, INFO_MSG, INFO_SENDER};
@@ -62,17 +64,26 @@ impl SealOptions {
     }
 }
 
-/// The sealed-sender inner record (never visible to relays).
+/// The sealed-sender inner record (never visible to relays). Carries the
+/// sender's signature over the header so that **verifying who sent a bundle
+/// requires the recipient's secret** — a relay or observer holding a suspect
+/// list can no longer trial-verify a cleartext signature to deanonymize the
+/// sender (true sealed sender, FR-45).
 #[derive(Serialize, Deserialize)]
 struct SenderAuth {
     sign_pub: Bytes,
     kex_pub: Bytes,
+    /// Sender's Ed25519 signature over the canonical header (see
+    /// [`header_signing_bytes_of`]).
+    sig: Bytes,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     display_name: Option<String>,
 }
 
 /// Immutable header fields, in canonical order, that the sender signs.
-/// (Excludes `hops`/`copies_left`, which relays mutate.)
+/// (Excludes `hops`/`copies_left`, which relays mutate. Also excludes any hash
+/// of `src_sealed`, since the signature now lives *inside* `src_sealed`; its
+/// integrity comes from its own AEAD tag bound to `bundle_id`.)
 #[derive(Serialize)]
 struct HeaderForSig<'a> {
     v: u8,
@@ -83,10 +94,8 @@ struct HeaderForSig<'a> {
     ttl_s: u64,
     hop_limit: u16,
     ciphertext_hash: [u8; 32],
-    src_sealed_hash: [u8; 32],
 }
 
-#[allow(clippy::too_many_arguments)]
 fn header_signing_bytes(
     bundle_id: &Bytes,
     dst: &Address,
@@ -95,7 +104,6 @@ fn header_signing_bytes(
     ttl_s: u64,
     hop_limit: u16,
     ciphertext: &Bytes,
-    src_sealed: &Bytes,
 ) -> Result<Vec<u8>> {
     let h = HeaderForSig {
         v: WIRE_VERSION,
@@ -106,15 +114,12 @@ fn header_signing_bytes(
         ttl_s,
         hop_limit,
         ciphertext_hash: crate::crypto::blake3_32(ciphertext.as_slice()),
-        src_sealed_hash: crate::crypto::blake3_32(src_sealed.as_slice()),
     };
     Ok(codec::to_cbor(&h)?)
 }
 
-/// Recompute the canonical header signing bytes for an existing bundle.
-///
-/// Used at open time and by [`crate::receipt`] to verify a bundle's sender
-/// signature during offline delivery proof (§12.4).
+/// Recompute the canonical header signing bytes for an existing bundle — used at
+/// open time to verify the sender signature carried inside the sealed envelope.
 pub fn header_signing_bytes_of(b: &Bundle) -> Result<Vec<u8>> {
     header_signing_bytes(
         &b.bundle_id,
@@ -124,7 +129,6 @@ pub fn header_signing_bytes_of(b: &Bundle) -> Result<Vec<u8>> {
         b.ttl_s,
         b.hop_limit,
         &b.ciphertext,
-        &b.src_sealed,
     )
 }
 
@@ -154,10 +158,26 @@ pub fn seal_bundle(
         INFO_MSG,
     ));
 
-    // 2. Seal the sender identity to the recipient (sealed sender, FR-45).
+    // 2. Sign the immutable header (binds sender identity + message integrity +
+    //    routing fields).
+    let signing_bytes = header_signing_bytes(
+        &bundle_id,
+        &recipient.id,
+        opts.priority,
+        opts.created_at,
+        opts.ttl_s,
+        opts.hop_limit,
+        &ciphertext,
+    )?;
+    let sig = sender.sign(&signing_bytes);
+
+    // 3. Seal the sender identity **and its signature** to the recipient (true
+    //    sealed sender, FR-45): the signature lives inside this envelope, so no
+    //    relay can trial-verify it against a suspect list to deanonymize us.
     let sender_auth = SenderAuth {
         sign_pub: Bytes::new(sender.verifying_key().as_bytes().to_vec()),
         kex_pub: Bytes::new(sender.kex_public().as_bytes().to_vec()),
+        sig,
         display_name: sender.public().display_name,
     };
     let sender_auth_bytes = codec::to_cbor(&sender_auth)?;
@@ -167,19 +187,6 @@ pub fn seal_bundle(
         &sender_auth_bytes,
         INFO_SENDER,
     ));
-
-    // 3. Sign the immutable header.
-    let signing_bytes = header_signing_bytes(
-        &bundle_id,
-        &recipient.id,
-        opts.priority,
-        opts.created_at,
-        opts.ttl_s,
-        opts.hop_limit,
-        &ciphertext,
-        &src_sealed,
-    )?;
-    let sig = sender.sign(&signing_bytes);
 
     // Mint PoW postage sized to the priority (SOS exempt) so relays that gate
     // admission will accept it (FR-46, §12.5).
@@ -197,7 +204,6 @@ pub fn seal_bundle(
         hops: 0,
         copies_left: opts.copies_left,
         ciphertext,
-        sig,
         postage,
         frag: None,
     })
@@ -220,30 +226,44 @@ pub struct Opened {
 ///    anti-impersonation check (a MITM cannot forge it, FR-6 AC).
 /// 3. Decrypt the payload.
 pub fn open_bundle(recipient: &Identity, bundle: &Bundle) -> Result<Opened> {
+    open_bundle_kex(recipient.address(), recipient.kex_secret(), bundle)
+}
+
+/// Open a bundle using an explicit X25519 secret rather than the identity's
+/// long-term key. This is how the recipient opens a message a sender sealed to
+/// one of its **rotating forward-secret prekeys** — the address is unchanged
+/// (the prekey only swaps the encryption key), so the caller tries each retained
+/// prekey secret (see [`crate::prekey::PrekeyRing::open_bundle`]).
+pub(crate) fn open_bundle_kex(
+    recipient_addr: &Address,
+    kex_secret: &x25519_dalek::StaticSecret,
+    bundle: &Bundle,
+) -> Result<Opened> {
     if bundle.v != WIRE_VERSION {
         return Err(CoreError::Codec(lifeline_proto::CodecError::Decode(
             format!("unsupported wire version {}", bundle.v),
         )));
     }
-    if &bundle.dst != recipient.address() {
+    if &bundle.dst != recipient_addr {
         return Err(CoreError::Decrypt); // not for us
     }
 
     // 1. Unseal sender identity.
     let sender_auth_bytes = SealedBox::open(
-        recipient.kex_secret(),
+        kex_secret,
         bundle.bundle_id.as_slice(),
         bundle.src_sealed.as_slice(),
         INFO_SENDER,
     )?;
     let sender_auth: SenderAuth = codec::from_cbor(&sender_auth_bytes)?;
 
-    // 2. Verify header signature with the sender's real key.
+    // 2. Verify the header signature (carried inside the sealed envelope) with
+    //    the sender's real key.
     let signing_bytes = header_signing_bytes_of(bundle)?;
     verify_sig(
         sender_auth.sign_pub.as_slice(),
         &signing_bytes,
-        bundle.sig.as_slice(),
+        sender_auth.sig.as_slice(),
     )?;
 
     // Re-derive the sender address from its signing key (binding check).
@@ -258,7 +278,7 @@ pub fn open_bundle(recipient: &Identity, bundle: &Bundle) -> Result<Opened> {
 
     // 3. Decrypt payload, then undo the pre-encryption compression framing.
     let framed = SealedBox::open(
-        recipient.kex_secret(),
+        kex_secret,
         bundle.bundle_id.as_slice(),
         bundle.ciphertext.as_slice(),
         INFO_MSG,
@@ -273,6 +293,7 @@ pub fn open_bundle(recipient: &Identity, bundle: &Bundle) -> Result<Opened> {
             kex_pub: sender_auth.kex_pub,
             display_name: sender_auth.display_name,
             created_at: 0,
+            prekey: None,
         },
         payload,
     })
@@ -318,6 +339,38 @@ mod tests {
         assert_eq!(opened.payload, sos_payload());
         // Sealed sender: recipient recovers Alice's real address.
         assert_eq!(&opened.sender.id, alice.address());
+    }
+
+    #[test]
+    fn sender_signature_is_sealed_not_on_the_wire() {
+        // HIGH-1: the sender's signature lives inside the recipient-sealed
+        // envelope, so an observer holding a *suspect list* cannot trial-verify
+        // it against the cleartext bundle to deanonymize the sender. We can't
+        // assert the absence of a leak directly, but we pin the two guarantees
+        // the sealed signature must still provide:
+        let alice = Identity::generate(1000);
+        let bob = Identity::generate(1000);
+        let mut bundle = seal_bundle(
+            &alice,
+            &bob.public(),
+            &sos_payload(),
+            &SealOptions::sos(2000),
+        )
+        .unwrap();
+
+        // (a) The recipient still authenticates the true sender.
+        assert_eq!(
+            &open_bundle(&bob, &bundle).unwrap().sender.id,
+            alice.address()
+        );
+
+        // (b) Integrity holds: tampering the ciphertext (which the sealed sig
+        //     commits to via its hash) is rejected on open.
+        bundle.ciphertext.0[0] ^= 0x01;
+        assert!(
+            open_bundle(&bob, &bundle).is_err(),
+            "a mutated ciphertext must fail the sealed sender signature"
+        );
     }
 
     #[test]

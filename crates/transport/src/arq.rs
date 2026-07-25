@@ -44,6 +44,12 @@ pub const DEFAULT_MAX_ROUNDS: u16 = 12;
 /// was lost) is re-acknowledged instead of re-delivered.
 const COMPLETED_MEMORY: usize = 1024;
 
+/// Cap on concurrent in-flight reassemblies. Without this, a peer sending one
+/// fragment each for millions of fabricated `mid`s (none ever completing) grows
+/// `partial` without bound — a memory-exhaustion DoS. At the cap, the oldest
+/// incomplete reassembly is evicted to admit a new one.
+const MAX_PARTIAL: usize = 512;
+
 fn set_bit(buf: &mut Vec<u8>, i: usize) {
     let byte = i / 8;
     if byte >= buf.len() {
@@ -208,6 +214,8 @@ struct RxProgress {
 #[derive(Default)]
 pub struct ArqRx {
     partial: HashMap<Bytes, RxProgress>,
+    /// Insertion order of `partial` keys, for oldest-first eviction at the cap.
+    partial_order: VecDeque<Bytes>,
     completed: HashMap<Bytes, u16>,
     completed_order: VecDeque<Bytes>,
 }
@@ -239,6 +247,19 @@ impl ArqRx {
             return RxOut { payload: None, ack };
         }
 
+        // New reassembly? Track its order and evict the oldest if we're at the
+        // cap, so a flood of never-completing mids can't exhaust memory.
+        if !self.partial.contains_key(&frame.mid) {
+            while self.partial.len() >= MAX_PARTIAL {
+                match self.partial_order.pop_front() {
+                    Some(old) => {
+                        self.partial.remove(&old);
+                    }
+                    None => break,
+                }
+            }
+            self.partial_order.push_back(frame.mid.clone());
+        }
         let entry = self
             .partial
             .entry(frame.mid.clone())

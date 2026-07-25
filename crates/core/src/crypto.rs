@@ -19,6 +19,7 @@ use hkdf::Hkdf;
 use rand::RngCore;
 use sha2::Sha256;
 use x25519_dalek::{EphemeralSecret, PublicKey as XPublic, StaticSecret as XSecret};
+use zeroize::Zeroize;
 
 /// Length of an AEAD symmetric key.
 pub const KEY_LEN: usize = 32;
@@ -103,8 +104,12 @@ pub struct SealedBox;
 
 impl SecureChannel for SealedBox {
     fn seal(recipient_kex_pub: &XPublic, ad: &[u8], plaintext: &[u8], info: &[u8]) -> Vec<u8> {
-        // Fresh ephemeral keypair per message → forward secrecy against later
-        // compromise of the ephemeral secret, and unlinkable nonces.
+        // A fresh ephemeral keypair per message gives unlinkable ciphertexts and
+        // discards the sender's DH secret immediately. NOTE: this is *not*
+        // forward secrecy against compromise of the recipient's long-term X25519
+        // key — that key never rotates here, so seizing it decrypts every past
+        // and future message. A ratchet / rotating prekeys (SecureChannel seam,
+        // OQ3) would bound that exposure; documented honestly rather than implied.
         let eph_secret = EphemeralSecret::random_from_rng(rand::rngs::OsRng);
         let eph_pub = XPublic::from(&eph_secret);
         let shared = eph_secret.diffie_hellman(recipient_kex_pub);
@@ -114,7 +119,7 @@ impl SecureChannel for SealedBox {
         let mut salt = Vec::with_capacity(64);
         salt.extend_from_slice(eph_pub.as_bytes());
         salt.extend_from_slice(recipient_kex_pub.as_bytes());
-        let key_vec = hkdf_sha256(shared.as_bytes(), &salt, info, KEY_LEN);
+        let mut key_vec = hkdf_sha256(shared.as_bytes(), &salt, info, KEY_LEN);
         let mut key = [0u8; KEY_LEN];
         key.copy_from_slice(&key_vec);
 
@@ -123,6 +128,8 @@ impl SecureChannel for SealedBox {
         nonce.copy_from_slice(&nonce_vec);
 
         let ct = aead_seal(&key, &nonce, ad, plaintext);
+        key.zeroize();
+        key_vec.zeroize();
 
         let mut blob = Vec::with_capacity(X25519_LEN + NONCE_LEN + ct.len());
         blob.extend_from_slice(eph_pub.as_bytes());
@@ -150,11 +157,14 @@ impl SecureChannel for SealedBox {
         let mut salt = Vec::with_capacity(64);
         salt.extend_from_slice(eph_pub.as_bytes());
         salt.extend_from_slice(recipient_pub.as_bytes());
-        let key_vec = hkdf_sha256(shared.as_bytes(), &salt, info, KEY_LEN);
+        let mut key_vec = hkdf_sha256(shared.as_bytes(), &salt, info, KEY_LEN);
         let mut key = [0u8; KEY_LEN];
         key.copy_from_slice(&key_vec);
 
-        aead_open(&key, &nonce, ad, ct)
+        let out = aead_open(&key, &nonce, ad, ct);
+        key.zeroize();
+        key_vec.zeroize();
+        out
     }
 }
 

@@ -29,6 +29,7 @@ use lifeline_proto::{Address, Bytes};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use x25519_dalek::PublicKey as XPublic;
+use zeroize::Zeroize;
 
 /// Domain separators for the symmetric ratchet.
 const INFO_MSG: &[u8] = b"lifeline/v1/group-msg";
@@ -97,6 +98,12 @@ pub struct SenderKeyState {
     group_id: String,
     chain_key: [u8; KEY_LEN],
     iteration: u32,
+}
+
+impl Drop for SenderKeyState {
+    fn drop(&mut self) {
+        self.chain_key.zeroize();
+    }
 }
 
 impl SenderKeyState {
@@ -190,6 +197,15 @@ pub struct ReceiverKeyState {
     skipped: BTreeMap<u32, [u8; KEY_LEN]>,
 }
 
+impl Drop for ReceiverKeyState {
+    fn drop(&mut self) {
+        self.chain_key.zeroize();
+        for mk in self.skipped.values_mut() {
+            mk.zeroize();
+        }
+    }
+}
+
 impl ReceiverKeyState {
     /// Build a receiver state from a distribution sealed to us.
     pub fn open_sealed(recipient: &Identity, group_id: &str, sealed: &[u8]) -> Result<Self> {
@@ -205,6 +221,15 @@ impl ReceiverKeyState {
 
     /// Build a receiver state directly from a distribution.
     pub fn from_distribution(dist: &SenderKeyDistribution) -> Result<Self> {
+        // Bind the signing key to the claimed owner address (as every other
+        // signed artifact does). Without this a member could distribute a key
+        // claiming `owner = <someone else>` and thereafter forge messages
+        // attributed to that member.
+        if crate::identity::address_of(dist.sign_pub.as_slice())? != dist.owner {
+            return Err(CoreError::BadKey(
+                "group sender key does not match owner address".into(),
+            ));
+        }
         let sign_pub: [u8; 32] = dist
             .sign_pub
             .as_slice()
@@ -316,6 +341,22 @@ mod tests {
         }
         // Silence unused-var warnings for keys used only via addresses.
         let _ = (kex_pub(&bob), kex_pub(&carol));
+    }
+
+    #[test]
+    fn distribution_claiming_another_owner_is_rejected() {
+        // Eve builds her own sender key but claims Alice's address as owner,
+        // keeping her own signing key — the classic sender-key impersonation.
+        let alice = Identity::generate(0);
+        let eve = Identity::generate(0);
+        let eve_sk = SenderKeyState::new("relief-team");
+        let mut forged = eve_sk.distribution(&eve);
+        forged.owner = alice.address().clone(); // lie about who this key belongs to
+
+        assert!(
+            ReceiverKeyState::from_distribution(&forged).is_err(),
+            "a distribution whose signing key doesn't match its owner address must be rejected"
+        );
     }
 
     #[test]

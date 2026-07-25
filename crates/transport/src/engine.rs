@@ -18,6 +18,7 @@ use lifeline_core::erasure::{fragment_bundle, FragmentCollector};
 use lifeline_core::group::{GroupEnvelope, GroupMessage, ReceiverKeyState, SenderKeyState};
 use lifeline_core::message::{open_bundle, seal_bundle, SealOptions};
 use lifeline_core::onion::{build_onion, peel_onion, Peeled};
+use lifeline_core::prekey::{verify_prekey, PrekeyRing};
 use lifeline_core::receipt::{make_delivery_receipt, verify_delivery};
 use lifeline_core::Identity;
 use lifeline_proto::codec::{b64url_decode, b64url_encode, from_cbor, to_cbor};
@@ -68,6 +69,13 @@ pub struct EngineConfig {
     pub gateway_caps: Vec<String>,
     /// Ticks between this gateway's own announce emissions.
     pub announce_interval: u64,
+    /// Ticks between forward-secret prekey rotations (FR-44). Must be large enough
+    /// that `prekey_retain` rotations cover the message TTL, so in-flight messages
+    /// still open. Default is large so short-lived sessions don't churn keys.
+    pub prekey_rotate_interval: u64,
+    /// How many recent prekeys to retain (their secrets kept for opening delayed
+    /// messages, then deleted for forward secrecy).
+    pub prekey_retain: usize,
 }
 
 impl Default for EngineConfig {
@@ -82,6 +90,8 @@ impl Default for EngineConfig {
             arq_max_rounds: crate::arq::DEFAULT_MAX_ROUNDS,
             gateway_caps: Vec::new(),
             announce_interval: 10,
+            prekey_rotate_interval: 86_400,
+            prekey_retain: 8,
         }
     }
 }
@@ -191,6 +201,14 @@ pub struct NodeEngine {
     announce_seq: u64,
     next_announce: u64,
     announce_interval: u64,
+    /// Next tick at which we re-gossip known announces (throttled so a cache of
+    /// announces isn't re-broadcast on every single tick).
+    next_gossip: u64,
+    /// Forward-secret prekey ring (FR-44): rotating recipient keys we publish in
+    /// our beacon and open incoming messages against.
+    prekey_ring: PrekeyRing,
+    next_prekey_rotate: u64,
+    prekey_rotate_interval: u64,
     /// Content-addressed block store (FR-13): serves blocks by CID to peers.
     blocks: BlockStore,
     /// Manifests we are actively pulling blocks for, keyed by root CID.
@@ -215,6 +233,10 @@ const BLOCK_REREQUEST: u64 = 15;
 /// gateway's gradient doesn't lapse between emissions).
 const ANNOUNCE_TTL_S: u64 = 300;
 
+/// Cap on discovered peers/contacts, to bound memory against a beacon flood of
+/// fabricated identities. Already-known peers keep updating past the cap.
+const MAX_CONTACTS: usize = 50_000;
+
 /// Per-group sending state (FR-12).
 struct GroupState {
     sender_key: SenderKeyState,
@@ -228,6 +250,11 @@ impl NodeEngine {
             (cfg.retry_window, cfg.max_retries, cfg.respray_copies);
         let (arq_rto, arq_max_rounds) = (cfg.arq_rto, cfg.arq_max_rounds);
         let custody_role = cfg.custody_role;
+        // Start with one prekey so our very first beacon already advertises a
+        // forward-secret key.
+        let mut prekey_ring = PrekeyRing::new(cfg.prekey_retain);
+        prekey_ring.rotate();
+        let prekey_rotate_interval = cfg.prekey_rotate_interval.max(1);
         let gateway_caps = cfg.gateway_caps.clone();
         let announce_interval = cfg.announce_interval.max(1);
         let mut router = DtnRouter::new(public.id.clone(), cfg.router);
@@ -264,6 +291,10 @@ impl NodeEngine {
             announce_seq: 0,
             next_announce: 0,
             announce_interval,
+            next_gossip: 0,
+            prekey_ring,
+            next_prekey_rotate: prekey_rotate_interval,
+            prekey_rotate_interval,
             blocks: BlockStore::new(),
             pending_fetches: HashMap::new(),
             fetched: Vec::new(),
@@ -304,7 +335,8 @@ impl NodeEngine {
         now: u64,
     ) -> Bytes {
         let opts = SealOptions::normal(now).with_priority(priority);
-        let bundle = seal_bundle(&self.identity, to, &payload, &opts).expect("seal");
+        let recipient = self.fs_recipient(to);
+        let bundle = seal_bundle(&self.identity, &recipient, &payload, &opts).expect("seal");
         let id = bundle.bundle_id.clone();
         self.sent.push(SentRec {
             bundle_id: id.clone(),
@@ -315,6 +347,23 @@ impl NodeEngine {
         });
         self.originate(bundle, now);
         id
+    }
+
+    /// Forward secrecy (FR-44): if the recipient advertises a valid current prekey
+    /// (learned from a beacon), seal to it instead of their long-term key. A
+    /// prekey that doesn't self-verify or whose owner ≠ the recipient is ignored,
+    /// falling back to the long-term key — so a forged prekey can only cost
+    /// forward secrecy, never redirect the message.
+    fn fs_recipient(&self, to: &IdentityPublic) -> IdentityPublic {
+        if let Some(pk) = &to.prekey {
+            if pk.owner == to.id && verify_prekey(pk).is_ok() {
+                let mut r = to.clone();
+                r.kex_pub = pk.kex_pub.clone();
+                r.prekey = None; // the sealed recipient record needn't carry it
+                return r;
+            }
+        }
+        to.clone()
     }
 
     /// Inject a bundle this node *originated* into the mesh, remembering its id
@@ -555,6 +604,16 @@ impl NodeEngine {
         let cid = Bytes::new(cid_raw);
         // Intrinsic integrity: trust the block only if it hashes to the CID.
         if cid_of(&attach.bytes.0) != cid {
+            return;
+        }
+        // Solicited-only: accept a block only if some pending fetch actually needs
+        // it. Otherwise an attacker could push unlimited unrequested blocks (each
+        // with a valid self-CID) to fill our store.
+        let wanted = self
+            .pending_fetches
+            .values()
+            .any(|pf| pf.manifest.blocks.contains(&cid));
+        if !wanted {
             return;
         }
         self.blocks.put(attach.bytes.0.clone());
@@ -812,8 +871,14 @@ impl NodeEngine {
         let Ok(env) = from_cbor::<GroupEnvelope>(&raw) else {
             return;
         };
+        // Bind the group op's claimed owner to the E2E-authenticated sender of
+        // the bundle it arrived in: a node may only distribute/send under its own
+        // identity, never claim to be another member (anti-impersonation).
         match env {
             GroupEnvelope::Distribution(d) => {
+                if d.owner != opened.sender.id {
+                    return;
+                }
                 if let Ok(rx) = ReceiverKeyState::from_distribution(&d) {
                     let group = d.group_id.clone();
                     let owner = d.owner.clone();
@@ -822,7 +887,12 @@ impl NodeEngine {
                     self.drain_pending(&group, &owner);
                 }
             }
-            GroupEnvelope::Message(m) => self.handle_group_message(m),
+            GroupEnvelope::Message(m) => {
+                if m.owner != opened.sender.id {
+                    return;
+                }
+                self.handle_group_message(m)
+            }
         }
     }
 
@@ -879,6 +949,10 @@ impl NodeEngine {
 
     /// One scheduler step: advertise, receive, and offer over every interface.
     pub fn tick(&mut self, now: u64) {
+        if now >= self.next_prekey_rotate {
+            self.prekey_ring.rotate();
+            self.next_prekey_rotate = now + self.prekey_rotate_interval;
+        }
         self.gateway_round(now);
         self.advertise_and_receive(now);
         self.forward_pending_onions(now);
@@ -1002,15 +1076,25 @@ impl NodeEngine {
 
     fn advertise_and_receive(&mut self, now: u64) {
         // Beacon carries our gateway status + current gradient so neighbours can
-        // route bundles *downhill* toward the nearest gateway (FR-29/FR-36).
+        // route bundles *downhill* toward the nearest gateway (FR-29/FR-36), plus
+        // our current forward-secret prekey so senders seal to it (FR-44).
+        let mut beacon_id = self.public.clone();
+        beacon_id.prekey = self.prekey_ring.publish(&self.identity);
         let beacon = to_cbor(&Beacon {
-            id: self.public.clone(),
+            id: beacon_id,
             gw: self.router.is_gateway(),
             grad: self.router.gradient(now),
         })
         .expect("cbor beacon");
-        // Announces to gossip onward this round (distances already incremented).
-        let announces = self.router.announces_to_gossip(now);
+        // Announces to gossip onward — throttled to at most once per
+        // `announce_interval` so a cache of announces isn't re-broadcast every
+        // tick (bandwidth + amplification bound).
+        let announces = if now >= self.next_gossip {
+            self.next_gossip = now + self.announce_interval;
+            self.router.announces_to_gossip(now)
+        } else {
+            Vec::new()
+        };
         for p in 0..self.ports.len() {
             // Advertise our identity beacon.
             let mid = self.next_mid();
@@ -1139,15 +1223,30 @@ impl NodeEngine {
         match kind {
             FrameKind::Beacon => {
                 if let Ok(b) = from_cbor::<Beacon>(&payload) {
-                    self.peer_addr.insert((p, peer), b.id.id.clone());
-                    self.peer_meta.insert(
-                        (p, peer),
-                        PeerMeta {
-                            is_gateway: b.gw,
-                            gradient: b.grad,
-                        },
-                    );
-                    self.contacts.entry(b.id.id.clone()).or_insert(b.id);
+                    // Bound discovered-peer growth against a beacon flood of
+                    // fabricated identities: only learn a *new* peer if we have
+                    // room; already-known peers keep updating.
+                    let known = self.contacts.contains_key(&b.id.id);
+                    if known || self.contacts.len() < MAX_CONTACTS {
+                        self.peer_addr.insert((p, peer), b.id.id.clone());
+                        self.peer_meta.insert(
+                            (p, peer),
+                            PeerMeta {
+                                is_gateway: b.gw,
+                                gradient: b.grad,
+                            },
+                        );
+                        match self.contacts.entry(b.id.id.clone()) {
+                            std::collections::hash_map::Entry::Occupied(mut e) => {
+                                // Learn the peer's *current* prekey on each beacon
+                                // (its long-term keys stay TOFU-fixed).
+                                e.get_mut().prekey = b.id.prekey;
+                            }
+                            std::collections::hash_map::Entry::Vacant(e) => {
+                                e.insert(b.id);
+                            }
+                        }
+                    }
                 }
             }
             FrameKind::Announce => {
@@ -1171,15 +1270,19 @@ impl NodeEngine {
         }
     }
 
-    /// Record a gossiped gateway announce (FR-36). If we know the announcing
-    /// gateway's key (it's a contact), we reject a forged announce; otherwise we
-    /// accept it to let the gradient propagate past nodes we haven't met, and the
-    /// reputation layer demotes a gateway that then black-holes traffic.
+    /// Record a gossiped gateway announce (FR-36), only if it is authentic.
+    /// The announce is **self-verifying** (carries the gateway's key bound to its
+    /// address), so we reject *every* forged announce — closing the gradient-
+    /// poisoning / cache-flood vector — without needing the gateway as a contact.
+    /// We also refuse an implausibly far-future expiry so a forged announce can't
+    /// pin a cache entry indefinitely (the signature covers `expires_at`, so we
+    /// reject rather than clamp).
     fn observe_announce(&mut self, ann: GatewayAnnounce, dist: u16, now: u64) {
-        if let Some(gw) = self.contacts.get(&ann.gateway) {
-            if verify_gateway_announce(&ann, gw.sign_pub.as_slice()).is_err() {
-                return;
-            }
+        if verify_gateway_announce(&ann).is_err() {
+            return;
+        }
+        if ann.expires_at > now + 4 * ANNOUNCE_TTL_S {
+            return;
         }
         self.router.observe_announce(ann, dist, now);
     }
@@ -1240,8 +1343,14 @@ impl NodeEngine {
             }
             return;
         }
-        let Ok(opened) = open_bundle(&self.identity, &bundle) else {
-            return;
+        // Open with our long-term key; if that fails, the sender may have sealed
+        // to one of our rotating forward-secret prekeys — try the ring (FR-44).
+        let opened = match open_bundle(&self.identity, &bundle) {
+            Ok(o) => o,
+            Err(_) => match self.prekey_ring.open_bundle(&self.public.id, &bundle) {
+                Some(o) => o,
+                None => return,
+            },
         };
         if opened.payload.kind == lifeline_proto::PayloadKind::Receipt {
             self.process_receipt(opened);
@@ -1378,17 +1487,9 @@ impl NodeEngine {
         let Ok(dr) = from_cbor::<DeliveryReceipt>(&raw) else {
             return;
         };
-        let sender_pub = self.public.sign_pub.clone();
         let recipient_pub = opened.sender.sign_pub.clone();
         if let Some(rec) = self.sent.iter_mut().find(|s| s.bundle_id == dr.bundle_id) {
-            if verify_delivery(
-                &rec.original,
-                &dr,
-                sender_pub.as_slice(),
-                recipient_pub.as_slice(),
-            )
-            .is_ok()
-            {
+            if verify_delivery(&rec.original, &dr, recipient_pub.as_slice()).is_ok() {
                 rec.verified = true;
             }
         }

@@ -70,7 +70,6 @@ fn decoders_never_panic_on_mutated_valid_bundle() {
         hops: 0,
         copies_left: 6,
         ciphertext: Bytes::new(vec![4; 128]),
-        sig: Bytes::new(vec![5; 64]),
         postage: Some(Bytes::new(vec![6; 8])),
         frag: None,
     };
