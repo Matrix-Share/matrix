@@ -16,6 +16,8 @@
 //!   onto (requires the `meshtastic` build feature); see `build_meshtastic`.
 
 mod api;
+#[cfg(feature = "nostr")]
+mod async_bearer;
 mod engine_thread;
 #[cfg(feature = "nostr")]
 mod nostr_bridge;
@@ -102,7 +104,6 @@ fn build_nostr(
     identity: &Identity,
     handle: &tokio::runtime::Handle,
 ) -> Option<lifeline_transport::ChannelInterface> {
-    use lifeline_transport::{ChannelInterface, InterfaceCaps};
     let urls: Vec<String> = std::env::var("LIFELINE_NOSTR_RELAY")
         .unwrap_or_default()
         .split(',')
@@ -112,18 +113,8 @@ fn build_nostr(
     if urls.is_empty() {
         return None;
     }
-    let (out_tx, out_rx) = std::sync::mpsc::channel();
-    let (in_tx, in_rx) = std::sync::mpsc::channel();
-    let peers = Arc::new(Mutex::new(Vec::<u64>::new()));
-    let iface = ChannelInterface::new(
-        InterfaceCaps::overlay("nostr", 16 * 1024),
-        out_tx,
-        in_rx,
-        peers.clone(),
-    );
     let seed = nostr_bridge::seed_from_identity(identity);
-    nostr_bridge::spawn(handle, urls, seed, out_rx, in_tx, peers);
-    Some(iface)
+    Some(nostr_bridge::spawn(handle, urls, seed))
 }
 
 /// Build the optional Meshtastic bearer from `LIFELINE_MESHTASTIC_MQTT`
