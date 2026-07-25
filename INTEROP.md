@@ -20,7 +20,7 @@ capabilities drop in without touching callers:
 | **L5 CRDTs** | `sync` (ORSWOT/LWW/VV) | Automerge/Yjs document types |
 | **L5 logs** | `core::log::HashLog` | SSB-style feeds |
 | **L6 anti-abuse** | `proto::pow`, router admission | Hashcash, GNUnet-style reputation |
-| **App transport fabric** | `lifeline-relay` + `ChannelInterface` | any internet relay, Reticulum transport node |
+| **App transport fabric** | `lifeline-relay` + `ChannelInterface` | any internet relay, Reticulum transport node, **Nostr relays** (see below) |
 
 So "migrate capability X" almost always means **implement one trait** or **write
 one bridge** — not rearchitect.
@@ -97,6 +97,18 @@ We are **Apache-2.0**. Compatibility summary for the named projects:
 | **Helium** (varies) | Proof-of-relay incentive (DePIN) | optional off-path ledger | **Design adopted** (`core::relay_proof`): credits are signed by the *counterparty* next hop, so a relay cannot self-mint evidence — directly answering the location-spoofing that hurt Helium. Kept strictly *off* the delivery path. |
 
 ---
+
+## Nostr — the internet fabric to plug into (highest-leverage interop)
+
+Not in the original design docs, but the clearest win: **Nostr relays are a
+global, already-adopted, store-and-forward internet fabric** (signed events on
+"dumb relays, smart clients"). BitChat (BLE mesh + Nostr bridge) proves the
+mesh↔Nostr pattern at scale. A **`NostrInterface`** (a `ChannelInterface` fed by
+a Nostr WebSocket task) gives Lifeline nodes global internet reach + offline
+mailboxing with **no engine change and no `lifeline-relay` to run** — while
+Lifeline leads with what Nostr lacks (forward secrecy, verifiable delivery,
+multi-bearer offline, erasure). Full plan, NIP mapping, and the bundle↔event
+codec: [`docs/nostr-integration.md`](docs/nostr-integration.md).
 
 ## Priority adoption order (verifiable next)
 

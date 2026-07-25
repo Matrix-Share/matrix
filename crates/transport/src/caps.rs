@@ -174,6 +174,25 @@ impl InterfaceCaps {
         }
     }
 
+    /// A generic **internet-overlay** link — any external message network reached
+    /// over the internet (a Nostr relay, a Reticulum transport node, a plain
+    /// relay). Global reach, gateway-capable; `mtu` is chosen so a bundle
+    /// fragments into reasonably-sized network messages. `name` identifies the
+    /// overlay for diagnostics.
+    pub fn overlay(name: &str, mtu: usize) -> Self {
+        Self {
+            kind: InterfaceKind::Internet,
+            name: name.to_string(),
+            mtu,
+            throughput: ThroughputClass::Medium,
+            range: RangeClass::Global,
+            full_duplex: true,
+            bridges_offmesh: true,
+            region: None,
+            max_power_mw: None,
+        }
+    }
+
     /// Verify a radio interface is configured for a lawful region/power (CR-1).
     /// Non-radio links (sound/light) are always compliant.
     pub fn is_lawful_radio(&self) -> bool {
