@@ -12,6 +12,8 @@
 //! * `LIFELINE_PASSPHRASE` — passphrase wrapping the stored identity (dev default).
 //! * `LIFELINE_NOSTR_RELAY`— comma-separated Nostr relay URLs to bridge onto as
 //!   an extra bearer (requires the `nostr` build feature), e.g. `wss://relay.damus.io`.
+//! * `LIFELINE_MESHTASTIC_MQTT` — Meshtastic MQTT broker `host[:port]` to bridge
+//!   onto (requires the `meshtastic` build feature); see `build_meshtastic`.
 
 mod api;
 mod engine_thread;
@@ -92,6 +94,48 @@ fn build_nostr(
     let seed = nostr_bridge::seed_from_identity(identity);
     nostr_bridge::spawn(handle, urls, seed, out_rx, in_tx, peers);
     Some(iface)
+}
+
+/// Build the optional Meshtastic bearer from `LIFELINE_MESHTASTIC_MQTT`
+/// (`host[:port]`). Connects to the MQTT broker and wraps a `MeshtasticNet` as a
+/// first-class engine interface. Because the MQTT client is synchronous, this
+/// bearer needs no channel bridging — the engine tick drives it directly.
+/// `meshtastic` feature only.
+///
+/// Also honored: `LIFELINE_MESHTASTIC_CHANNEL` (default `lifeline`) and
+/// `LIFELINE_MESHTASTIC_ROOT` (topic root, default `msh/lifeline`).
+#[cfg(feature = "meshtastic")]
+fn build_meshtastic(identity: &Identity) -> Option<Box<dyn lifeline_transport::Interface + Send>> {
+    use lifeline_bridge::meshtastic::{MeshtasticNet, MqttBus};
+    use lifeline_transport::BridgeInterface;
+
+    let broker = std::env::var("LIFELINE_MESHTASTIC_MQTT").ok()?;
+    let (host, port) = match broker.rsplit_once(':') {
+        Some((h, p)) => (h.to_string(), p.parse().unwrap_or(1883)),
+        None => (broker, 1883),
+    };
+    let channel = env_or("LIFELINE_MESHTASTIC_CHANNEL", "lifeline");
+    let root = env_or("LIFELINE_MESHTASTIC_ROOT", "msh/lifeline");
+
+    // Node number derived from the identity: stable, nonzero, never the broadcast
+    // address (top bit cleared, low bit set).
+    let seed = identity.derive_subkey(b"meshtastic-node");
+    let node = (u32::from_le_bytes([seed[0], seed[1], seed[2], seed[3]]) & 0x7fff_ffff) | 0x1;
+    let client_id = format!("lifeline-{node:08x}");
+
+    match MqttBus::connect(&host, port, &client_id, &root, &channel, node) {
+        Ok(bus) => {
+            tracing::info!(
+                "meshtastic: bearer enabled via {host}:{port} (channel '{channel}', node !{node:08x})"
+            );
+            let net = MeshtasticNet::new(bus, node, channel);
+            Some(Box::new(BridgeInterface::new(net)))
+        }
+        Err(e) => {
+            tracing::warn!("meshtastic: MQTT connect to {host}:{port} failed: {e}");
+            None
+        }
+    }
 }
 
 /// Load a persisted identity or generate + save a new one (FR-1, FR-5).
@@ -216,13 +260,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Optional infrastructureless LAN transport.
     let udp = build_udp();
 
-    // Optional global-internet bearer over the Nostr relay network. Derive the
-    // seed + spawn the client here (needs the identity before it moves into the
-    // engine thread, and the current Tokio runtime handle).
+    // Optional extra bearers, built here (they need the identity before it moves
+    // into the engine thread, and the Tokio runtime handle). Each becomes a
+    // first-class engine interface via the `ExternalNet`/`Interface` seam.
+    #[allow(unused_mut)]
+    let mut extra_ifaces: Vec<Box<dyn lifeline_transport::Interface + Send>> = Vec::new();
     #[cfg(feature = "nostr")]
-    let nostr_iface = build_nostr(&identity, &tokio::runtime::Handle::current());
-    #[cfg(not(feature = "nostr"))]
-    let nostr_iface: Option<lifeline_transport::ChannelInterface> = None;
+    if let Some(iface) = build_nostr(&identity, &tokio::runtime::Handle::current()) {
+        extra_ifaces.push(Box::new(iface));
+    }
+    #[cfg(feature = "meshtastic")]
+    if let Some(iface) = build_meshtastic(&identity) {
+        extra_ifaces.push(iface);
+    }
 
     // Engine thread.
     {
@@ -245,7 +295,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     vault,
                     data_dir,
                     initial,
-                    nostr_iface,
+                    extra_ifaces,
                 );
             })?;
     }
