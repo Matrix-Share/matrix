@@ -5,7 +5,7 @@
 //! API so a person can chat over the mesh from a browser.
 //!
 //! Config via env:
-//! * `LIFELINE_NODE_ADDR`  — GUI/API bind address (default `0.0.0.0:8080`).
+//! * `LIFELINE_NODE_ADDR`  — GUI/API bind address (default `127.0.0.1:8080`, loopback).
 //! * `LIFELINE_RELAY_ADDR` — relay to dial (default `127.0.0.1:7000`).
 //! * `LIFELINE_NAME`       — display name (default derived from address).
 //! * `LIFELINE_DATA_DIR`   — where the identity is persisted (default `./data`).
@@ -62,6 +62,36 @@ fn build_udp() -> Option<UdpInterface> {
 
 fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_string())
+}
+
+/// Write `bytes` to `path` crash-safely: write a sibling temp file, then rename
+/// it over `path`. `rename` is atomic on a POSIX filesystem, so a crash mid-write
+/// leaves the previous good file intact instead of a truncated one — which the
+/// load path would otherwise discard as "start fresh", losing all history.
+pub(crate) fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, bytes)?;
+    std::fs::rename(&tmp, path)
+}
+
+/// Await SIGTERM (unix) or Ctrl-C — the signal to begin graceful shutdown.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let term = async {
+        if let Ok(mut s) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        {
+            s.recv().await;
+        }
+    };
+    #[cfg(not(unix))]
+    let term = std::future::pending::<()>();
+    tokio::select! {
+        _ = ctrl_c => {}
+        _ = term => {}
+    }
 }
 
 /// Build the optional Nostr bearer from `LIFELINE_NOSTR_RELAY` (comma-separated
@@ -168,7 +198,7 @@ fn load_or_create_identity(data_dir: &str, passphrase: &str, name: Option<String
     }
     if let Ok(backup) = KeyBackup::create(&id, passphrase) {
         if let Ok(json) = serde_json::to_vec_pretty(&backup) {
-            let _ = std::fs::write(&path, json);
+            let _ = write_atomic(&path, &json);
         }
     }
     tracing::info!("generated identity {}", id.address());
@@ -274,8 +304,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         extra_ifaces.push(iface);
     }
 
-    // Engine thread.
-    {
+    // A handle to signal the engine to flush + stop at shutdown.
+    let shutdown_tx = cmd_tx.clone();
+
+    // Engine thread (kept, so we can join it on shutdown for a final flush).
+    let engine_handle = {
         let shared = shared.clone();
         let version = version.clone();
         std::thread::Builder::new()
@@ -297,8 +330,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     initial,
                     extra_ifaces,
                 );
-            })?;
-    }
+            })?
+    };
 
     // Web GUI + API.
     let app = api::router(api::AppState {
@@ -308,6 +341,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let listener = tokio::net::TcpListener::bind(&node_addr).await?;
     tracing::info!("lifeline-node GUI on http://{node_addr}  (relay {relay_addr})");
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    // Signal received: tell the engine to flush persistent state and exit, then
+    // wait for it so a rotated prekey ring / recent messages aren't lost.
+    tracing::info!("shutting down — flushing state");
+    let _ = shutdown_tx.send(views::Command::Shutdown);
+    let _ = engine_handle.join();
     Ok(())
 }

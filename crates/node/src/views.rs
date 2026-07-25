@@ -50,6 +50,9 @@ pub enum Command {
         lon: f64,
         acc_m: Option<u32>,
     },
+    /// Flush persistent state and stop the engine loop (graceful shutdown). Sent
+    /// by `main` when the process receives SIGTERM/Ctrl-C.
+    Shutdown,
 }
 
 /// The full UI snapshot, serialized to the browser as JSON.

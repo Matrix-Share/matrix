@@ -42,9 +42,136 @@ pub fn to_cbor<T: Serialize>(value: &T) -> Result<Vec<u8>, CodecError> {
     Ok(buf)
 }
 
+/// Hard ceiling on the size of a single CBOR document we will decode from an
+/// untrusted peer. Bounds worst-case allocation regardless of the parser's
+/// internals; matches the 16 MiB decompression ceiling in `core::compress`.
+pub const MAX_WIRE_BYTES: usize = 16 * 1024 * 1024;
+
+/// Maximum CBOR container-nesting depth we will decode. `ciborium` 0.2 has **no
+/// recursion limit**, so deeply-nested input would recurse the deserializer into
+/// a stack overflow (a remote crash). Our real structures nest ~4–5 deep; 128 is
+/// generous headroom.
+const MAX_CBOR_DEPTH: usize = 128;
+
 /// Deserialize a wire struct from CBOR bytes.
+///
+/// Hardened for untrusted input: rejects oversized documents and structurally
+/// bounds nesting depth (via [`guard_cbor`]) *before* handing bytes to
+/// `ciborium`, so a hostile peer cannot drive an allocation bomb or a
+/// stack-overflow through the decoder.
 pub fn from_cbor<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, CodecError> {
+    guard_cbor(bytes)?;
     ciborium::from_reader(bytes).map_err(|e| CodecError::Decode(e.to_string()))
+}
+
+/// Iterative structural pre-scan of a CBOR document: verifies it is well-framed
+/// and bounds its nesting depth and size without recursing (so the guard itself
+/// can never overflow). Does not validate types — that is `ciborium`'s job — only
+/// that decoding it is safe to attempt.
+fn guard_cbor(bytes: &[u8]) -> Result<(), CodecError> {
+    if bytes.len() > MAX_WIRE_BYTES {
+        return Err(CodecError::Decode(format!(
+            "input too large: {} bytes (max {MAX_WIRE_BYTES})",
+            bytes.len()
+        )));
+    }
+    // Sentinel for an indefinite-length container (closed by a `break`, 0xFF).
+    const INDEF: u64 = u64::MAX;
+    let mut pos = 0usize;
+    // Remaining data items expected at each open level; the document is one item.
+    let mut stack: Vec<u64> = vec![1];
+
+    while let Some(&top) = stack.last() {
+        if top == 0 {
+            stack.pop();
+            continue;
+        }
+        let ib = *bytes
+            .get(pos)
+            .ok_or_else(|| CodecError::Decode("truncated CBOR".into()))?;
+        pos += 1;
+
+        // `break` (0xFF) closes the nearest indefinite-length container and is not
+        // itself a data item.
+        if ib == 0xFF {
+            if top != INDEF {
+                return Err(CodecError::Decode("unexpected CBOR break".into()));
+            }
+            stack.pop();
+            continue;
+        }
+        // This byte begins a data item at the current level; account for it.
+        if top != INDEF {
+            *stack.last_mut().unwrap() -= 1;
+        }
+
+        let major = ib >> 5;
+        let minor = ib & 0x1f;
+        // Decode the argument (length/value); `None` = indefinite (minor 31).
+        let arg: Option<u64> = match minor {
+            0..=23 => Some(minor as u64),
+            24 => Some(read_uint(bytes, &mut pos, 1)?),
+            25 => Some(read_uint(bytes, &mut pos, 2)?),
+            26 => Some(read_uint(bytes, &mut pos, 4)?),
+            27 => Some(read_uint(bytes, &mut pos, 8)?),
+            31 => None,
+            _ => return Err(CodecError::Decode("reserved CBOR additional-info".into())),
+        };
+
+        match major {
+            0 | 1 | 7 => {} // uint / nint / simple+float: leaf, no payload/children
+            2 | 3 => match arg {
+                // byte/text string: skip its content bytes …
+                Some(len) => {
+                    let len = len as usize;
+                    pos = pos
+                        .checked_add(len)
+                        .filter(|p| *p <= bytes.len())
+                        .ok_or_else(|| CodecError::Decode("CBOR string overruns input".into()))?;
+                }
+                // … or an indefinite string = chunks until `break`.
+                None => push(&mut stack, INDEF)?,
+            },
+            4 => match arg {
+                // array of `n` items.
+                Some(n) => push(&mut stack, n)?,
+                None => push(&mut stack, INDEF)?,
+            },
+            5 => match arg {
+                // map of `n` pairs = 2·n items.
+                Some(n) => push(&mut stack, n.saturating_mul(2))?,
+                None => push(&mut stack, INDEF)?,
+            },
+            6 => push(&mut stack, 1)?, // tag: exactly one tagged item follows
+            _ => unreachable!("major type is 3 bits"),
+        }
+    }
+    Ok(())
+}
+
+/// Push a new container level, enforcing the depth bound.
+fn push(stack: &mut Vec<u64>, remaining: u64) -> Result<(), CodecError> {
+    if stack.len() >= MAX_CBOR_DEPTH {
+        return Err(CodecError::Decode(format!(
+            "CBOR nested deeper than {MAX_CBOR_DEPTH}"
+        )));
+    }
+    stack.push(remaining);
+    Ok(())
+}
+
+/// Read a big-endian unsigned integer of `n` bytes, advancing `pos`.
+fn read_uint(bytes: &[u8], pos: &mut usize, n: usize) -> Result<u64, CodecError> {
+    let end = pos
+        .checked_add(n)
+        .filter(|e| *e <= bytes.len())
+        .ok_or_else(|| CodecError::Decode("truncated CBOR argument".into()))?;
+    let mut v = 0u64;
+    for &b in &bytes[*pos..end] {
+        v = (v << 8) | b as u64;
+    }
+    *pos = end;
+    Ok(v)
 }
 
 /// A length-delimited binary blob that serializes as a CBOR byte string (and as
@@ -176,5 +303,43 @@ mod tests {
         let s = b64url_encode(data);
         assert!(!s.contains('=')); // no padding
         assert_eq!(b64url_decode(&s).unwrap(), data);
+    }
+
+    #[test]
+    fn guard_accepts_normal_documents() {
+        // Real, moderately-nested structures must pass the guard unchanged.
+        #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+        struct Nested {
+            a: Vec<(u32, String)>,
+            b: Option<Vec<Vec<u8>>>,
+            c: Bytes,
+        }
+        let v = Nested {
+            a: vec![(1, "x".into()), (2, "y".into())],
+            b: Some(vec![vec![1, 2, 3], vec![]]),
+            c: Bytes::new(vec![9; 5000]), // > ciborium's 4 KiB scratch, still fine
+        };
+        let enc = to_cbor(&v).unwrap();
+        assert_eq!(from_cbor::<Nested>(&enc).unwrap(), v);
+    }
+
+    #[test]
+    fn guard_rejects_deeply_nested_input() {
+        // A hand-built tower of arrays deeper than MAX_CBOR_DEPTH: each 0x81 is
+        // "array of 1 item". ciborium would recurse into a stack overflow; the
+        // guard rejects it first, iteratively.
+        let deep = vec![0x81u8; MAX_CBOR_DEPTH + 50];
+        let err = from_cbor::<ciborium::value::Value>(&deep).unwrap_err();
+        assert!(matches!(err, CodecError::Decode(m) if m.contains("nested deeper")));
+    }
+
+    #[test]
+    fn guard_rejects_oversized_and_truncated_input() {
+        // Oversized.
+        let big = vec![0u8; MAX_WIRE_BYTES + 1];
+        assert!(from_cbor::<Bytes>(&big).is_err());
+        // Truncated: byte-string header claims 10 bytes, none follow.
+        let truncated = vec![0x4a]; // major 2 (bytes), len 10
+        assert!(from_cbor::<Bytes>(&truncated).is_err());
     }
 }
