@@ -17,8 +17,8 @@
 //! in-flight fields (`hops`, `copies_left`) are outside the signed header so
 //! relays can legitimately update them.
 
-use crate::crypto::{SealedBox, SecureChannel};
-use crate::identity::{verify_sig, Identity, INFO_MSG, INFO_SENDER};
+use crate::crypto::SealedBox;
+use crate::identity::{verify_sig, Identity};
 use crate::{CoreError, Result};
 use lifeline_proto::{
     codec, Address, Bundle, Bytes, IdentityPublic, Payload, Priority, WIRE_VERSION,
@@ -155,7 +155,7 @@ pub fn seal_bundle(
         &recipient_kex,
         bundle_id.as_slice(),
         &payload_bytes,
-        INFO_MSG,
+        crate::domain::MESSAGE,
     ));
 
     // 2. Sign the immutable header (binds sender identity + message integrity +
@@ -185,7 +185,7 @@ pub fn seal_bundle(
         &recipient_kex,
         bundle_id.as_slice(),
         &sender_auth_bytes,
-        INFO_SENDER,
+        crate::domain::SEALED_SENDER,
     ));
 
     // Mint PoW postage sized to the priority (SOS exempt) so relays that gate
@@ -253,7 +253,7 @@ pub(crate) fn open_bundle_kex(
         kex_secret,
         bundle.bundle_id.as_slice(),
         bundle.src_sealed.as_slice(),
-        INFO_SENDER,
+        crate::domain::SEALED_SENDER,
     )?;
     let sender_auth: SenderAuth = codec::from_cbor(&sender_auth_bytes)?;
 
@@ -281,7 +281,7 @@ pub(crate) fn open_bundle_kex(
         kex_secret,
         bundle.bundle_id.as_slice(),
         bundle.ciphertext.as_slice(),
-        INFO_MSG,
+        crate::domain::MESSAGE,
     )?;
     let payload_bytes = crate::compress::unframe(&framed)?;
     let payload: Payload = codec::from_cbor(&payload_bytes)?;

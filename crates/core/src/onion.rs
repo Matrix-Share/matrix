@@ -14,15 +14,15 @@
 //! peeling requires the relay's secret and nothing else — it works fully
 //! offline, hop by hop.
 
-use crate::crypto::{self, SealedBox, SecureChannel};
+use crate::crypto::{self, SealedBox};
 use crate::{CoreError, Result};
 use lifeline_proto::codec::{from_cbor, to_cbor};
 use lifeline_proto::{Address, Bytes, IdentityPublic};
 use serde::{Deserialize, Serialize};
 
 /// Domain separator for onion layers.
-const INFO_ONION: &[u8] = b"lifeline/v1/onion";
-const ONION_AD: &[u8] = b"lifeline/onion-layer";
+const INFO_ONION: &[u8] = crate::domain::ONION_SEAL;
+const ONION_AD: &[u8] = crate::domain::ONION_LAYER_AD;
 
 /// Cell size for padding the delivered payload. Quantizing the innermost
 /// message to a fixed multiple hides its exact length from the last relay (which

@@ -18,7 +18,7 @@
 //! longer exists. Messages never arrive later than TTL, so retention >= TTL means
 //! deliverability is unaffected.
 
-use crate::crypto::{SealedBox, SecureChannel};
+use crate::crypto::SealedBox;
 use crate::identity::{address_of, verify_sig, Identity};
 use crate::{CoreError, Result};
 use lifeline_proto::codec::to_cbor;
@@ -29,9 +29,9 @@ use x25519_dalek::{PublicKey as XPublic, StaticSecret as XSecret};
 use zeroize::Zeroize;
 
 /// Domain separators.
-const PREKEY_SIGN_DOMAIN: &[u8] = b"lifeline/v1/prekey";
-const PREKEY_INFO: &[u8] = b"lifeline/v1/prekey-seal";
-const PREKEY_AD: &[u8] = b"lifeline/prekey";
+const PREKEY_SIGN_DOMAIN: &[u8] = crate::domain::PREKEY_SIGN;
+const PREKEY_INFO: &[u8] = crate::domain::PREKEY_SEAL;
+const PREKEY_AD: &[u8] = crate::domain::PREKEY_AD;
 
 fn prekey_signing_bytes(owner: &Address, epoch: u64, kex_pub: &Bytes) -> Vec<u8> {
     let mut m = Vec::with_capacity(PREKEY_SIGN_DOMAIN.len() + 32);

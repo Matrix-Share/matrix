@@ -55,7 +55,7 @@ fn alert_signing_bytes(
     expires_at: u64,
 ) -> Result<Vec<u8>> {
     Ok(to_cbor(&(
-        b"lifeline/v1/alert",
+        crate::domain::ALERT,
         authority,
         severity,
         area,

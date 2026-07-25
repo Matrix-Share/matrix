@@ -16,10 +16,9 @@ use serde::{Deserialize, Serialize};
 use x25519_dalek::{PublicKey as XPublic, StaticSecret as XSecret};
 use zeroize::Zeroize;
 
-/// HKDF/label domain separators — distinct strings so keys derived for one
-/// purpose can never be confused with another (domain separation).
-pub const INFO_MSG: &[u8] = b"lifeline/v1/message";
-pub const INFO_SENDER: &[u8] = b"lifeline/v1/sealed-sender";
+// Message-sealing domain separators live in `crate::domain` (they are a
+// messaging concern, not an identity one) — see `domain::MESSAGE` /
+// `domain::SEALED_SENDER`.
 
 /// A full identity, including secret keys. Secrets are zeroized on drop.
 pub struct Identity {
@@ -132,7 +131,7 @@ impl Identity {
     pub fn derive_subkey(&self, domain: &[u8]) -> [u8; 32] {
         let mut sk = self.signing.to_bytes();
         let mut input = Vec::with_capacity(18 + domain.len() + 32);
-        input.extend_from_slice(b"lifeline/subkey/v1");
+        input.extend_from_slice(crate::domain::SUBKEY);
         input.extend_from_slice(domain);
         input.extend_from_slice(&sk);
         let out = crypto::blake3_32(&input);
@@ -251,7 +250,7 @@ impl KeyBackup {
         let nonce_v = crypto::random_bytes(NONCE_LEN);
         let mut nonce = [0u8; NONCE_LEN];
         nonce.copy_from_slice(&nonce_v);
-        let ct = crypto::aead_seal(&key, &nonce, b"lifeline/v1/backup", &pt);
+        let ct = crypto::aead_seal(&key, &nonce, crate::domain::BACKUP, &pt);
         key.zeroize();
 
         Ok(KeyBackup {
@@ -272,7 +271,7 @@ impl KeyBackup {
             .as_slice()
             .try_into()
             .map_err(|_| CoreError::Backup("nonce len".into()))?;
-        let pt = crypto::aead_open(&key, &nonce, b"lifeline/v1/backup", self.ct.as_slice())
+        let pt = crypto::aead_open(&key, &nonce, crate::domain::BACKUP, self.ct.as_slice())
             .map_err(|_| CoreError::Backup("wrong passphrase or corrupt backup".into()))?;
         key.zeroize();
 

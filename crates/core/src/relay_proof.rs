@@ -49,7 +49,7 @@ fn credit_signing_bytes(
     at: u64,
 ) -> Result<Vec<u8>> {
     Ok(to_cbor(&(
-        b"lifeline/v1/relay-credit",
+        crate::domain::RELAY_CREDIT,
         relay,
         witness,
         bundle_id,

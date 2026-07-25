@@ -21,15 +21,19 @@
 //! Cohn-Gordon 2017 caveat). Phase 1 therefore ships a **stateless
 //! ephemeral-static sealed-box** construction (see [`message`]): forward-secret
 //! against later ephemeral-key compromise, authenticated, sealed-sender, and —
-//! crucially — tolerant of arbitrary reordering and long delays. A DTN-tuned
-//! ratchet is tracked as follow-up work behind the [`crypto::SecureChannel`]
-//! seam rather than shipping a ratchet that breaks under DTN conditions.
+//! crucially — tolerant of arbitrary reordering and long delays. Forward secrecy
+//! is achieved by **rotating the recipient prekey** ([`prekey`]) fed to the
+//! sealed box, not by a per-message ratchet — the DTN-appropriate trade. A full
+//! ratchet would land as its own stateful session type (it can't be a drop-in
+//! for a stateless sealed box) rather than shipping one that breaks under DTN
+//! reordering.
 
 pub mod alert;
 pub mod announce;
 pub mod compress;
 pub mod content;
 pub mod crypto;
+pub mod domain;
 pub mod erasure;
 pub mod group;
 pub mod identity;
