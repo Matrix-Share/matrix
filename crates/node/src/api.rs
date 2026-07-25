@@ -52,6 +52,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/broadcast", post(post_broadcast))
         .route("/api/safe", post(post_safe))
         .route("/api/location", post(post_location))
+        .route("/api/group/create", post(post_group_create))
+        .route("/api/group/add", post(post_group_add))
+        .route("/api/group/send", post(post_group_send))
+        .route("/api/block", post(post_block))
+        .route("/api/unblock", post(post_unblock))
         .route("/api/qr.svg", get(get_qr))
         .route("/api/ws", get(ws_handler))
         .layer(middleware::from_fn(guard_host))
@@ -102,6 +107,73 @@ async fn post_location(
         lon: req.lon,
         acc_m: req.acc_m,
     });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct GroupCreateReq {
+    id: String,
+}
+
+/// Create a group (FR-12).
+async fn post_group_create(
+    State(st): State<AppState>,
+    Json(req): Json<GroupCreateReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::CreateGroup { id: req.id });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct GroupAddReq {
+    group: String,
+    addr: String,
+}
+
+/// Add a known contact to a group (distributes our sender key to them).
+async fn post_group_add(
+    State(st): State<AppState>,
+    Json(req): Json<GroupAddReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::AddGroupMember {
+        group: req.group,
+        addr: req.addr,
+    });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct GroupSendReq {
+    group: String,
+    body: String,
+}
+
+/// Send a message to every member of a group.
+async fn post_group_send(
+    State(st): State<AppState>,
+    Json(req): Json<GroupSendReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::SendGroup {
+        group: req.group,
+        body: req.body,
+    });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct AddrReq {
+    addr: String,
+}
+
+/// Block a contact (FR-48) — their messages are silently dropped.
+async fn post_block(State(st): State<AppState>, Json(req): Json<AddrReq>) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::Block { addr: req.addr });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+/// Unblock a previously blocked contact.
+async fn post_unblock(State(st): State<AppState>, Json(req): Json<AddrReq>) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::Unblock { addr: req.addr });
     Json(serde_json::json!({ "ok": true }))
 }
 

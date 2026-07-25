@@ -66,6 +66,23 @@ surface) and hardened it:
   the full suite pass unchanged.
 
 ### Added
+- **Complete web app — every engine feature now has a UI.** The browser GUI
+  previously covered 1:1 messaging, broadcast, SOS/safe, location, and
+  diagnostics. Added full-stack support (Command + API endpoint + engine wiring +
+  UI) for the engine capabilities that had none:
+  - **Group messaging (FR-12).** Create a group, add contacts (each gets your
+    sender key), and send — group threads appear in the sidebar with a member
+    bar, an add-member picker, per-sender labels on incoming messages, and a
+    dedicated group composer. Endpoints `/api/group/{create,add,send}`; group ids
+    persist across restarts.
+  - **Endpoint moderation (FR-48).** Block/unblock a contact from the chat's ⋯
+    menu or the peers list; blocked state is shown throughout. Endpoints
+    `/api/{block,unblock}`.
+  - **Message priority.** A composer toggle sends at Alert priority (jumps queues
+    at every hop), alongside the existing private/onion send.
+  - **Polish:** incoming location messages linkify to a map; the snapshot now
+    carries `groups[]` and per-contact `blocked`. Verified end-to-end in a live
+    node (group create → chat → member bar, block/unblock, priority, dark mode).
 - **Pluggable `RoutingPolicy` seam (from the architecture review).** The
   forwarding strategy — binary spray-and-wait, gateway-gradient escape hatch,
   reputation route-around, bandwidth hold-back — was inlined in
