@@ -34,6 +34,34 @@ fn decode_code(code: &str) -> Option<IdentityPublic> {
     from_cbor::<IdentityPublic>(&raw).ok()
 }
 
+/// Seal the node's persistent state (contacts + history + prekey ring) and write
+/// it crash-safely (FR-9/15/44). Called both on the periodic timer and on a final
+/// flush at shutdown, so the two paths can never diverge.
+fn persist_state(
+    engine: &NodeEngine,
+    messages: &[MsgView],
+    vault: &lifeline_core::vault::Vault,
+    state_path: &std::path::Path,
+) {
+    let persisted = crate::views::PersistedState {
+        contact_codes: engine.directory().iter().map(encode_code).collect(),
+        messages: messages.to_vec(),
+        // Persist the current prekey ring so a restart keeps forward-secret
+        // in-flight messages openable (FR-44).
+        prekeys: to_cbor(&engine.export_prekeys())
+            .ok()
+            .map(lifeline_proto::Bytes::new),
+    };
+    if let Ok(bytes) = serde_json::to_vec(&persisted) {
+        let blob = vault.seal(&bytes);
+        if let Ok(json) = serde_json::to_vec(&blob) {
+            // Atomic replace: a crash mid-write keeps the previous good vault
+            // rather than truncating it (which the loader discards as "fresh").
+            let _ = crate::write_atomic(state_path, &json);
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn run(
     identity: Identity,
@@ -119,6 +147,7 @@ pub fn run(
     let mut dirty = false;
     let mut last_save_tick = 0u64;
     let mut tick_no = 0u64;
+    let mut shutdown = false;
 
     loop {
         let now = unix_now();
@@ -268,7 +297,19 @@ pub fn run(
                         }
                     }
                 }
+                Command::Shutdown => {
+                    shutdown = true;
+                }
             }
+        }
+
+        // Graceful shutdown: force a final flush of persistent state and exit the
+        // loop so `main` can join this thread. Runs before the tick so a rotated
+        // prekey ring / recent messages survive SIGTERM (FR-9/15/44).
+        if shutdown {
+            persist_state(&engine, &messages, &vault, &state_path);
+            tracing::info!("engine: state flushed, stopping");
+            return;
         }
 
         // 2. Advance the mesh.
@@ -308,21 +349,7 @@ pub fn run(
 
         // 5. Persist encrypted state periodically when something changed (FR-9/15).
         if dirty && tick_no.saturating_sub(last_save_tick) >= 20 {
-            let persisted = crate::views::PersistedState {
-                contact_codes: engine.directory().iter().map(encode_code).collect(),
-                messages: messages.clone(),
-                // Persist the current prekey ring so a restart keeps forward-secret
-                // in-flight messages openable (FR-44).
-                prekeys: to_cbor(&engine.export_prekeys())
-                    .ok()
-                    .map(lifeline_proto::Bytes::new),
-            };
-            if let Ok(bytes) = serde_json::to_vec(&persisted) {
-                let blob = vault.seal(&bytes);
-                if let Ok(json) = serde_json::to_vec(&blob) {
-                    let _ = std::fs::write(&state_path, json);
-                }
-            }
+            persist_state(&engine, &messages, &vault, &state_path);
             last_save_tick = tick_no;
             dirty = false;
         }

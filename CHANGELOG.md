@@ -56,6 +56,21 @@ surface) and hardened it:
   (defense-in-depth; message bodies were already escaped — no XSS was reachable).
 
 ### Changed
+- **Robustness hardening (from the architecture review).**
+  - **Crash-safe persistence.** The encrypted vault and identity are now written
+    via temp-file-then-`rename` (`write_atomic`), so a crash mid-write keeps the
+    previous good file instead of a truncated one — which the loader would
+    otherwise discard as "start fresh", silently losing all contacts + history.
+  - **Graceful shutdown.** SIGTERM/Ctrl-C now triggers `axum`'s graceful shutdown,
+    then sends the engine a `Command::Shutdown` that forces a final state flush;
+    `main` joins the engine thread before exiting, so a freshly rotated prekey
+    ring and recent messages survive a stop. The periodic save and the shutdown
+    flush share one `persist_state` path so they can't diverge.
+  - **Bounded CBOR decoder.** `from_cbor` now runs an iterative structural
+    pre-scan (`guard_cbor`) that bounds document size (16 MiB) and nesting depth
+    (128) *before* `ciborium` — which has no recursion limit — sees the bytes,
+    closing a remote allocation-bomb / stack-overflow DoS. The guard is iterative,
+    so it can't itself overflow. Same bug-class as the fixed 4 KiB scratch cap.
 - **Protocol evolution hardening (NFR-9 interoperability).** From an independent
   architecture review: the wire format could not evolve without partitioning the
   mesh. Fixed:
