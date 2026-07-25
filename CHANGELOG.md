@@ -56,6 +56,21 @@ surface) and hardened it:
   (defense-in-depth; message bodies were already escaped — no XSS was reachable).
 
 ### Added
+- **Black-hole attribution — live reputation feedback (FR-47).** The reputation
+  *scoring* primitive existed but nothing fed it from live evidence; now the
+  source of a bundle turns real delivery outcomes into credit/penalty. Because an
+  end-to-end delivery receipt is sealed to the **original sender**, the source is
+  the only node that can soundly attribute — so `router::attribution::ForwardLedger`
+  records which peers signed custody for our bundles (`process_custody`), credits
+  every such custodian when the sealed delivery receipt verifies (`process_receipt`),
+  and — only after a **grace count** of unconfirmed expiries — penalizes a
+  custodian that keeps swallowing bundles without ever delivering (`tick`). Fully
+  **passive**: it never changes what we store or forward, only the reputation
+  scores, which `offer_to` already consults *and only routes around a demoted peer
+  when an alternative exists* — so the ≥95%-delivery acceptance target is
+  protected (verified: the acceptance sim still passes, and tests show a black hole
+  is demoted while an honest custodian and a low-contact carrier within grace are
+  not).
 - **Kademlia DHT (`lifeline-dht`) — online peer & rendezvous discovery.** A new
   crate implementing the Kademlia DHT (Maymounkov & Mazières) over Lifeline's
   existing 128-bit `Address` keyspace (which already carried an `xor_distance`

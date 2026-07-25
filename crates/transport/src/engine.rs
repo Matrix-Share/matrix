@@ -237,6 +237,12 @@ const ANNOUNCE_TTL_S: u64 = 300;
 /// fabricated identities. Already-known peers keep updating past the cap.
 const MAX_CONTACTS: usize = 50_000;
 
+/// How long (seconds) we wait for our sealed delivery receipt after a peer takes
+/// custody of one of our bundles before counting a miss against that custodian
+/// (FR-47 black-hole attribution). Deliberately generous — DTN delivery is slow,
+/// and misses only bite after a grace count — so an honest carrier is safe.
+const ATTRIBUTION_WINDOW_SECS: u64 = 1800;
+
 /// Per-group sending state (FR-12).
 struct GroupState {
     sender_key: SenderKeyState,
@@ -960,6 +966,7 @@ impl NodeEngine {
         self.offer_round(now);
         self.arq_pump(now);
         self.retry_unverified(now);
+        self.router.attribution_tick(now);
         self.router.tick(now);
     }
 
@@ -1355,7 +1362,7 @@ impl NodeEngine {
         if opened.payload.kind == lifeline_proto::PayloadKind::Receipt {
             self.process_receipt(opened);
         } else if opened.payload.kind == PayloadKind::Custody {
-            self.process_custody(opened);
+            self.process_custody(opened, now);
         } else if opened.payload.kind == PayloadKind::Onion {
             self.handle_onion(opened, bundle.priority, now);
         } else if opened.payload.kind == PayloadKind::BlockRequest {
@@ -1413,7 +1420,7 @@ impl NodeEngine {
     /// FR-25 (carrier side): a committed custodian has signed for a bundle we are
     /// relaying, so free our copy — provided the signature verifies and the
     /// bundle is a relayed copy (never one we originated).
-    fn process_custody(&mut self, opened: lifeline_core::message::Opened) {
+    fn process_custody(&mut self, opened: lifeline_core::message::Opened, now: u64) {
         let Some(body) = opened.payload.body else {
             return;
         };
@@ -1430,7 +1437,16 @@ impl NodeEngine {
             return;
         }
         if self.origin_ids.contains(&cr.bundle_id) {
-            return; // our own message — we retain it until delivery-verified
+            // Our own message: we keep our copy until delivery is verified, but we
+            // *record* that this peer committed to carrying it. If our sealed
+            // delivery receipt never comes back (only we can read it), that is a
+            // black-hole signal against this custodian (FR-47).
+            self.router.note_custody(
+                &cr.bundle_id,
+                &opened.sender.id,
+                now + ATTRIBUTION_WINDOW_SECS,
+            );
+            return;
         }
         self.router.release_custody(&cr.bundle_id);
     }
@@ -1488,10 +1504,17 @@ impl NodeEngine {
             return;
         };
         let recipient_pub = opened.sender.sign_pub.clone();
+        let mut verified = false;
         if let Some(rec) = self.sent.iter_mut().find(|s| s.bundle_id == dr.bundle_id) {
             if verify_delivery(&rec.original, &dr, recipient_pub.as_slice()).is_ok() {
                 rec.verified = true;
+                verified = true;
             }
+        }
+        if verified {
+            // Delivery confirmed → credit every peer that took custody of this
+            // bundle for us (they demonstrably contributed) (FR-47).
+            self.router.note_delivery(&dr.bundle_id);
         }
     }
 
