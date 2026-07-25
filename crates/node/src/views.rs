@@ -15,6 +15,10 @@ pub struct PersistedState {
     /// the whole `PersistedState` is encrypted at rest by `core::vault`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prekeys: Option<lifeline_proto::Bytes>,
+    /// Group ids this node participates in (FR-12), so group threads survive a
+    /// restart. Membership itself is rebuilt from the engine's group state.
+    #[serde(default)]
+    pub groups: Vec<String>,
 }
 
 /// A command from the API (browser) to the engine thread.
@@ -53,6 +57,16 @@ pub enum Command {
     /// Flush persistent state and stop the engine loop (graceful shutdown). Sent
     /// by `main` when the process receives SIGTERM/Ctrl-C.
     Shutdown,
+    /// Create a group (sender-keys, FR-12) with a chosen id/name.
+    CreateGroup { id: String },
+    /// Add a known contact (by address) to a group and distribute our sender key.
+    AddGroupMember { group: String, addr: String },
+    /// Send a message to every member of a group.
+    SendGroup { group: String, body: String },
+    /// Block a contact (endpoint moderation, FR-48): silently drop their messages.
+    Block { addr: String },
+    /// Unblock a previously blocked contact.
+    Unblock { addr: String },
 }
 
 /// The full UI snapshot, serialized to the browser as JSON.
@@ -61,7 +75,21 @@ pub struct Snapshot {
     pub identity: IdentityView,
     pub directory: Vec<PeerView>,
     pub messages: Vec<MsgView>,
+    pub groups: Vec<GroupView>,
     pub status: StatusView,
+}
+
+/// A group the node participates in (FR-12), with its current members.
+#[derive(Debug, Clone, Serialize)]
+pub struct GroupView {
+    pub id: String,
+    pub members: Vec<GroupMemberView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GroupMemberView {
+    pub address: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -78,6 +106,8 @@ pub struct PeerView {
     pub address: String,
     pub name: String,
     pub verified: bool,
+    /// True if this contact is blocked (their messages are dropped, FR-48).
+    pub blocked: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -33,7 +33,7 @@ is in [`GAPS.md`](GAPS.md).
 |---|---|---|
 | FR-10 Send E2E text | ✅ | `core::message::seal_bundle` |
 | FR-11 Message states | ◐ | `proto::MessageState`; sim tracks delivered/verified |
-| FR-12 Group messages (sender-keys, CRDT membership) | ✅ | CRDT membership + `core::group` sender-keys, **wired end-to-end in `NodeEngine`** (`create_group`/`add_group_member`/`send_group`: distribution + fan-out + decrypt, out-of-order buffer); tested (3-member fan-out, non-member excluded, multi-sender) |
+| FR-12 Group messages (sender-keys, CRDT membership) | ✅ | CRDT membership + `core::group` sender-keys, **wired end-to-end in `NodeEngine`** (`create_group`/`add_group_member`/`send_group`: distribution + fan-out + decrypt, out-of-order buffer); tested (3-member fan-out, non-member excluded, multi-sender). **Full web-app UI**: create group, add-member picker, group threads with per-sender labels, member bar (`/api/group/*`) |
 | FR-13 Small attachments + content addressing | ✅ | **`core::content`** (BLAKE3-CID blocks, Merkle manifest, dedup, integrity-checked reassemble) + **mesh fetch-by-CID protocol** in the engine: `store_content`/`fetch_content`, `BlockRequest`/`BlockResponse` over the mesh (binary blocks, hash-verified on arrival), request retransmission, cached-block short-circuit — proven pulling a multi-block object between two nodes |
 | FR-14 Priority classes SOS>ALERT>NORMAL>BULK | ✅ | `proto::Priority` |
 | FR-15 Local encrypted history | ✅ (encrypted store) | message history **persisted encrypted at rest** (`core::vault`: Argon2id + XChaCha20-Poly1305) — restored on restart, verified end-to-end; full-text search ○ |
@@ -88,7 +88,7 @@ is in [`GAPS.md`](GAPS.md).
 | FR-45 Sealed sender | ✅ | `core::message` — sender identity **and its signature** sealed to the recipient, so a relay/observer with a suspect list can't trial-verify a cleartext signature to deanonymize the sender (hardened after the internal audit; the `Bundle` carries no wire signature) |
 | FR-46 PoW postage | ✅ | `proto::pow` (Hashcash, difficulty by priority, SOS exempt); enforced at router admission; **flood-throttle AC proven** (`sim`) |
 | FR-47 Reputation gossip | ✅ | **`router::Reputation` (credit/penalize/pessimistic gossip-merge) demotes relays; `offer_to` routes around demoted black holes (never blocking SOS/direct delivery); demotion propagates mesh-wide — proven in `sim`.** **Live black-hole attribution** now feeds it: `router::attribution::ForwardLedger` (source-side, since delivery receipts are sealed to the sender) credits peers that signed custody for our bundles when delivery verifies, and penalizes — after a grace count — a custodian that keeps swallowing bundles without delivering. Passive (never alters store/forward), so the ≥95%-delivery AC is protected (acceptance sim still green; tests demote a black hole, spare honest/low-contact carriers) |
-| FR-48 Endpoint moderation (block/blocklists) | ✅ | shared blocklist CRDT (`sync`) + **endpoint enforcement** (`NodeEngine` drops blocked senders — no inbox, no receipt; tested) |
+| FR-48 Endpoint moderation (block/blocklists) | ✅ | shared blocklist CRDT (`sync`) + **endpoint enforcement** (`NodeEngine` drops blocked senders — no inbox, no receipt; tested). **UI**: block/unblock from the chat ⋯ menu or peers list (`/api/block`, `/api/unblock`) |
 | FR-49 Onion metadata wrapping | ✅ | `core::onion` build/peel + the **engine forwarding path**: `submit_onion` builds the route, each relay peels one layer and re-seals to the next hop (buffering until the hop's key is learned), so no relay learns more than the next hop and the recipient sees only the last relay. Exposed as a "private send" in the node/GUI. Proven A→R1→R2→Bob end-to-end |
 
 ## Settings & platform (§8.10)
@@ -125,7 +125,7 @@ is in [`GAPS.md`](GAPS.md).
 ## Application & self-hosting (new)
 | Capability | State | Where |
 |---|---|---|
-| Web GUI product (Messages + Network views; connect flow, contacts, mesh thread, lifecycle chips, live propagation dashboard) | ✅ | `lifeline-node` + `crates/node/web/index.html` |
+| Web GUI product (Messages + Network views; connect flow, contacts, **groups**, mesh thread, **moderation**, **priority**, lifecycle chips, live propagation dashboard) | ✅ | `lifeline-node` + `crates/node/web/index.html` — surfaces **every** engine capability: 1:1 + group chat, broadcast, SOS/safe, location (map links), block/unblock, priority send, private/onion send, diagnostics, self-test |
 | Broadcast to the mesh (fan-out to every contact, propagated) | ✅ | `NodeEngine::broadcast_text` + `POST /api/broadcast` |
 | Payload compression (pre-encryption, DEFLATE, keep-smaller) | ✅ | `core::compress` framed into `seal_bundle`/`open_bundle` — shrinks every sealed bundle on scarce bearers; never inflates |
 | Bandwidth-adaptive bearer selection ("straw, not a firehose") | ✅ | `router::offer_to` holds bulky NORMAL/BULK bundles off low-throughput links (per-bearer `soft_max_bytes`) so they wait for a fatter bearer; SOS/ALERT + final-hop always pass (tested over ultrasound vs internet) |

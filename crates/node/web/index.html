@@ -183,6 +183,42 @@
     .idchip .ad{display:none}
   }
   .view{display:none;min-height:0}.view.on{display:flex;flex-direction:column;min-height:0}
+
+  /* Groups, menus, member chips, priority */
+  .conv-hd .addg{width:26px;height:26px;border-radius:8px;font-size:16px;line-height:1;padding:0}
+  .sec-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:10px 6px 3px}
+  .conv .avatar.grp{background:var(--grad)!important}
+  .hd-actions{margin-left:auto;display:flex;align-items:center;gap:6px;position:relative}
+  .senderlbl{font-size:11px;font-weight:600;color:var(--accent);margin-bottom:2px}
+  .menu{position:absolute;top:40px;right:0;background:var(--panel);border:1px solid var(--line);border-radius:11px;
+    box-shadow:var(--shadow-lg);padding:5px;min-width:180px;z-index:40;display:none;animation:fadein .14s}
+  .menu.on{display:block}
+  .menu button{display:flex;align-items:center;gap:9px;width:100%;border:none;background:transparent;color:var(--ink);
+    font-size:13px;font-weight:500;padding:8px 10px;border-radius:8px;cursor:pointer;text-align:left}
+  .menu button:hover{background:var(--surface)} .menu button.danger{color:var(--sos)}
+  .menu .sep{height:1px;background:var(--line);margin:4px 2px}
+  .menu .mlbl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:6px 10px 3px}
+  .members{display:flex;flex-wrap:wrap;gap:6px;padding:2px 2px 0}
+  .mchip{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);
+    border-radius:999px;padding:3px 10px 3px 4px;font-size:12px}
+  .mchip .avatar{width:20px;height:20px;font-size:9px}
+  .pribtn{flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:9px;background:var(--panel);
+    color:var(--muted);cursor:pointer;display:grid;place-items:center;transition:.14s}
+  .pribtn.on{background:var(--sos-weak);color:var(--sos);border-color:color-mix(in srgb,var(--sos) 30%,var(--line))}
+  .blocked-note{margin:auto;text-align:center;color:var(--muted);padding:24px;font-size:13px}
+  .peer .blockbtn{margin-left:auto;font-size:11px;color:var(--muted);border:1px solid var(--line);background:var(--panel);
+    border-radius:8px;padding:3px 9px;cursor:pointer}
+  .peer .blockbtn:hover{color:var(--sos);border-color:color-mix(in srgb,var(--sos) 30%,var(--line))}
+  .peer.blk .nm{color:var(--muted);text-decoration:line-through}
+  .maplink{color:inherit;text-decoration:underline;text-underline-offset:2px}
+  .modal-bg{position:fixed;inset:0;background:rgba(8,10,14,.42);backdrop-filter:blur(2px);z-index:70;display:none;place-items:center;padding:20px}
+  .modal-bg.on{display:grid;animation:fadein .15s}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-lg);width:min(400px,94vw);padding:18px}
+  .modal h3{font-size:16px;margin-bottom:4px}.modal .sub{color:var(--muted);font-size:12.5px;margin-bottom:14px}
+  .picklist{max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;margin:0 -4px}
+  .pick{display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px;cursor:pointer;border:1px solid transparent}
+  .pick:hover{background:var(--surface)} .pick.dis{opacity:.45;cursor:default}
+  .pick .tag{margin-left:auto;font-size:10.5px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -220,7 +256,7 @@
         </div>
 
         <div class="card" style="padding:12px 12px 8px">
-          <div class="conv-hd"><h2>Conversations</h2></div>
+          <div class="conv-hd"><h2>Conversations</h2><button class="icon-btn addg" id="newGroupBtn" title="New group" aria-label="New group">＋</button></div>
           <div class="list" id="convs"></div>
         </div>
       </aside>
@@ -230,6 +266,13 @@
           <button class="icon-btn back" id="backBtn" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
           <span class="avatar" id="chatAv" style="width:38px;height:38px">–</span>
           <div style="min-width:0"><div class="nm" id="chatNm"></div><div class="ad mono" id="chatAd"></div></div>
+          <div class="hd-actions">
+            <button class="icon-btn" id="chatMenuBtn" aria-label="Actions" title="Actions"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
+            <div class="menu" id="chatMenu"></div>
+          </div>
+        </div>
+        <div id="groupBar" style="display:none;padding:9px 20px;border-bottom:1px solid var(--line);background:var(--surface)">
+          <div class="members" id="groupMembers"></div>
         </div>
         <div class="messages" id="chat">
           <div class="center-empty" id="welcome">
@@ -244,6 +287,7 @@
             <textarea id="msg" rows="1" placeholder="Message…" autocomplete="off"></textarea>
             <button class="locbtn" id="locBtn" aria-label="Share location" title="Share location"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></button>
           </div>
+          <button class="pribtn" id="priBtn" aria-pressed="false" title="Send as priority (Alert) — jumps queues at every hop"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></button>
           <button class="btn btn-primary" id="sendBtn">Send</button>
         </div>
       </section>
@@ -294,10 +338,11 @@
     </div>
   </div>
 </div>
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
-let state=null, view='messages', sel=null;
+let state=null, view='messages', sel=null, pri=false;
 let feed=[], prev=null, lastSeen=JSON.parse(localStorage.getItem('ll-seen')||'{}');
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -308,6 +353,18 @@ function fmtBytes(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixe
 function now(){return Math.floor(Date.now()/1000);}
 function ago(ts){const s=Math.max(0,now()-ts);if(s<10)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';if(s<86400)return Math.floor(s/3600)+'h';return Math.floor(s/86400)+'d';}
 function hm(ts){return new Date(ts*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});}
+const isGroup=k=>!!k&&k.indexOf('group:')===0;
+const gid=k=>k.slice(6);
+function linkify(s){return s.replace(/\((-?\d{1,3}\.\d+),\s*(-?\d{1,3}\.\d+)\)/g,
+  (_,la,lo)=>`(<a class="maplink" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${la}&mlon=${lo}#map=15/${la}/${lo}">${la}, ${lo}</a>)`);}
+function groupsById(){const m={};(state&&state.groups||[]).forEach(g=>m[g.id]=g);return m;}
+function contactName(addr){const p=(state.directory||[]).find(x=>x.address===addr);return p?p.name:addr.slice(0,10);}
+/* Modal */
+function openModal(html){$('modal').innerHTML=html;$('modalBg').classList.add('on');}
+function closeModal(){$('modalBg').classList.remove('on');}
+$('modalBg').addEventListener('click',e=>{if(e.target===$('modalBg'))closeModal();});
+/* Close the chat action menu on any outside click */
+document.addEventListener('click',e=>{const m=$('chatMenu');if(m&&m.classList.contains('on')&&!e.target.closest('.hd-actions'))m.classList.remove('on');});
 
 /* Theme */
 const SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
@@ -367,51 +424,103 @@ function renderConvs(byPeer){
   const el=$('convs');el.innerHTML='';
   // Pinned mesh thread
   const mesh=byPeer['mesh']||[];
-  const mp=mesh.length?mesh[mesh.length-1]:null;
-  el.appendChild(convRow('mesh',{name:'Mesh & broadcasts',pinned:true,last:mp}));
+  el.appendChild(convRow('mesh',{name:'Mesh & broadcasts',pinned:true,last:mesh.length?mesh[mesh.length-1]:null}));
+  // Groups
+  const groups=(state.groups||[]);
+  if(groups.length){
+    el.insertAdjacentHTML('beforeend','<div class="sec-lbl">Groups</div>');
+    groups.map(g=>{const ms=byPeer['group:'+g.id]||[];return {g,last:ms.length?ms[ms.length-1]:null};})
+      .sort((a,b)=>(b.last?b.last.ts:0)-(a.last?a.last.ts:0))
+      .forEach(({g,last})=>el.appendChild(convRow('group:'+g.id,{name:g.id,group:true,members:g.members.length,last})));
+  }
   // Contacts sorted by recency
   const dir=state.directory.map(p=>{const ms=byPeer[p.address]||[];return {...p,last:ms.length?ms[ms.length-1]:null};})
     .sort((a,b)=>(b.last?b.last.ts:0)-(a.last?a.last.ts:0));
+  if(groups.length&&dir.length)el.insertAdjacentHTML('beforeend','<div class="sec-lbl">Direct</div>');
   if(!dir.length)el.insertAdjacentHTML('beforeend','<div class="empty">No contacts yet.<br>Share your invite or paste someone\'s code to connect.</div>');
-  dir.forEach(p=>el.appendChild(convRow(p.address,{name:p.name,last:p.last})));
+  dir.forEach(p=>el.appendChild(convRow(p.address,{name:p.name,blocked:p.blocked,last:p.last})));
 }
-function convRow(key,{name,pinned,last}){
+function convRow(key,{name,pinned,group,members,blocked,last}){
   const d=document.createElement('div');d.className='conv'+(sel===key?' sel':'')+(pinned?' pinned':'');
   const unread=last&&last.dir.startsWith('in')&&last.ts>(lastSeen[key]||0)&&sel!==key;
-  const pre=last?((last.dir.startsWith('out')?'You: ':'')+last.body):(pinned?'SOS · broadcasts · I\'m safe':'Tap to message');
-  d.innerHTML=`<span class="avatar" style="width:38px;height:38px;background:${pinned?'':avc(key)}">${pinned?'📡':esc(initials(name))}</span>
-    <span class="meta"><span class="nm">${esc(name)}<span class="t">${last?ago(last.ts):''}</span></span>
+  let pre;
+  if(last){const who=last.dir.startsWith('out')?'You: ':(group?(last.peer_name+': '):'');pre=who+(last.body||'');}
+  else pre=pinned?'SOS · broadcasts · I\'m safe':group?(members+' member'+(members===1?'':'s')):'Tap to message';
+  const av=pinned?'📡':group?'👥':esc(initials(name));
+  const avstyle=(pinned||group)?'':('background:'+avc(key));
+  d.innerHTML=`<span class="avatar${group?' grp':''}" style="width:38px;height:38px;${avstyle}">${av}</span>
+    <span class="meta"><span class="nm">${esc(name)}${blocked?' <span title="blocked">🚫</span>':''}<span class="t">${last?ago(last.ts):''}</span></span>
     <span class="pre">${esc(pre)}</span></span>${unread?'<span class="unread"></span>':''}`;
   d.onclick=()=>{sel=key;lastSeen[key]=now();localStorage.setItem('ll-seen',JSON.stringify(lastSeen));
-    $('app').setAttribute('data-mview','chat');render();};
+    $('app').setAttribute('data-mview','chat');$('chatMenu').classList.remove('on');render();};
   return d;
 }
 
 function renderChat(){
-  const hd=$('chatHd'),comp=$('composer'),chat=$('chat'),wel=$('welcome');
-  if(!sel){hd.style.display='none';comp.style.display='none';if(wel)wel.style.display='';return;}
+  const hd=$('chatHd'),comp=$('composer'),chat=$('chat'),wel=$('welcome'),gbar=$('groupBar');
+  if(!sel){hd.style.display='none';comp.style.display='none';gbar.style.display='none';if(wel)wel.style.display='';return;}
   if(wel)wel.style.display='none';
-  const isMesh=sel==='mesh';
-  const peer=state.directory.find(p=>p.address===sel);
-  const name=isMesh?'Mesh & broadcasts':(peer?peer.name:sel.slice(0,10));
+  const isMesh=sel==='mesh', group=isGroup(sel);
+  const grp=group?groupsById()[gid(sel)]:null;
+  const peer=(!isMesh&&!group)?state.directory.find(p=>p.address===sel):null;
+  const name=isMesh?'Mesh & broadcasts':group?gid(sel):(peer?peer.name:sel.slice(0,10));
   hd.style.display='flex';comp.style.display=isMesh?'none':'flex';
-  $('chatNm').textContent=name;$('chatAd').textContent=isMesh?'everyone you can reach':sel.slice(0,22)+'…';
-  $('chatAv').textContent=isMesh?'📡':initials(name);$('chatAv').style.background=isMesh?'var(--grad)':avc(sel);
+  $('chatNm').textContent=name;
+  $('chatAd').textContent=isMesh?'everyone you can reach':group?((grp?grp.members.length:0)+' member'+(grp&&grp.members.length===1?'':'s')+' · end-to-end encrypted'):(sel.slice(0,22)+'…');
+  $('chatAv').textContent=isMesh?'📡':group?'👥':initials(name);
+  $('chatAv').className='avatar'+(group?' grp':'');$('chatAv').style.width='38px';$('chatAv').style.height='38px';
+  $('chatAv').style.background=(isMesh||group)?'var(--grad)':avc(sel);
+  // Header action menu availability
+  $('chatMenuBtn').style.display=isMesh?'none':'inline-grid';
+  // Group member bar
+  if(group&&grp){gbar.style.display='block';
+    $('groupMembers').innerHTML=grp.members.map(m=>`<span class="mchip"><span class="avatar" style="background:${avc(m.address)}">${esc(initials(m.name))}</span>${esc(m.name)}</span>`).join('')
+      +`<button class="mchip" style="cursor:pointer;color:var(--accent)" onclick="openAddMember('${esc(gid(sel))}')">＋ Add</button>`;
+  } else gbar.style.display='none';
+  // Composer affordances: private + location only for 1:1
+  $('privBtn').style.display=(group||isMesh)?'none':'grid';
+  $('locBtn').style.display=(group||isMesh)?'none':'grid';
+  $('priBtn').style.display=isMesh?'none':'grid';
+  $('msg').placeholder=group?'Message the group…':(priv?'Private message (routed over the mesh)…':'Message…');
+
   const msgs=state.messages.filter(m=>(m.peer||'mesh')===sel);
   chat.innerHTML='';
+  if(peer&&peer.blocked){const e=document.createElement('div');e.className='blocked-note';
+    e.innerHTML=`🚫 You blocked <b>${esc(name)}</b>. Their messages are dropped.<br>Use the ⋯ menu to unblock.`;
+    chat.appendChild(e);chat.scrollTop=chat.scrollHeight;return;}
   if(!msgs.length){const e=document.createElement('div');e.className='center-empty';
-    e.innerHTML=isMesh?'<h3>No broadcasts yet</h3><div>SOS, "I\'m safe", and mesh broadcasts you send will appear here.</div>':'<h3>Say hello 👋</h3><div>This conversation is end-to-end encrypted. You\'ll see ✓✓ when a message is delivery-verified.</div>';
+    e.innerHTML=isMesh?'<h3>No broadcasts yet</h3><div>SOS, "I\'m safe", and mesh broadcasts you send will appear here.</div>'
+      :group?'<h3>Group is ready 👥</h3><div>Add members with ＋, then send — everyone with your sender key can read it. End-to-end encrypted.</div>'
+      :'<h3>Say hello 👋</h3><div>This conversation is end-to-end encrypted. You\'ll see ✓✓ when a message is delivery-verified.</div>';
     chat.appendChild(e);return;}
   msgs.forEach(m=>{
     const out=m.dir.startsWith('out'),sos=m.dir.indexOf('sos')>=0,bc=m.dir.indexOf('broadcast')>=0||isMesh&&out;
     const b=document.createElement('div');b.className='bubble '+(bc&&!sos?'bc':out?'out':'in')+(sos?' sos':'');
-    let st = out ? (m.status==='private'?'🛡 sent privately':m.status==='verified'?'<span class="tick">✓✓</span> Delivered':'<span class="sending"></span> Sending…') : 'received';
+    let st = out ? (m.status==='private'?'🛡 sent privately':m.status==='verified'?'<span class="tick">✓✓</span> Delivered':m.status==='sent'&&group?'sent':'<span class="sending"></span> Sending…') : 'received';
     let who = (bc&&out)?`${esc(m.peer_name)} · `:'';
-    b.innerHTML=`<div>${esc(m.body)}</div><div class="meta">${who}${hm(m.ts)} · ${st}</div>`;
+    // Group incoming: show the sender name above the bubble.
+    let sender = (group&&!out)?`<div class="senderlbl">${esc(m.peer_name)}</div>`:'';
+    b.innerHTML=`${sender}<div>${linkify(esc(m.body))}</div><div class="meta">${who}${hm(m.ts)} · ${st}</div>`;
     chat.appendChild(b);
   });
   chat.scrollTop=chat.scrollHeight;
 }
+
+/* Chat header ⋯ menu — contents depend on the selected thread. */
+$('chatMenuBtn').onclick=e=>{e.stopPropagation();const m=$('chatMenu');
+  if(m.classList.contains('on')){m.classList.remove('on');return;}
+  const group=isGroup(sel),peer=(!group&&sel!=='mesh')?state.directory.find(p=>p.address===sel):null;
+  let html='';
+  if(group){html=`<div class="mlbl">Group</div>
+    <button onclick="openAddMember('${esc(gid(sel))}')">👤 Add member</button>`;}
+  else if(peer){html=`<div class="mlbl">Contact</div>`+
+    (peer.blocked
+      ? `<button onclick="doUnblock('${esc(sel)}')">✓ Unblock</button>`
+      : `<button class="danger" onclick="doBlock('${esc(sel)}')">🚫 Block contact</button>`);}
+  m.innerHTML=html;m.classList.add('on');};
+
+async function doBlock(addr){$('chatMenu').classList.remove('on');await post('/api/block',{addr});toast('Contact blocked');}
+async function doUnblock(addr){$('chatMenu').classList.remove('on');await post('/api/unblock',{addr});toast('Contact unblocked');}
 
 function tile(k,v,sub,icon,cls){return `<div class="tile ${cls||''}"><div class="ic">${icon}</div><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub||''}</div></div>`;}
 function renderNetwork(){
@@ -433,8 +542,10 @@ function renderNetwork(){
   // peers
   const p=$('peers');const dir=state.directory;
   $('peersHd').textContent=`Peers in range · ${dir.length}`;
-  p.innerHTML=dir.length?dir.map(x=>`<div class="peer"><span class="avatar" style="width:32px;height:32px;font-size:12px;background:${avc(x.address)}">${esc(initials(x.name))}</span>
-    <span><div class="nm">${esc(x.name)}</div><div class="ad mono">${x.address.slice(0,16)}…</div></span><span class="rolechip">${x.verified?'verified':'leaf'}</span></div>`).join(''):'<div class="empty">No peers discovered yet.</div>';
+  p.innerHTML=dir.length?dir.map(x=>`<div class="peer${x.blocked?' blk':''}"><span class="avatar" style="width:32px;height:32px;font-size:12px;background:${avc(x.address)}">${esc(initials(x.name))}</span>
+    <span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ad mono">${x.address.slice(0,16)}…</div></span>
+    <span class="rolechip">${x.verified?'verified':'leaf'}</span>
+    <button class="blockbtn" onclick="${x.blocked?`doUnblock('${esc(x.address)}')`:`doBlock('${esc(x.address)}')`}">${x.blocked?'Unblock':'Block'}</button></div>`).join(''):'<div class="empty">No peers discovered yet.</div>';
 }
 
 /* ---- Actions ---- */
@@ -457,10 +568,40 @@ let priv=false;
 $('privBtn').onclick=()=>{priv=!priv;$('privBtn').setAttribute('aria-pressed',priv);
   $('privBtn').style.background=priv?'var(--accent)':'var(--panel)';$('privBtn').style.color=priv?'var(--accent-ink)':'var(--ink-2)';
   $('msg').placeholder=priv?'Private message (routed over the mesh)…':'Message…';};
+$('priBtn').onclick=()=>{pri=!pri;$('priBtn').classList.toggle('on',pri);$('priBtn').setAttribute('aria-pressed',pri);
+  toast(pri?'Priority (Alert) on — messages jump queues at every hop':'Priority off');};
 async function send(){if(!sel||sel==='mesh'){toast('Pick someone to message');return;}const t=$('msg').value.trim();if(!t)return;
-  if(priv){await post('/api/send_private',{to:sel,body:t});toast('Routing privately over the mesh…');}
-  else await post('/api/send',{to:sel,body:t,priority:2});
+  if(isGroup(sel)){await post('/api/group/send',{group:gid(sel),body:t});}
+  else if(priv){await post('/api/send_private',{to:sel,body:t});toast('Routing privately over the mesh…');}
+  else{await post('/api/send',{to:sel,body:t,priority:pri?1:2});if(pri)toast('Sent as priority');}
   $('msg').value='';$('msg').style.height='auto';}
+
+/* Groups */
+$('newGroupBtn').onclick=()=>openNewGroup();
+function openNewGroup(){
+  openModal(`<h3>New group</h3><div class="sub">Pick a name everyone shares. You'll add members next; each gets your sender key so they can read the group.</div>
+    <input id="gName" placeholder="e.g. rescue-team" autocomplete="off" maxlength="40" />
+    <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn sm" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary sm" id="gCreate">Create group</button></div>`);
+  const inp=$('gName');inp.focus();
+  const go=async()=>{const id=inp.value.trim();if(!id){inp.focus();return;}
+    await post('/api/group/create',{id});closeModal();sel='group:'+id;
+    $('app').setAttribute('data-mview','chat');toast('Group created');};
+  $('gCreate').onclick=go;inp.addEventListener('keydown',e=>{if(e.key==='Enter')go();});
+}
+function openAddMember(id){$('chatMenu').classList.remove('on');
+  const g=groupsById()[id];const inSet=new Set((g?g.members:[]).map(m=>m.address));
+  const rows=(state.directory||[]).map(p=>{const inG=inSet.has(p.address);
+    return `<div class="pick${inG?' dis':''}" ${inG?'':`onclick="addMember('${esc(id)}','${esc(p.address)}')"`}>
+      <span class="avatar" style="width:30px;height:30px;font-size:11px;background:${avc(p.address)}">${esc(initials(p.name))}</span>
+      <span style="min-width:0"><div class="nm" style="font-weight:600;font-size:13px">${esc(p.name)}</div><div class="ad mono" style="font-size:10.5px;color:var(--muted)">${p.address.slice(0,16)}…</div></span>
+      <span class="tag">${inG?'in group':'tap to add'}</span></div>`;}).join('');
+  openModal(`<h3>Add to “${esc(id)}”</h3><div class="sub">Pick a contact to invite into the group.</div>
+    <div class="picklist">${rows||'<div class="empty">No contacts yet — add someone first.</div>'}</div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn sm" onclick="closeModal()">Done</button></div>`);
+}
+async function addMember(id,addr){await post('/api/group/add',{group:id,addr});toast('Member added — distributing key…');
+  setTimeout(()=>{if($('modalBg').classList.contains('on'))openAddMember(id);},450);}
 $('locBtn').onclick=async()=>{if(!sel||sel==='mesh')return;$('locBtn').disabled=true;const p=await getPos();
   if(p){await post('/api/location',{to:sel,lat:p.lat,lon:p.lon,acc_m:p.acc_m});toast('Location shared');}else toast('Location unavailable');$('locBtn').disabled=false;};
 

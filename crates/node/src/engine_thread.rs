@@ -39,6 +39,7 @@ fn decode_code(code: &str) -> Option<IdentityPublic> {
 fn persist_state(
     engine: &NodeEngine,
     messages: &[MsgView],
+    groups: &[String],
     vault: &lifeline_core::vault::Vault,
     state_path: &std::path::Path,
 ) {
@@ -50,6 +51,7 @@ fn persist_state(
         prekeys: to_cbor(&engine.export_prekeys())
             .ok()
             .map(lifeline_proto::Bytes::new),
+        groups: groups.to_vec(),
     };
     if let Ok(bytes) = serde_json::to_vec(&persisted) {
         let blob = vault.seal(&bytes);
@@ -140,6 +142,8 @@ pub fn run(
     let my_addr = engine.address().to_text();
 
     let mut messages: Vec<MsgView> = initial.messages;
+    // Group ids this node participates in (FR-12); threads keyed `group:<id>`.
+    let mut groups: Vec<String> = initial.groups;
     // bundle_id (b64) -> index into `messages` for outbound status updates.
     let mut sent_index: HashMap<String, usize> = HashMap::new();
     let state_path = std::path::Path::new(&data_dir).join("state.vault");
@@ -296,6 +300,65 @@ pub fn run(
                         }
                     }
                 }
+                Command::CreateGroup { id } => {
+                    let id = id.trim().to_string();
+                    if !id.is_empty() {
+                        engine.create_group(&id);
+                        if !groups.contains(&id) {
+                            groups.push(id);
+                        }
+                        dirty = true;
+                    }
+                }
+                Command::AddGroupMember { group, addr } => {
+                    if let Ok(a) = Address::from_text(&addr) {
+                        if let Some(member) = engine.contact(&a) {
+                            engine.create_group(&group);
+                            engine.add_group_member(&group, member);
+                            if !groups.contains(&group) {
+                                groups.push(group);
+                            }
+                            dirty = true;
+                        }
+                    }
+                }
+                Command::SendGroup { group, body } => {
+                    let mut payload = Payload {
+                        kind: PayloadKind::Text,
+                        body: Some(body.clone()),
+                        coords: None,
+                        battery_pct: None,
+                        attach: None,
+                        group_id: Some(group.clone()),
+                    };
+                    payload.group_id = Some(group.clone());
+                    let ids = engine.send_group(&group, payload, now);
+                    if !groups.contains(&group) {
+                        groups.push(group.clone());
+                    }
+                    messages.push(MsgView {
+                        id: ids.first().map(|b| b.to_b64url()).unwrap_or_default(),
+                        dir: "out".into(),
+                        peer: format!("group:{group}"),
+                        peer_name: name.clone(),
+                        body,
+                        ts: now,
+                        status: "sent".into(),
+                    });
+                    dirty = true;
+                }
+                Command::Block { addr } => {
+                    if let Ok(a) = Address::from_text(&addr) {
+                        engine.block(a);
+                        dirty = true;
+                    }
+                }
+                Command::Unblock { addr } => {
+                    if let Ok(a) = Address::from_text(&addr) {
+                        engine.unblock(&a);
+                        dirty = true;
+                    }
+                }
                 Command::Shutdown => {
                     shutdown = true;
                 }
@@ -306,7 +369,7 @@ pub fn run(
         // loop so `main` can join this thread. Runs before the tick so a rotated
         // prekey ring / recent messages survive SIGTERM (FR-9/15/44).
         if shutdown {
-            persist_state(&engine, &messages, &vault, &state_path);
+            persist_state(&engine, &messages, &groups, &vault, &state_path);
             tracing::info!("engine: state flushed, stopping");
             return;
         }
@@ -316,17 +379,23 @@ pub fn run(
 
         // 3. Ingest anything delivered to us.
         for inb in engine.take_inbox() {
-            let dir = if inb.payload.kind == PayloadKind::Sos {
-                "in-sos"
-            } else {
-                "in"
+            // Group messages thread under `group:<id>`; the bubble shows the
+            // actual sender's name. 1:1 messages thread under the sender address.
+            let (peer, dir) = match &inb.payload.group_id {
+                Some(g) => {
+                    if !groups.contains(g) {
+                        groups.push(g.clone());
+                    }
+                    (format!("group:{g}"), "in")
+                }
+                None if inb.payload.kind == PayloadKind::Sos => (inb.from.to_text(), "in-sos"),
+                None => (inb.from.to_text(), "in"),
             };
-            let peer_name = name_of(&engine, &inb.from);
             messages.push(MsgView {
                 id: String::new(),
                 dir: dir.into(),
-                peer: inb.from.to_text(),
-                peer_name,
+                peer,
+                peer_name: name_of(&engine, &inb.from),
                 body: display_body(&inb.payload),
                 ts: now,
                 status: "received".into(),
@@ -348,7 +417,7 @@ pub fn run(
 
         // 5. Persist encrypted state periodically when something changed (FR-9/15).
         if dirty && tick_no.saturating_sub(last_save_tick) >= 20 {
-            persist_state(&engine, &messages, &vault, &state_path);
+            persist_state(&engine, &messages, &groups, &vault, &state_path);
             last_save_tick = tick_no;
             dirty = false;
         }
@@ -359,6 +428,7 @@ pub fn run(
             &identity_view,
             &my_addr,
             &messages,
+            &groups,
             connected.load(Ordering::Relaxed),
         );
         if let Ok(mut g) = shared.lock() {
@@ -474,6 +544,7 @@ fn build_snapshot(
     identity: &IdentityView,
     my_addr: &str,
     messages: &[MsgView],
+    groups: &[String],
     relay_connected: bool,
 ) -> Snapshot {
     let directory: Vec<PeerView> = engine
@@ -482,8 +553,25 @@ fn build_snapshot(
         .filter(|p| p.id.to_text() != my_addr)
         .map(|p| PeerView {
             address: p.id.to_text(),
+            blocked: engine.is_blocked(&p.id),
             name: p.display_name.unwrap_or_else(|| p.id.short()),
             verified: false,
+        })
+        .collect();
+
+    // Group threads: members resolved to display names via the directory.
+    let group_views: Vec<crate::views::GroupView> = groups
+        .iter()
+        .map(|id| crate::views::GroupView {
+            id: id.clone(),
+            members: engine
+                .group_members(id)
+                .into_iter()
+                .map(|a| crate::views::GroupMemberView {
+                    address: a.to_text(),
+                    name: name_of(engine, &a),
+                })
+                .collect(),
         })
         .collect();
 
@@ -496,6 +584,7 @@ fn build_snapshot(
         identity: identity.clone(),
         directory,
         messages: messages.to_vec(),
+        groups: group_views,
         status: StatusView {
             relay_connected,
             peer_count: engine.peer_count(),
