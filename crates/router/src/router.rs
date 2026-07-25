@@ -108,6 +108,9 @@ pub struct DtnRouter {
 
     gateways: GatewayCache,
     reputation: crate::reputation::Reputation,
+    /// Source-side black-hole attribution: which peers took custody of our
+    /// bundles, and whether those bundles were delivered (FR-47).
+    attribution: crate::attribution::ForwardLedger,
     stats: RouterStats,
 }
 
@@ -125,6 +128,7 @@ impl DtnRouter {
             bridge_out: Vec::new(),
             gateways: GatewayCache::new(),
             reputation: crate::reputation::Reputation::new(),
+            attribution: crate::attribution::ForwardLedger::new(),
             stats: RouterStats::default(),
         }
     }
@@ -388,6 +392,38 @@ impl DtnRouter {
         self.reputation.is_demoted(addr)
     }
 
+    // --- Black-hole attribution (FR-47) ---
+    //
+    // The engine feeds three live signals from bundles *we originated*; this layer
+    // turns them into reputation credit/penalty. It is passive — it never changes
+    // what we store or forward, and penalties are gated so an honest low-contact
+    // carrier is not demoted (protecting the ≥95%-delivery target).
+
+    /// A downstream `custodian` signed for our bundle `bundle_id`; watch for its
+    /// delivery until `deadline`.
+    pub fn note_custody(&mut self, bundle_id: &Bytes, custodian: &Address, deadline: u64) {
+        self.attribution
+            .record_custody(bundle_id, custodian, deadline);
+    }
+
+    /// Our bundle `bundle_id` was delivered (verified receipt): credit every peer
+    /// that had taken custody of it.
+    pub fn note_delivery(&mut self, bundle_id: &Bytes) {
+        for custodian in self.attribution.confirm_delivery(bundle_id) {
+            self.reputation
+                .credit(&custodian, crate::attribution::CREDIT_W);
+        }
+    }
+
+    /// Expire overdue custody observations; penalize custodians whose misses have
+    /// crossed the grace threshold (likely black holes).
+    pub fn attribution_tick(&mut self, now: u64) {
+        for custodian in self.attribution.expire(now) {
+            self.reputation
+                .penalize(&custodian, crate::attribution::PENALIZE_W);
+        }
+    }
+
     // --- Adaptive retry (FR-32) ---
 
     /// Re-spray a bundle we still hold: reset its copy budget and forget which
@@ -470,6 +506,49 @@ mod tests {
         let b = bundle(1, addr(1), Priority::Normal, 0);
         assert_eq!(r.ingest(b, 10), IngestOutcome::Delivered);
         assert_eq!(r.stats().delivered, 1);
+    }
+
+    #[test]
+    fn attribution_demotes_a_black_hole_but_not_an_honest_custodian() {
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        let black_hole = addr(0xBB);
+        let honest = addr(0xAA);
+
+        // The black hole takes custody of many of our bundles that never deliver.
+        for i in 0..8u8 {
+            let id = Bytes::new(vec![i; 16]);
+            r.note_custody(&id, &black_hole, 100);
+            r.attribution_tick(200); // past deadline → miss (penalized after grace)
+        }
+        assert!(
+            r.is_demoted(&black_hole),
+            "a peer that swallows every bundle should be demoted"
+        );
+
+        // The honest peer takes custody of just as many, but they all deliver.
+        for i in 0..8u8 {
+            let id = Bytes::new(vec![100 + i; 16]);
+            r.note_custody(&id, &honest, 100);
+            r.note_delivery(&id); // verified receipt came back → credit
+        }
+        assert!(
+            !r.is_demoted(&honest),
+            "a custodian that delivers must never be demoted"
+        );
+    }
+
+    #[test]
+    fn attribution_does_not_demote_on_a_few_misses() {
+        // An honest low-contact carrier misses a couple of deliveries; the grace
+        // window must keep it routable (protecting the delivery target).
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        let carrier = addr(0xCC);
+        for i in 0..crate::attribution::GRACE_MISSES as u8 {
+            let id = Bytes::new(vec![i; 16]);
+            r.note_custody(&id, &carrier, 100);
+            r.attribution_tick(200);
+        }
+        assert!(!r.is_demoted(&carrier), "a few misses stay within grace");
     }
 
     #[test]

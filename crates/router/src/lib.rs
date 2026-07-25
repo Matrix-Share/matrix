@@ -27,6 +27,7 @@
 //! opaque and only reads routing header fields (FR-38: relays handle ciphertext
 //! only).
 
+mod attribution;
 mod bounded;
 mod gateway;
 mod reputation;
