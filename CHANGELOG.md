@@ -55,6 +55,18 @@ surface) and hardened it:
 - **GUI**: the last unescaped DOM sink (`initials()`) is now escaped
   (defense-in-depth; message bodies were already escaped — no XSS was reachable).
 
+### Added
+- **Pluggable `RoutingPolicy` seam (from the architecture review).** The
+  forwarding strategy — binary spray-and-wait, gateway-gradient escape hatch,
+  reputation route-around, bandwidth hold-back — was inlined in
+  `DtnRouter::offer_to`, so a different strategy (epidemic, PRoPHET,
+  Reticulum-style) meant editing the router. Extracted a `RoutingPolicy` trait
+  (`decide(&OfferContext) -> OfferAction`) with the shipped behaviour as the
+  default `SprayAndWaitPolicy`, injectable via `DtnRouter::with_policy`. The
+  router keeps the *mechanism* (iteration, copy-budget mutation, stats); the
+  policy is a pure, unit-tested decision function fed scalar context (no store
+  internals). Behaviour is unchanged — the ≥95%-delivery acceptance sim passes.
+
 ### Changed
 - **Crypto hygiene (from the architecture review).**
   - **Removed the vestigial `SecureChannel` trait.** It advertised a swap-in point

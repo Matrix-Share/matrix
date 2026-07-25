@@ -30,11 +30,13 @@
 mod attribution;
 mod bounded;
 mod gateway;
+mod policy;
 mod reputation;
 mod router;
 mod store;
 
 pub use gateway::{GatewayCache, GATEWAY_ANNOUNCE_HOPS};
+pub use policy::{OfferAction, OfferContext, RoutingPolicy, SprayAndWaitPolicy};
 pub use reputation::{Reputation, DEMOTE_THRESHOLD};
 pub use router::{DtnRouter, IngestOutcome, PeerInfo, RouterConfig, RouterStats};
 pub use store::DEFAULT_STORE_CAP_BYTES;
