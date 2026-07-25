@@ -1552,6 +1552,17 @@ impl NodeEngine {
         self.router.holds(bundle_id)
     }
 
+    /// Snapshot the forward-secret prekey ring for encrypted-at-rest persistence
+    /// (FR-44), so a node restart doesn't lose in-flight prekey-sealed messages.
+    pub fn export_prekeys(&self) -> lifeline_core::prekey::PrekeyRingState {
+        self.prekey_ring.export()
+    }
+
+    /// Restore a persisted prekey ring on startup (call right after `new`).
+    pub fn restore_prekeys(&mut self, state: &lifeline_core::prekey::PrekeyRingState) {
+        self.prekey_ring = PrekeyRing::import(state);
+    }
+
     /// Whether this node is operating as a gateway (FR-35).
     pub fn is_gateway(&self) -> bool {
         self.router.is_gateway()

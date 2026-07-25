@@ -10,6 +10,11 @@ pub struct PersistedState {
     /// Contact directory as shareable invite codes (`b64url(cbor(IdentityPublic))`).
     pub contact_codes: Vec<String>,
     pub messages: Vec<MsgView>,
+    /// CBOR-encoded forward-secret prekey ring (`core::prekey::PrekeyRingState`),
+    /// so in-flight prekey-sealed messages survive a restart (FR-44). Opaque here;
+    /// the whole `PersistedState` is encrypted at rest by `core::vault`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prekeys: Option<lifeline_proto::Bytes>,
 }
 
 /// A command from the API (browser) to the engine thread.
