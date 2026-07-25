@@ -2,8 +2,9 @@
 //! distribution + fan-out to members + decrypt on receive.
 
 use lifeline_core::Identity;
+use lifeline_engine::{EngineConfig, NodeEngine};
 use lifeline_proto::{Payload, PayloadKind};
-use lifeline_transport::{EngineConfig, InterfaceCaps, NodeEngine, SharedMedium};
+use lifeline_transport::{InterfaceCaps, SharedMedium};
 
 fn text(body: &str) -> Payload {
     Payload {

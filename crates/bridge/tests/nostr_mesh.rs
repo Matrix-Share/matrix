@@ -6,8 +6,9 @@
 
 use lifeline_bridge::nostr::{MockRelay, NostrIdentity, NostrNet};
 use lifeline_core::Identity;
+use lifeline_engine::{EngineConfig, NodeEngine};
 use lifeline_proto::{Payload, PayloadKind, Priority};
-use lifeline_transport::{BridgeInterface, EngineConfig, NodeEngine};
+use lifeline_transport::BridgeInterface;
 
 fn text(body: &str) -> Payload {
     Payload {

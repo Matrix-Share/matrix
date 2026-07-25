@@ -55,6 +55,16 @@ surface) and hardened it:
 - **GUI**: the last unescaped DOM sink (`initials()`) is now escaped
   (defense-in-depth; message bodies were already escaped — no XSS was reachable).
 
+### Changed
+- **Split the mis-layered `transport` crate (from the architecture review).** The
+  crate named for the L1 bearer seam actually contained the `NodeEngine`
+  orchestrator, so it depended "upward" on `router`/`sync`/`core`. The engine now
+  lives in a new **`lifeline-engine`** crate; `lifeline-transport` is a
+  **proto-only seam** (just `Interface`/`ExternalNet`/framing/ARQ), so
+  implementing a new bearer no longer drags in the router, CRDTs, or runtime. The
+  engine's integration tests moved with it; the ≥95%-delivery acceptance sim and
+  the full suite pass unchanged.
+
 ### Added
 - **Pluggable `RoutingPolicy` seam (from the architecture review).** The
   forwarding strategy — binary spray-and-wait, gateway-gradient escape hatch,

@@ -34,18 +34,19 @@ that is the whole extensibility story.
 |------:|----------------|----------|
 | **L6 App** | Web GUI + HTTP/WS API, the daemon, config, persistence | `node` |
 | **L5 Sync** | CRDTs for eventually-consistent shared state (contacts, read state) | `sync` |
-| **L4 Routing** | DTN store–carry–forward: spray-and-wait, priority, custody, gateways, reputation | `router` |
-| **L3 Engine** | The runtime that composes L2–L5: sessions, discovery, groups, onion, blocks, gateways | `transport` (`NodeEngine`) |
+| **L4 Routing** | DTN store–carry–forward: spray-and-wait (pluggable policy), priority, custody, gateways, reputation | `router` |
+| **L3 Engine** | The runtime that composes L1–L5: sessions, discovery, groups, onion, blocks, gateways | `engine` (`NodeEngine`) |
 | **L2 Crypto** | Identity, sealed-sender E2E, forward-secret prekeys, groups, onion, receipts | `core` |
 | **L1/L0 Transport** | The bearer seam + framing/fragmentation + lossy-link ARQ | `transport` (`Interface`), `relay`, `bridge` |
 | **L—  Wire** | Versioned wire structs + canonical CBOR codec (no crypto, no I/O) | `proto` |
 | **Discovery** | Kademlia DHT for online peer/rendezvous lookup (library; wiring pending) | `dht` |
 | **Test harness** | Deterministic multi-node simulator for acceptance tests | `sim` |
 
-> **Known naming wart:** the `transport` crate today holds *both* the L1 bearer
-> seam (`Interface`) *and* the L3 `NodeEngine` runtime, so it depends "upward" on
-> `router`/`sync`/`core`. Splitting `NodeEngine` into its own `engine` crate is
-> the top structural item on the [roadmap](#12-known-limitations--roadmap).
+The `NodeEngine` runtime lives in its own `engine` crate, separate from the
+lightweight `transport` **seam** — so `transport` depends only on `proto`
+(+`core` for its error type), and implementing a new bearer never drags in the
+router, CRDTs, or runtime. `engine` depends downward on transport/router/sync/
+core; nothing below depends on it.
 
 ### Crate dependency graph
 
@@ -55,7 +56,8 @@ graph TD
     core["core — crypto / identity / E2E"]
     router["router — DTN routing"]
     sync["sync — CRDTs"]
-    transport["transport — Interface seam + NodeEngine"]
+    transport["transport — Interface seam (proto-only)"]
+    engine["engine — NodeEngine runtime"]
     bridge["bridge — Nostr / Meshtastic adapters"]
     dht["dht — Kademlia (unwired)"]
     relay["relay — zero-knowledge internet relay"]
@@ -66,14 +68,16 @@ graph TD
     dht --> proto
     sync --> proto
     router --> core & proto
-    transport --> core & proto & router & sync
+    transport --> proto & core
+    engine --> transport & core & proto & router & sync
     bridge --> core & proto & transport
     sim --> core & proto & router & sync
-    node --> transport & core & proto & router & sync & relay & bridge & sim
+    node --> engine & transport & core & proto & router & sync & relay & bridge & sim
 ```
 
-`proto` is the leaf everything shares. `relay` is standalone (it only speaks the
-wire format over TCP). Dependencies never form a cycle.
+`proto` is the leaf everything shares; the `transport` seam sits just above it.
+`relay` is standalone (it only speaks the wire format over TCP). Dependencies
+never form a cycle.
 
 ---
 
@@ -261,11 +265,11 @@ shape:
    ignore it.
 
 ### Add a new routing strategy
-Today the policy (spray-and-wait, gradient, reputation, bearer-fit) is inlined in
-`DtnRouter::offer_to`. Extracting a `RoutingPolicy` trait so strategies
-(epidemic, PRoPHET, Reticulum-style) are pluggable is on the roadmap; the
-sub-policies are already separated into modules, so it's a reshaping, not a
-rewrite.
+Implement `router::RoutingPolicy` (`decide(&OfferContext) -> OfferAction`) and
+pass it to `DtnRouter::with_policy`. The router owns the *mechanism* (candidate
+iteration, copy-budget mutation, stats); your policy is a pure decision function
+fed scalar context. The default `SprayAndWaitPolicy` is the reference; epidemic /
+PRoPHET / Reticulum-style strategies drop in without touching the router.
 
 ---
 
@@ -310,8 +314,9 @@ crates/
   router/     DtnRouter, BundleStore, gateway, reputation,          (DTN routing)
               attribution, bounded sets
   sync/       version vectors, ORSWOT, LWW, SharedState             (CRDTs)
-  transport/  Interface + ChannelInterface + BridgeInterface,       (bearer seam +
-              frame/fragment, ARQ, caps, UDP, NodeEngine             engine runtime)
+  transport/  Interface + ChannelInterface + BridgeInterface,       (bearer seam,
+              frame/fragment, ARQ, caps, UDP                         proto-only)
+  engine/     NodeEngine — composes transport+router+sync+core       (node runtime)
   bridge/     nostr, meshtastic, ws (live Nostr client), skeleton   (external nets)
   dht/        Kademlia routing table + iterative lookups            (discovery lib)
   relay/      zero-knowledge internet relay (ciphertext only)       (infra)
@@ -328,27 +333,25 @@ STATUS.md · GAPS.md · INTEROP.md · CHANGELOG.md · ARCHITECTURE.md (this file
 These are tracked openly (they came out of an independent architecture review).
 Ordered by structural impact:
 
-1. **Split the `transport` crate** into a lightweight `lifeline-transport` (just
-   the `Interface` seam) and a `lifeline-engine` crate, and **decompose
-   `NodeEngine`** (a ~1,600-line, ~20-concern god object) into per-concern
-   services (`GroupService`, `ContentService`, `OnionService`, `CustodyService`,
-   `GatewayService`, `PrekeyService`, `RetryService`) driven by `tick()`.
-2. **Extract a `RoutingPolicy` trait** so spray-and-wait / epidemic / PRoPHET /
-   Reticulum-style strategies are pluggable rather than inlined in `offer_to`.
-3. **Add a reusable `AsyncExternalNet` adapter** so async bearers integrate as
-   cheaply as synchronous ones (today Nostr hand-rolls the std↔tokio bridge).
-4. **Wire the DHT into the live node** via a request/response-over-frames layer
+1. **Decompose `NodeEngine`** — now isolated in its own `engine` crate (the
+   layering split is done), the ~1,600-line, ~20-concern god object still wants
+   breaking into per-concern services (`GroupService`, `ContentService`,
+   `OnionService`, `CustodyService`, `GatewayService`, `PrekeyService`,
+   `RetryService`) driven by `tick()`.
+2. **Wire the DHT into the live node** via a request/response-over-frames layer
    (or a dedicated DHT thread), and give `Contact.endpoint` real meaning.
-5. **Unify `sim` and `NodeEngine`** delivery pipelines so the acceptance test
+3. **Unify `sim` and `NodeEngine`** delivery pipelines so the acceptance test
    exercises custody/attribution/bearer-caps, not a simpler node than ships.
-6. **Scale hygiene:** bound message history, move engine→UI to an event-driven
+4. **Scale hygiene:** bound message history, move engine→UI to an event-driven
    `watch` channel, and design a **delta-sync** seam so the full CRDT state isn't
    retransmitted every tick.
-7. **Typed `NodeConfig`** replacing ad-hoc env parsing, with validation + logging.
-8. **Real radio backends** (BLE / ultrasound / LoRa-serial) behind the existing
+5. **Typed `NodeConfig`** replacing ad-hoc env parsing, with validation + logging.
+6. **Real radio backends** (BLE / ultrasound / LoRa-serial) behind the existing
    `Interface` seam — hardware-gated.
 
-Already delivered from the same review: forward-compatible wire enums + version
-gate, exhaustive payload dispatch, crash-safe persistence + graceful shutdown,
-bounded CBOR decoder, removal of the vestigial `SecureChannel`, `Zeroizing` key
-derivation, and a centralized domain-separation registry.
+**Already delivered** from this review: the `transport`/`engine` **crate split**
+(fixing the layering inversion), a pluggable **`RoutingPolicy`** trait, a reusable
+**async-bearer** helper, forward-compatible wire enums + version gate, exhaustive
+payload dispatch, crash-safe persistence + graceful shutdown, bounded CBOR
+decoder, removal of the vestigial `SecureChannel`, `Zeroizing` key derivation, and
+a centralized domain-separation registry.

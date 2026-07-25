@@ -12,8 +12,9 @@
 //! releases its copy. B retains custody and delivers to C.
 
 use lifeline_core::Identity;
+use lifeline_engine::{CustodyRole, EngineConfig, NodeEngine};
 use lifeline_proto::{Payload, PayloadKind, Priority};
-use lifeline_transport::{CustodyRole, EngineConfig, InterfaceCaps, NodeEngine, SharedMedium};
+use lifeline_transport::{InterfaceCaps, SharedMedium};
 
 fn text(body: &str) -> Payload {
     Payload {

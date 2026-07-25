@@ -16,6 +16,7 @@ lifeline-core = { path = "../core" }
 lifeline-router = { path = "../router" }
 lifeline-sync = { path = "../sync" }
 lifeline-transport = { path = "../transport" }
+lifeline-engine = { path = "../engine" }
 lifeline-sim = { path = "../sim" }
 lifeline-relay = { path = "../relay" }
 # Optional: live connectivity over external networks (Nostr / Meshtastic). The

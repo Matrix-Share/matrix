@@ -8,10 +8,6 @@
 //! whichever links exist — fragmenting each to that interface's MTU. Swap the
 //! in-memory interfaces for real radios and nothing else changes.
 
-use crate::arq::{ArqRx, ArqTx};
-use crate::caps::ThroughputClass;
-use crate::frame::{Fragmenter, Frame, FrameKind};
-use crate::interface::{Interface, PeerId};
 use lifeline_core::announce::{make_gateway_announce, verify_gateway_announce};
 use lifeline_core::content::{chunk, cid_of, BlockStore, Manifest, DEFAULT_BLOCK_SIZE};
 use lifeline_core::erasure::{fragment_bundle, FragmentCollector};
@@ -28,6 +24,10 @@ use lifeline_proto::{
 };
 use lifeline_router::{DtnRouter, IngestOutcome, PeerInfo, RouterConfig};
 use lifeline_sync::SharedState;
+use lifeline_transport::arq::{ArqRx, ArqTx};
+use lifeline_transport::caps::ThroughputClass;
+use lifeline_transport::frame::{Fragmenter, Frame, FrameKind};
+use lifeline_transport::interface::{Interface, PeerId};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -86,8 +86,8 @@ impl Default for EngineConfig {
             retry_window: 60,
             max_retries: 4,
             respray_copies: 6,
-            arq_rto: crate::arq::DEFAULT_RTO,
-            arq_max_rounds: crate::arq::DEFAULT_MAX_ROUNDS,
+            arq_rto: lifeline_transport::arq::DEFAULT_RTO,
+            arq_max_rounds: lifeline_transport::arq::DEFAULT_MAX_ROUNDS,
             gateway_caps: Vec::new(),
             announce_interval: 10,
             prekey_rotate_interval: 86_400,
