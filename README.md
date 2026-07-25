@@ -52,6 +52,7 @@ The GUI also exposes a **"Run network self-test"** button that executes the
 
 | Doc | What |
 |---|---|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | **How the system fits together** — layers, crates, the extension seams, message flow, threading, and the roadmap. Start here to understand the codebase. |
 | [`docs/`](docs/) | The original PRD + design docs (spectrum, network layer, gateway, OSS/papers). |
 | [`STATUS.md`](STATUS.md) | Requirement-by-requirement (`FR-*`) implementation status. |
 | [`GAPS.md`](GAPS.md) | Design-doc gap analysis + research-paper "what-to-improve" agenda. |
