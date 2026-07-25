@@ -15,7 +15,7 @@ use lifeline_proto::{Bundle, Bytes, CustodyReceipt, DeliveryReceipt};
 /// Domain separator so a delivery-receipt signature can never be confused with a
 /// signature over some other `bundle_id || u64` context (defense-in-depth,
 /// matching the tagging used by custody/announce/alert/relay-credit).
-const DELIVERY_DOMAIN: &[u8] = b"lifeline/v1/delivery-receipt";
+const DELIVERY_DOMAIN: &[u8] = crate::domain::DELIVERY_RECEIPT;
 
 /// Bytes signed for a delivery receipt: `DOMAIN || bundle_id || delivered_at(be64)`.
 fn receipt_signing_bytes(bundle_id: &Bytes, delivered_at: u64) -> Vec<u8> {

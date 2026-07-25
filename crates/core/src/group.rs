@@ -21,7 +21,7 @@
 //! members as bundles (and membership itself) live in `sync::SharedState`
 //! (already converging) + the engine.
 
-use crate::crypto::{self, SealedBox, SecureChannel, KEY_LEN, NONCE_LEN};
+use crate::crypto::{self, SealedBox, KEY_LEN, NONCE_LEN};
 use crate::identity::{verify_sig, Identity};
 use crate::{CoreError, Result};
 use lifeline_proto::codec::{from_cbor, to_cbor};
@@ -32,9 +32,9 @@ use x25519_dalek::PublicKey as XPublic;
 use zeroize::Zeroize;
 
 /// Domain separators for the symmetric ratchet.
-const INFO_MSG: &[u8] = b"lifeline/v1/group-msg";
-const INFO_CHAIN: &[u8] = b"lifeline/v1/group-chain";
-const INFO_DIST: &[u8] = b"lifeline/v1/group-senderkey";
+const INFO_MSG: &[u8] = crate::domain::GROUP_MSG;
+const INFO_CHAIN: &[u8] = crate::domain::GROUP_CHAIN;
+const INFO_DIST: &[u8] = crate::domain::GROUP_SENDERKEY;
 
 /// Max messages we will skip-and-cache to tolerate reordering (bounds memory).
 pub const MAX_SKIP: u32 = 2000;

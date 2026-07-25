@@ -56,6 +56,22 @@ surface) and hardened it:
   (defense-in-depth; message bodies were already escaped — no XSS was reachable).
 
 ### Changed
+- **Crypto hygiene (from the architecture review).**
+  - **Removed the vestigial `SecureChannel` trait.** It advertised a swap-in point
+    for a Double Ratchet but was stateless associated functions over concrete
+    dalek key types — it literally could not express a stateful ratchet, and
+    nothing dispatched through it. `SealedBox::seal`/`open` are now inherent
+    methods; the docs state honestly that forward secrecy comes from the rotating
+    prekey ring, and a real ratchet would be its own session type, not a drop-in.
+  - **`hkdf_sha256` now returns `Zeroizing<Vec<u8>>`**, so derived key material is
+    wiped on drop by default. This *closes a real leak*: `group::ratchet` was
+    dropping raw HKDF message-/chain-key output un-zeroized on every group message.
+  - **Centralized every domain-separation label into one `core::domain` module.**
+    Previously scattered across nine files with a duplicate `INFO_MSG` name
+    (meaning two different things) and message-sealing labels misplaced in
+    `identity`. Values are byte-for-byte unchanged (no wire/at-rest break — crypto
+    round-trips confirm it); the win is a single audited list, with a test
+    asserting all labels are distinct so a future collision fails CI.
 - **Robustness hardening (from the architecture review).**
   - **Crash-safe persistence.** The encrypted vault and identity are now written
     via temp-file-then-`rename` (`write_atomic`), so a crash mid-write keeps the

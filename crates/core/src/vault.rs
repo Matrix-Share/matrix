@@ -16,7 +16,7 @@ use lifeline_proto::Bytes;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
-const VAULT_AD: &[u8] = b"lifeline/v1/vault";
+const VAULT_AD: &[u8] = crate::domain::VAULT;
 
 /// An unlocked vault key + the salt it was derived from (so re-saves reuse it).
 pub struct Vault {
