@@ -381,7 +381,11 @@ pub fn run(
         for inb in engine.take_inbox() {
             // Group messages thread under `group:<id>`; the bubble shows the
             // actual sender's name. 1:1 messages thread under the sender address.
-            let (peer, dir) = match &inb.payload.group_id {
+            // Thread on the engine's **authenticated** `group` (set only by the
+            // verified sender-keys path), NOT the payload's self-asserted
+            // `group_id` — otherwise a direct/geocast message could be spoofed
+            // into a group thread.
+            let (peer, dir) = match &inb.group {
                 Some(g) => {
                     if !groups.contains(g) {
                         groups.push(g.clone());

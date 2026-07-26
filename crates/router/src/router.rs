@@ -456,11 +456,24 @@ impl DtnRouter {
         self.store.contains(bundle_id)
     }
 
-    /// Release our copy of a bundle because another node has signed for custody
+    /// Release our copy of a bundle because `custodian` has signed for custody
     /// (the caller has verified the [`lifeline_proto::CustodyReceipt`]). Frees
-    /// storage without silent loss — the custodian is now responsible. Returns
-    /// `true` if a copy was held and dropped.
-    pub fn release_custody(&mut self, bundle_id: &Bytes) -> bool {
+    /// storage without silent loss — the custodian is now responsible.
+    ///
+    /// **Only released if we actually offered this bundle to `custodian`.** Bundle
+    /// ids travel in the clear, so without this check any node could sign a
+    /// custody receipt for an id it never received and strip redundant copies out
+    /// of the mesh (a delivery-degradation attack). Returns `true` if a copy was
+    /// held, was offered to that custodian, and was dropped.
+    pub fn release_custody(&mut self, bundle_id: &Bytes, custodian: &Address) -> bool {
+        let offered = self
+            .store
+            .get_mut(bundle_id)
+            .map(|s| s.offered_to.contains(custodian))
+            .unwrap_or(false);
+        if !offered {
+            return false; // unsolicited / forged receipt from a peer we never handed it to
+        }
         let removed = self.store.remove(bundle_id).is_some();
         if removed {
             // Remember it so we don't re-accept our own released copy.
@@ -740,8 +753,17 @@ mod tests {
         r.ingest(b, 1);
         assert_eq!(r.stats().store_len, 1);
 
-        // Another node took custody → release our copy.
-        assert!(r.release_custody(&id));
+        // A receipt from a peer we NEVER offered it to is ignored (anti-forgery).
+        assert!(!r.release_custody(&id, &addr(7)));
+        assert_eq!(
+            r.stats().store_len,
+            1,
+            "unsolicited receipt must not free the copy"
+        );
+
+        // Offer it to a custodian, who then signs for it → we release our copy.
+        let _ = r.offer_to(&peer(addr(2)), 5);
+        assert!(r.release_custody(&id, &addr(2)));
         assert_eq!(r.stats().store_len, 0);
         assert_eq!(r.stats().custody_transfers, 1);
         // We won't re-accept the released copy (dedup via `seen`).

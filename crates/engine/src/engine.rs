@@ -136,6 +136,12 @@ fn bearer_soft_cap(t: ThroughputClass) -> Option<u64> {
 pub struct Inbound {
     pub from: Address,
     pub payload: Payload,
+    /// The **authenticated** group this message belongs to, set *only* by the
+    /// sender-keys group path after verifying the sender-key binding — never from
+    /// the (attacker-controllable) `payload.group_id`. `None` for a 1:1/geocast/
+    /// onion message. The UI must thread on this, not on `payload.group_id`, or a
+    /// direct message could be spoofed into a group thread.
+    pub group: Option<String>,
 }
 
 struct Port {
@@ -240,6 +246,14 @@ const GEOCAST_PRECISION: usize = 6;
 /// Spray copy budget for a geocast, so it spreads across the whole region rather
 /// than down a single path.
 const GEOCAST_COPIES: u16 = 12;
+/// Hard cap on a geocast's radius (metres) — bounds the covered-cell count so one
+/// call can't flood the mesh.
+const MAX_GEOCAST_RADIUS_M: f64 = 5_000.0;
+/// Hard cap on the number of covering cells (and thus sealed bundles) per geocast.
+const MAX_GEOCAST_CELLS: usize = 64;
+/// Cap on the geocast-delivery dedup set; cleared past this so it can't grow
+/// unbounded under a flood of unique-id geocasts (worst case: a rare re-delivery).
+const MAX_GEOCAST_SEEN: usize = 8_192;
 
 /// How long a gateway announce stays fresh (must exceed `announce_interval` so a
 /// gateway's gradient doesn't lapse between emissions).
@@ -706,8 +720,12 @@ impl NodeEngine {
         payload: Payload,
         now: u64,
     ) -> Vec<Bytes> {
+        // Clamp the radius and cap the covered-cell count so a single call can't
+        // become a mesh-wide amplifier (each cell seals a widely-sprayed bundle).
+        let radius_m = radius_m.clamp(0.0, MAX_GEOCAST_RADIUS_M);
         let center = lifeline_geo::GeoPoint::new(lat, lon);
-        let cells = lifeline_geo::cells_covering(center, radius_m, GEOCAST_PRECISION);
+        let mut cells = lifeline_geo::cells_covering(center, radius_m, GEOCAST_PRECISION);
+        cells.truncate(MAX_GEOCAST_CELLS);
         let mut ids = Vec::new();
         for cell in cells {
             let recipient = lifeline_core::geocast::region_recipient(&cell);
@@ -736,13 +754,21 @@ impl NodeEngine {
         if bundle.dst != lifeline_core::geocast::region_dst(&my_cell) {
             return; // not addressed to our region cell
         }
+        if self.geocast_seen.len() >= MAX_GEOCAST_SEEN {
+            self.geocast_seen.clear(); // bound memory under a unique-id flood
+        }
         if !self.geocast_seen.insert(bundle.bundle_id.clone()) {
             return; // already delivered
         }
         if let Ok(opened) = lifeline_core::geocast::open_region(&my_cell, bundle) {
+            // Moderation applies to geocasts too (FR-48).
+            if self.state.is_blocked(&opened.sender.id) {
+                return;
+            }
             self.inbox.push(Inbound {
                 from: opened.sender.id.clone(),
                 payload: opened.payload,
+                group: None,
             });
         }
     }
@@ -991,9 +1017,17 @@ impl NodeEngine {
         match decrypted {
             Some(pt) => {
                 if let Ok(inner) = from_cbor::<Payload>(&pt) {
+                    // Block enforcement also applies to group messages.
+                    if self.state.is_blocked(&m.owner) {
+                        return;
+                    }
+                    // Thread on the *authenticated* sender-key group (`m.group_id`),
+                    // not the inner payload's self-asserted `group_id` — a member
+                    // must not cross-post a message into a different group thread.
                     self.inbox.push(Inbound {
                         from: m.owner.clone(),
                         payload: inner,
+                        group: Some(m.group_id.clone()),
                     });
                 }
             }
@@ -1497,12 +1531,17 @@ impl NodeEngine {
             }
             Ok(Peeled::Deliver { payload }) => {
                 if let Ok(real) = from_cbor::<Payload>(&payload) {
+                    // Moderation applies to onion-delivered messages too (FR-48).
+                    if self.state.is_blocked(&opened.sender.id) {
+                        return;
+                    }
                     // The origin is hidden by construction; the visible "from" is
                     // the immediate previous hop (the last relay, or the sender
                     // on a direct send).
                     self.inbox.push(Inbound {
                         from: opened.sender.id.clone(),
                         payload: real,
+                        group: None,
                     });
                 }
             }
@@ -1541,7 +1580,8 @@ impl NodeEngine {
             );
             return;
         }
-        self.router.release_custody(&cr.bundle_id);
+        self.router
+            .release_custody(&cr.bundle_id, &opened.sender.id);
     }
 
     fn deliver_message(
@@ -1563,6 +1603,7 @@ impl NodeEngine {
             self.inbox.push(Inbound {
                 from: opened.sender.id.clone(),
                 payload: opened.payload.clone(),
+                group: None, // a direct 1:1 message is never a group thread
             });
         }
         self.state.mark_delivered(bundle.bundle_id.clone());
