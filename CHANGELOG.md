@@ -115,6 +115,32 @@ surface) and hardened it:
   the full suite pass unchanged.
 
 ### Added
+- **Internet-over-mesh gateway (`lifeline-inet`) + reliable-transfer design.** Two
+  disaster-networking directions, grounded in how the internet/WWW were built
+  ([`docs/reliable-transfer-and-internet.md`](docs/reliable-transfer-and-internet.md)).
+  - **Reach the internet *through* a connected node.** A node with real internet
+    (satellite/cell/café Wi-Fi) can let **authorized** users reach it over the mesh
+    — a DTN-appropriate store-and-forward web proxy (`NetRequest`/`NetResponse`),
+    not a live socket tunnel. The security model is the point: **mesh messages
+    stay open to all; internet egress is node-level, capability-authorized.** A
+    gateway performs an actual fetch *only* for identities it has granted
+    (`AccessPolicy`/`AllowList`, revocable), and **refuses everyone else without
+    fetching**, while still relaying their ordinary mesh messages. Hardened against
+    SSRF: only `http`/`https`, never `localhost`/private/loopback/link-local/cloud-
+    metadata targets (`is_safe_url`; the real fetcher must also re-check the
+    resolved IP for DNS-rebinding). Request/response are sealed E2E so relays never
+    see the URL — only the chosen exit does, like a VPN/Tor exit. Tested without a
+    network (authorized→fetched, unauthorized→refused-without-fetch, revoke,
+    SSRF-blocked incl. `169.254.169.254`, public-URL allow). Client proxy + real
+    HTTP fetcher are the integration follow-up.
+  - **Reliable multi-carrier transfer** (design): the "use every carrier, get all
+    data, exactly once" guarantee already falls out of Lifeline's pieces —
+    content-addressing (no-dupe + integrity), a `Manifest` merkle root
+    (completeness via `missing`/`reassemble`), a concurrent multi-interface engine
+    (all carriers, `bundle_id` dedup), and ARQ/reassembly (lossy links) — mapped
+    onto TCP/IP/BitTorrent/IPFS/MPTCP principles. The one identified gap is
+    **swarm (multi-source) fetch**: use set reconciliation to pull each missing
+    chunk from whoever holds it, over any carrier — "BitTorrent-over-DTN."
 - **Range-based set reconciliation (`lifeline-reconcile`) — the differential
   *coding* primitive.** Generalising "differential" from the geo/time
   (estimation) corner to its bigger, information-theoretic form: transmit only the

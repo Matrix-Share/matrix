@@ -1,0 +1,12 @@
+[package]
+name = "lifeline-inet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Internet-over-mesh gateway for Project Lifeline: a node with real internet lets *authorized* users reach it through the mesh (a store-and-forward web proxy). Mesh messages stay open to all; internet egress is node-level, capability-authorized, with SSRF guards. Transport-agnostic core, testable without a network."
+
+[dependencies]
+lifeline-proto = { path = "../proto" }
+serde.workspace = true
+url = "2"
