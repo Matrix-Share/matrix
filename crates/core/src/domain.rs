@@ -43,6 +43,12 @@ pub const RELAY_CREDIT: &[u8] = b"lifeline/v1/relay-credit";
 /// Signature domain for a signed alert (`alert`).
 pub const ALERT: &[u8] = b"lifeline/v1/alert";
 
+/// HKDF salt for deriving a geocast region's X25519 key from its geohash
+/// (`geocast`). Anyone who knows the geohash derives the same key.
+pub const GEOCAST_KEY: &[u8] = b"lifeline/v1/geocast-key";
+/// Prefix for deriving a geocast region's network address from its geohash.
+pub const GEOCAST_ADDR: &[u8] = b"lifeline/v1/geocast-addr";
+
 /// Signature domain for a signed prekey (`prekey`).
 pub const PREKEY_SIGN: &[u8] = b"lifeline/v1/prekey";
 /// Sealed-box `info` for a prekey-sealed message (`prekey`).
@@ -75,6 +81,8 @@ mod tests {
             PREKEY_SIGN,
             PREKEY_SEAL,
             PREKEY_AD,
+            GEOCAST_KEY,
+            GEOCAST_ADDR,
         ];
         for (i, a) in all.iter().enumerate() {
             for b in &all[i + 1..] {

@@ -244,6 +244,36 @@ pub fn cells_for_radius(center: GeoPoint, radius_m: f64) -> Vec<String> {
     cells
 }
 
+/// All geohash cells **of a fixed `precision`** whose union covers a circle of
+/// `radius_m` around `center`. Unlike [`cells_for_radius`] (which varies the
+/// precision), this keeps precision fixed so a receiver can match *its own* cell
+/// against a geocast without any wire field — it just encodes its position at the
+/// same precision. Expands outward in neighbour rings until the radius is covered.
+pub fn cells_covering(center: GeoPoint, radius_m: f64, precision: usize) -> Vec<String> {
+    use std::collections::HashSet;
+    let center_cell = encode(center, precision);
+    let (w, h) = decode_bbox(&center_cell).unwrap().dims_m();
+    let cell_min = w.min(h).max(1.0);
+    let rings = (radius_m / cell_min).ceil() as usize;
+    let mut set: HashSet<String> = HashSet::new();
+    set.insert(center_cell.clone());
+    let mut frontier = vec![center_cell];
+    for _ in 0..rings {
+        let mut next = Vec::new();
+        for c in &frontier {
+            for n in neighbors(c) {
+                if set.insert(n.clone()) {
+                    next.push(n);
+                }
+            }
+        }
+        frontier = next;
+    }
+    let mut out: Vec<String> = set.into_iter().collect();
+    out.sort();
+    out
+}
+
 /// Great-circle distance between two points in metres (haversine).
 pub fn haversine_m(a: GeoPoint, b: GeoPoint) -> f64 {
     const R: f64 = 6_371_000.0; // mean Earth radius, metres

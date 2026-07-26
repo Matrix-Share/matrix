@@ -215,6 +215,11 @@ pub struct NodeEngine {
     pending_fetches: HashMap<Bytes, PendingFetch>,
     /// Objects fully fetched and verified, awaiting the app: `(root_cid, bytes)`.
     fetched: Vec<(Bytes, Vec<u8>)>,
+    /// This node's current position (from GPS), if known — enables receiving
+    /// geocasts ("anyone near here") and, later, geographic routing.
+    my_pos: Option<lifeline_geo::GeoPoint>,
+    /// Bundle ids of geocasts already delivered to our app (dedup).
+    geocast_seen: HashSet<Bytes>,
 }
 
 /// A content object being pulled from a provider over the mesh (FR-13).
@@ -228,6 +233,13 @@ struct PendingFetch {
 
 /// Ticks between re-requesting still-missing blocks of a pending fetch.
 const BLOCK_REREQUEST: u64 = 15;
+
+/// Geohash precision for geocast cells (6 ≈ 1.2 km × 0.6 km). Fixed so a receiver
+/// can match its own cell against a geocast's address without a wire field.
+const GEOCAST_PRECISION: usize = 6;
+/// Spray copy budget for a geocast, so it spreads across the whole region rather
+/// than down a single path.
+const GEOCAST_COPIES: u16 = 12;
 
 /// How long a gateway announce stays fresh (must exceed `announce_interval` so a
 /// gateway's gradient doesn't lapse between emissions).
@@ -304,6 +316,8 @@ impl NodeEngine {
             blocks: BlockStore::new(),
             pending_fetches: HashMap::new(),
             fetched: Vec::new(),
+            my_pos: None,
+            geocast_seen: HashSet::new(),
         }
     }
 
@@ -668,6 +682,71 @@ impl NodeEngine {
     /// Broadcast a plain text message to every known contact — "ask the mesh to
     /// propagate this" (each copy is independently sprayed/carried/relayed).
     /// Returns the ids of the bundles submitted.
+    /// Tell the engine this node's current GPS position, enabling it to receive
+    /// geocasts addressed to its area (and, later, geographic routing).
+    pub fn set_position(&mut self, lat: f64, lon: f64) {
+        self.my_pos = Some(lifeline_geo::GeoPoint::new(lat, lon));
+    }
+
+    /// This node's current position, if set.
+    pub fn position(&self) -> Option<(f64, f64)> {
+        self.my_pos.map(|p| (p.lat, p.lon))
+    }
+
+    /// **Geocast** a payload to everyone within `radius_m` of (`lat`, `lon`) —
+    /// region addressing (FR — "SOS to anyone near here"). The message is sealed
+    /// to a key derived from each covered geohash cell, so any node *in* that cell
+    /// can open it; the sender need not know the recipients or hold their keys.
+    /// Sender identity is authenticated (sealed-sender). Returns the bundle ids.
+    pub fn broadcast_geo(
+        &mut self,
+        lat: f64,
+        lon: f64,
+        radius_m: f64,
+        payload: Payload,
+        now: u64,
+    ) -> Vec<Bytes> {
+        let center = lifeline_geo::GeoPoint::new(lat, lon);
+        let cells = lifeline_geo::cells_covering(center, radius_m, GEOCAST_PRECISION);
+        let mut ids = Vec::new();
+        for cell in cells {
+            let recipient = lifeline_core::geocast::region_recipient(&cell);
+            let mut opts = SealOptions::normal(now).with_priority(Priority::Alert);
+            // Spread widely so it reaches the whole region, not one path.
+            opts.copies_left = GEOCAST_COPIES;
+            if let Ok(bundle) = seal_bundle(&self.identity, &recipient, &payload, &opts) {
+                let id = bundle.bundle_id.clone();
+                self.originate(bundle, now);
+                ids.push(id);
+            }
+        }
+        ids
+    }
+
+    /// If `bundle` is a geocast for the region this node is currently in, open it
+    /// with the derived region key and deliver it (once). A regional broadcast has
+    /// no single recipient, so it is never terminated by unicast delivery — it
+    /// keeps spreading so every node in the region gets it.
+    fn try_geocast_deliver(&mut self, bundle: &Bundle) {
+        let Some(pos) = self.my_pos else { return };
+        if self.origin_ids.contains(&bundle.bundle_id) {
+            return; // our own geocast
+        }
+        let my_cell = lifeline_geo::encode(pos, GEOCAST_PRECISION);
+        if bundle.dst != lifeline_core::geocast::region_dst(&my_cell) {
+            return; // not addressed to our region cell
+        }
+        if !self.geocast_seen.insert(bundle.bundle_id.clone()) {
+            return; // already delivered
+        }
+        if let Ok(opened) = lifeline_core::geocast::open_region(&my_cell, bundle) {
+            self.inbox.push(Inbound {
+                from: opened.sender.id.clone(),
+                payload: opened.payload,
+            });
+        }
+    }
+
     pub fn broadcast_text(&mut self, body: &str, priority: Priority, now: u64) -> Vec<Bytes> {
         let recipients: Vec<IdentityPublic> = self
             .contacts
@@ -1297,9 +1376,13 @@ impl NodeEngine {
     fn handle_ingest(&mut self, bundle: Bundle, src: Option<Address>, now: u64) {
         match self.router.ingest(bundle.clone(), now) {
             IngestOutcome::Delivered => self.on_delivered(bundle, now),
-            // We're now carrying this for someone else. If we're a committed
-            // custodian, sign for it so the previous hop can free its copy.
-            IngestOutcome::Stored => self.maybe_take_custody(&bundle, src, now),
+            // We're now carrying this for someone else. It may also be a geocast
+            // for our region (delivered locally *and* kept spreading). If we're a
+            // committed custodian, sign for it so the previous hop frees its copy.
+            IngestOutcome::Stored => {
+                self.try_geocast_deliver(&bundle);
+                self.maybe_take_custody(&bundle, src, now);
+            }
             _ => {}
         }
     }
