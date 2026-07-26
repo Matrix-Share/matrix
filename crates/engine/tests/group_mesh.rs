@@ -135,3 +135,38 @@ fn multiple_senders_in_a_group() {
         "B must read A's message"
     );
 }
+
+/// Security regression: a **direct** 1:1 message that sets `payload.group_id`
+/// must NOT be threaded as a group message. The engine exposes the *authenticated*
+/// group via `Inbound::group` (set only by the verified sender-keys path), so a
+/// spoofed `group_id` in a plain payload is ignored by the UI threading.
+#[test]
+fn direct_message_cannot_spoof_a_group_thread() {
+    let med = SharedMedium::new();
+    let mut a = NodeEngine::new(Identity::generate(0), EngineConfig::default());
+    let mut b = NodeEngine::new(Identity::generate(0), EngineConfig::default());
+    for e in [&mut a, &mut b] {
+        e.add_interface(Box::new(med.attach(InterfaceCaps::ble())));
+    }
+    a.add_contact(b.public());
+
+    // A direct Text to B, but with a forged group tag impersonating an official thread.
+    let mut payload = text("EVACUATE NOW — order from command");
+    payload.group_id = Some("Rescue Coordination".into());
+    a.submit(&b.public(), payload, lifeline_proto::Priority::Normal, 0);
+
+    let mut got = None;
+    for t in 0..60u64 {
+        for e in [&mut a, &mut b] {
+            e.tick(t);
+        }
+        if let Some(m) = b.take_inbox().into_iter().next() {
+            got = Some(m);
+        }
+    }
+    let m = got.expect("B receives the direct message");
+    assert_eq!(
+        m.group, None,
+        "a direct message must never be attributed to a group thread"
+    );
+}

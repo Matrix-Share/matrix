@@ -7,7 +7,32 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Security
-Fixes from an internal cryptography audit of the E2E core (NFR-1; an independent
+Fixes from a second internal security re-audit, this time of the newer
+message-carrying features (geocast, groups-in-the-node, custody):
+- **Group-thread spoofing (HIGH).** The node threaded inbound messages by the
+  *plaintext* `payload.group_id`, which the sender fully controls — so a **direct
+  or geocast message could be injected into a victim's group thread** (and could
+  fabricate official-looking group threads), defeating the sender-keys
+  authentication at the UI layer. Fixed: `Inbound` now carries an
+  **authenticated** `group`, set *only* by the verified sender-keys path
+  (`m.group_id`), and the UI threads on that — never on `payload.group_id`. A
+  group message is also now dropped if the sender is blocked. Regression test:
+  a direct message with a forged `group_id` is delivered with `group == None`.
+- **Moderation bypass (MED).** Block (FR-48) was enforced only on the direct
+  1:1 delivery path; **geocast- and onion-delivered messages from a blocked key
+  still reached the inbox.** The block check now guards every inbox-delivery path.
+- **Unauthorized custody release (MED).** `release_custody` freed a carried copy
+  on *any* validly-self-signed custody receipt. Because bundle ids travel in the
+  clear, a node could forge a receipt for an id it never received and **strip
+  redundant copies out of the mesh** (a delivery-degradation attack). Now a copy
+  is released only if we **actually offered that bundle to the claimed custodian**
+  (`offered_to`).
+- **Geocast amplification + unbounded state (HIGH/MED).** `broadcast_geo` had no
+  cap on radius/cell-count, so one call could seal hundreds of thousands of
+  widely-sprayed bundles; the geocast dedup set was an unbounded `HashSet`. Now
+  the radius and covering-cell count are clamped, and the dedup set is bounded.
+
+Earlier fixes from an internal cryptography audit of the E2E core (NFR-1; an independent
 audit remains a pre-launch gate):
 - **True sealed sender (HIGH)**: the sender's Ed25519 signature was over the
   relay-visible header and carried in cleartext, so an observer with a suspect
