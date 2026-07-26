@@ -886,6 +886,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lifeline-timesync"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "lifeline-transport"
 version = "0.1.0"
 dependencies = [

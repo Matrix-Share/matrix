@@ -94,10 +94,45 @@ Ranked, each landing on a seam that already exists:
    contacts. *Remaining:* node/UI hookup (browser geolocation → position; an
    "alert an area" send form) and a `GeoRoutingPolicy` that forwards *toward* the
    region (today geocasts spray broadly).
-3. **Differential time-sync beacon.** A GPS-anchor broadcasts disciplined time;
-   GPS-denied nodes estimate offset and correct. Then TDMA slotting + duty-cycle
-   rendezvous on the scarce bearers.
+3. **Differential time sync — core done.** ✅ `lifeline-timesync`: a GPS node is a
+   stratum-1 **reference** that broadcasts its time; GPS-denied nodes discipline
+   their oscillators to it (stratum 2+) and re-broadcast, so corrections propagate
+   hop-by-hop with quality degrading by stratum — *exactly* like DGPS accuracy
+   degrading with baseline. Offset uses a median window so a single high-latency
+   beacon can't skew the clock. Verified: a two-hop chain (GPS → A → B → C) lands
+   C on network time; a closer reference wins; outliers are rejected; stale fixes
+   stop advertising. *Remaining:* wire `advertise()` into the engine beacon +
+   feed received beacons to `observe`, then use the shared clock for TDMA slotting
+   / duty-cycle rendezvous / TESLA broadcast auth.
 4. **Differential-reputation anchors** and **satellite-NTN bearer** as follow-ups.
+
+---
+
+## The differential pattern, applied elsewhere
+
+DGPS is one instance of a reusable pattern: **a reference with ground truth
+cancels correlated error in a noisy shared estimate, by broadcasting a correction
+everyone applies.** Three ingredients — reference, correlated error, broadcast
+channel — and Lifeline has several places that fit:
+
+| Application | The noisy shared estimate | The reference (ground truth) | The correlated error it cancels | Fit / status |
+|---|---|---|---|---|
+| **Time** ✅ | each node's oscillator | a GPS node's time | drift, shared across cheap clocks | built (`lifeline-timesync`) |
+| **Reputation** | black-hole reputation gossip (FR-47) | a known-good community **anchor** | partial views + adversarial defamation (a malicious node smearing an honest one — the audited weakness) | strong; hardens an existing mechanism; buildable |
+| **Positioning** | a GPS-denied node's position | GPS-equipped **anchor** nodes + ranging | shared GNSS-denied conditions | real (cooperative localization); feeds geo-routing; ranging-accuracy caveat |
+| **Congestion / admission** | each node's local view of mesh load | a **gateway** with a broad view | everyone underestimates global load from a local view | good; tunes PoW postage (FR-46) + spray rate; buildable |
+| **Environmental sensing** | crowd-sourced sensor readings (barometric altitude, air quality, radiation) a disaster mesh might carry | a node at **known** conditions | a common bias across nearby sensors — *literally* how SBAS corrects ionospheric delay and aviation corrects barometric altitude (QNH) | the most direct SBAS transfer; novel for a messenger; speculative-but-apt |
+| **Channel / link quality** | each node's bearer-quality estimate | a reference broadcasting observed RF state | shared interference / noise floor | moderate; improves adaptive-bandwidth bearer selection |
+
+(The **gateway gradient** is *already* an instance of this pattern — a reference,
+the gateway, broadcasts and nodes form a corrected distance estimate — so it
+validates the approach rather than being a new application.)
+
+The two worth building next are **differential reputation** (small, and it fixes
+the exact defamation weakness the security audit flagged) and, once positions
+flow, **differential/cooperative positioning** (which unlocks geographic
+routing). Congestion and environmental-sensing corrections are strong
+longer-horizon ideas.
 
 ## Sources
 

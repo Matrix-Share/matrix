@@ -1,0 +1,10 @@
+[package]
+name = "lifeline-timesync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Differential time synchronisation for Project Lifeline — the DGPS pattern applied to clocks: GPS-equipped nodes are references that broadcast corrections, and GPS-denied nodes discipline to them (quality degrading with hop-distance, like DGPS baseline). Gives a mesh a shared clock for TDMA slotting, duty-cycle rendezvous, and broadcast authentication."
+
+[dependencies]
+serde.workspace = true
