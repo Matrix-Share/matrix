@@ -66,6 +66,23 @@ surface) and hardened it:
   the full suite pass unchanged.
 
 ### Added
+- **Geocast — address a *region* instead of an identity (FR — "SOS to anyone
+  near here").** From the geo research: `core::geocast` derives a deterministic
+  keypair from a region's geohash (BitChat-style per-cell key), so a sender seals
+  a message to the region with the ordinary `seal_bundle` and **any node whose GPS
+  position is inside that region** opens it with the derived region key — reaching
+  strangers the sender holds no key for. Sender identity stays authenticated
+  (sealed-sender). No wire-format change: the region is encoded in the bundle's
+  `dst`, matched by the receiver encoding its own position at a fixed geohash
+  precision. The engine gains `set_position`, `broadcast_geo(lat, lon, radius, …)`
+  (seals to every covering cell and sprays widely), and position-gated delivery
+  on ingest — a geocast has no single recipient, so it keeps spreading so every
+  node in the region gets it. Verified end-to-end over the real transport (a node
+  inside the region receives it, one outside doesn't, none are contacts). Honest
+  tradeoff, documented: a geocast is *not* confidential against anyone who knows
+  or guesses the location — the intended semantics of a regional broadcast. Built
+  on the new `lifeline-geo` crate. Node/UI hookup + geographic routing are the
+  next increments ([`docs/geo-and-differential.md`](docs/geo-and-differential.md)).
 - **Complete web app — every engine feature now has a UI.** The browser GUI
   previously covered 1:1 messaging, broadcast, SOS/safe, location, and
   diagnostics. Added full-stack support (Command + API endpoint + engine wiring +

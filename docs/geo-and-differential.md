@@ -83,10 +83,17 @@ Ranked, each landing on a seam that already exists:
    distance. Pure, self-contained, fully tested — the foundation for geo-routing,
    geocast, and the "who's near a location" query. (Mirrors how `lifeline-dht`
    landed: clean library first, wiring next.)
-2. **Geocast wiring.** A region destination on the bundle, a router delivery rule
-   ("deliver if my position ∈ region"), and a `GeoRoutingPolicy` behind the
-   `RoutingPolicy` trait that prefers geographically-closer peers. Needs peer
-   positions in beacons.
+2. **Geocast wiring — core done.** ✅ `core::geocast` derives a deterministic
+   keypair from a region's geohash (BitChat-style), so the sender seals to the
+   region with the ordinary `seal_bundle` and any node *in* the region opens it —
+   no wire-format change (the region is encoded in the bundle's `dst`, matched by
+   the receiver encoding its own position at a fixed precision). The engine gains
+   `set_position` + `broadcast_geo(lat, lon, radius, …)` and position-gated
+   delivery; a geocast has no single recipient so it keeps spreading. Verified
+   end-to-end: a node inside the region receives it, one outside doesn't, none are
+   contacts. *Remaining:* node/UI hookup (browser geolocation → position; an
+   "alert an area" send form) and a `GeoRoutingPolicy` that forwards *toward* the
+   region (today geocasts spray broadly).
 3. **Differential time-sync beacon.** A GPS-anchor broadcasts disciplined time;
    GPS-denied nodes estimate offset and correct. Then TDMA slotting + duty-cycle
    rendezvous on the scarce bearers.

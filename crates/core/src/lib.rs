@@ -35,6 +35,7 @@ pub mod content;
 pub mod crypto;
 pub mod domain;
 pub mod erasure;
+pub mod geocast;
 pub mod group;
 pub mod identity;
 pub mod log;

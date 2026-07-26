@@ -791,6 +791,7 @@ name = "lifeline-engine"
 version = "0.1.0"
 dependencies = [
  "lifeline-core",
+ "lifeline-geo",
  "lifeline-proto",
  "lifeline-router",
  "lifeline-sync",
