@@ -66,6 +66,28 @@ surface) and hardened it:
   the full suite pass unchanged.
 
 ### Added
+- **Range-based set reconciliation (`lifeline-reconcile`) — the differential
+  *coding* primitive.** Generalising "differential" from the geo/time
+  (estimation) corner to its bigger, information-theoretic form: transmit only the
+  **residual against what the peer already knows**. Two nodes converge to the
+  exact **symmetric difference** of their sets (which `bundle_id`s each holds) with
+  communication **proportional to the difference**, not the set size — the core
+  DTN anti-entropy operation done right (it retires the plumbed-but-dead
+  `PeerInfo.known`). **Validated against the literature first** (Minsky–Trachtenberg
+  2003, Eppstein et al. 2011, Meyer 2023; deployed in Dynamo/Cassandra, Bitcoin,
+  Nostr NIP-77): we deliberately chose the **range-based** family over IBLT because
+  IBLT is probabilistic and can *silently omit* elements when mis-sized — a dropped
+  SOS — whereas range-based is **deterministic** (mismatching ranges always recurse
+  to explicit id lists; only a fingerprint collision could miss, made negligible by
+  a **BLAKE3** fingerprint), and it **degrades to O(n)** when sets are disjoint
+  (never worse than today's re-offer). No new integrity attack surface: content
+  stays E2E-authenticated, so a lying peer can only make its own sync incomplete.
+  Tests (5): converges to the exact symmetric difference; identical sets move zero
+  ids in one round; **a 3-item difference between two 1000-item sets moves <100
+  ids**; disjoint sets degrade gracefully and stay correct; empty-set edge. Full
+  framework + validity/inversion analysis in
+  [`docs/differential-transfer.md`](docs/differential-transfer.md). Router
+  contact-time wiring is the next step.
 - **Differential time synchronisation (`lifeline-timesync`) — DGPS, but for
   clocks.** From the differential-GPS research angle. GPS gives precise *time* for
   free, but only with a sky view (useless indoors/underground — the disaster

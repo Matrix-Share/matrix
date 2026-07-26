@@ -1,0 +1,11 @@
+[package]
+name = "lifeline-reconcile"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Range-based set reconciliation for Project Lifeline — the differential-transfer primitive. Two nodes converge to the exact symmetric difference of their sets (e.g. which bundles each holds) with communication proportional to the *difference*, not the set size. Deterministic (no silent omission), collision-resistant BLAKE3 fingerprints, graceful when sets are disjoint."
+
+[dependencies]
+serde.workspace = true
+blake3.workspace = true
