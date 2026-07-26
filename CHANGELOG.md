@@ -66,6 +66,23 @@ surface) and hardened it:
   the full suite pass unchanged.
 
 ### Added
+- **Differential time synchronisation (`lifeline-timesync`) — DGPS, but for
+  clocks.** From the differential-GPS research angle. GPS gives precise *time* for
+  free, but only with a sky view (useless indoors/underground — the disaster
+  case). So a GPS node becomes a stratum-1 **reference** broadcasting its time;
+  GPS-denied nodes **discipline their oscillators** to it (stratum 2) and
+  re-broadcast, becoming references for nodes further out — corrections propagate
+  hop-by-hop with quality degrading by **stratum**, exactly as DGPS accuracy
+  degrades with baseline. A few sky-view nodes become a **timing backbone** for a
+  whole GPS-denied cluster, which unlocks TDMA slotting on the contended bearers,
+  coordinated duty-cycle rendezvous (battery), and loose-sync broadcast
+  authentication (TESLA). The offset estimate uses a **median window** so a single
+  high-latency beacon can't skew the clock. Verified: a two-hop GPS→A→B→C chain
+  lands C on network time, a closer reference wins, outliers are rejected, and a
+  stale fix stops advertising. Pure tested crate; engine beacon wiring is the next
+  step. Also documents **where else the differential pattern fits** — reputation,
+  positioning, congestion, environmental sensing
+  ([`docs/geo-and-differential.md`](docs/geo-and-differential.md)).
 - **Geocast — address a *region* instead of an identity (FR — "SOS to anyone
   near here").** From the geo research: `core::geocast` derives a deterministic
   keypair from a region's geohash (BitChat-style per-cell key), so a sender seals
