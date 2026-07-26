@@ -12,6 +12,7 @@ members = [
     "crates/sim",
     "crates/bridge",
     "crates/dht",
+    "crates/geo",
 ]
 
 [workspace.package]

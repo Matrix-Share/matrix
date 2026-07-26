@@ -1,0 +1,10 @@
+[package]
+name = "lifeline-geo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Geospatial primitives for Project Lifeline: geohash encode/decode, region containment (geocast membership), neighbour/radius coverage, and haversine distance — the foundation for geographic routing and 'deliver to anyone near a location'."
+
+[dependencies]
+serde.workspace = true
