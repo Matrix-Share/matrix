@@ -22,6 +22,27 @@
 //! the clock. This crate is pure logic in whatever integer time unit the caller
 //! uses (milliseconds recommended); the engine wires `advertise()` into a beacon
 //! and feeds received beacons to [`TimeSync::observe`].
+//!
+//! # ⚠️ Security — read before wiring this into anything that gates message life
+//!
+//! Time gates message security: bundle **expiry (TTL)** and **replay/dedup**
+//! windows depend on the clock. A hostile beacon that a victim disciplines to
+//! could otherwise fast-forward its clock to *prematurely expire its whole store*
+//! (including queued SOS) or rewind it to *un-expire replays*. Two defences:
+//!
+//! 1. **The caller MUST authenticate beacons.** `observe` must only be fed
+//!    beacons whose sender is verified and trusted (a paired contact / known
+//!    time-backbone key). An unauthenticated broadcast must never move a clock
+//!    that gates message lifetime. (`stratum` is self-asserted — do not trust it
+//!    for admission, only for tie-breaking among *already-authenticated*
+//!    references.)
+//! 2. **This crate bounds the blast radius**: a single accepted beacon can move
+//!    the clock by at most [`max_step`](TimeSync::with_max_step) (bounded slew),
+//!    and all arithmetic is saturating, so one bad reference cannot jump the clock
+//!    arbitrarily even if it slips past (1).
+//!
+//! Until the caller does (1), keep gating TTL/replay on the raw local clock, not
+//! `corrected()`.
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -30,6 +51,9 @@ use std::collections::VecDeque;
 pub const NO_FIX: u8 = u8::MAX;
 /// Default cap on how far from ground truth we still trust a reference.
 pub const DEFAULT_MAX_STRATUM: u8 = 12;
+/// Default bound on how far one accepted beacon may move the clock (in the
+/// caller's time unit; assumes ms → 60 s). Bounds a hostile-beacon jump.
+pub const DEFAULT_MAX_STEP: i64 = 60_000;
 /// Offset-sample window used for the robust (median) estimate.
 const WINDOW: usize = 8;
 
@@ -55,6 +79,8 @@ pub struct TimeSync {
     /// Local time of the last accepted reference (for staleness).
     last_update: i64,
     max_stratum: u8,
+    /// Max clock movement per accepted beacon (bounded slew) — the security clamp.
+    max_step: i64,
     fixed: bool,
 }
 
@@ -76,8 +102,17 @@ impl TimeSync {
             samples: VecDeque::new(),
             last_update: 0,
             max_stratum,
+            max_step: DEFAULT_MAX_STEP,
             fixed: false,
         }
+    }
+
+    /// Set the per-beacon clock-movement bound (the security clamp). A smaller
+    /// value limits how fast a (hopefully-authenticated) reference can move the
+    /// clock, at the cost of slower convergence to a large genuine correction.
+    pub fn with_max_step(mut self, max_step: i64) -> Self {
+        self.max_step = max_step.max(0);
+        self
     }
 
     /// Declare that this node has **authoritative time** (a GPS fix): it becomes a
@@ -85,7 +120,7 @@ impl TimeSync {
     /// disciplined by others.
     pub fn set_reference(&mut self, gps_time: i64, local_now: i64) {
         self.stratum = 1;
-        self.offset = gps_time - local_now;
+        self.offset = gps_time.saturating_sub(local_now);
         self.samples.clear();
         self.last_update = local_now;
         self.fixed = true;
@@ -109,7 +144,7 @@ impl TimeSync {
         if self.fixed && candidate > self.stratum && !stale {
             return;
         }
-        let sample = beacon.time - local_now;
+        let sample = beacon.time.saturating_sub(local_now);
         if candidate != self.stratum {
             // Switched reference tier — start a fresh estimate window.
             self.samples.clear();
@@ -119,14 +154,27 @@ impl TimeSync {
         while self.samples.len() > WINDOW {
             self.samples.pop_front();
         }
-        self.offset = median(&self.samples);
+        let target = median(&self.samples);
+        if self.fixed {
+            // Bounded slew (security clamp): one accepted beacon can move the clock
+            // by at most `max_step`, so a hostile reference that slips past the
+            // caller's authentication can't fast-forward us to expire the store or
+            // rewind us to un-expire replays. A large *genuine* correction still
+            // converges, just over several beacons.
+            let delta = target
+                .saturating_sub(self.offset)
+                .clamp(-self.max_step, self.max_step);
+            self.offset = self.offset.saturating_add(delta);
+        } else {
+            self.offset = target; // first fix: adopt directly
+        }
         self.last_update = local_now;
         self.fixed = true;
     }
 
     /// Local time corrected to network time.
     pub fn corrected(&self, local_now: i64) -> i64 {
-        local_now + self.offset
+        local_now.saturating_add(self.offset)
     }
 
     /// Our current offset from network time (0 until we have a fix).
@@ -298,6 +346,60 @@ mod tests {
         // C, two hops from GPS, adopts the network time from the beacon it heard
         // (one-way sync, so up to the tiny B→C propagation delay — zero here).
         assert_eq!(c.corrected(7_777), b_beacon.time);
+    }
+
+    #[test]
+    fn a_hostile_beacon_cannot_jump_the_clock_more_than_max_step() {
+        // Client is synced (offset ≈ 500). An attacker beacon claims the time is
+        // 30 days ahead, trying to fast-forward the victim to expire its store.
+        let mut c = TimeSync::new().with_max_step(60_000); // 60 s cap
+        c.observe(
+            TimeBeacon {
+                time: 1_500,
+                stratum: 1,
+            },
+            1_000,
+            STALE,
+        ); // first fix, offset 500
+        let before = c.offset();
+        let attack = 30 * 24 * 3_600 * 1_000i64; // +30 days
+        c.observe(
+            TimeBeacon {
+                time: 1_100 + attack,
+                stratum: 1,
+            },
+            1_100,
+            STALE,
+        );
+        // The offset moved by at most one max_step, not 30 days.
+        assert!(
+            (c.offset() - before).abs() <= 60_000,
+            "one beacon moved the clock by {} (must be ≤ max_step)",
+            c.offset() - before
+        );
+    }
+
+    #[test]
+    fn extreme_beacon_times_do_not_panic() {
+        let mut c = TimeSync::new();
+        c.observe(
+            TimeBeacon {
+                time: i64::MAX,
+                stratum: 1,
+            },
+            0,
+            STALE,
+        );
+        let _ = c.corrected(i64::MAX); // saturating, no overflow panic
+        c.observe(
+            TimeBeacon {
+                time: i64::MIN,
+                stratum: 1,
+            },
+            0,
+            STALE,
+        );
+        let _ = c.corrected(i64::MIN);
     }
 
     #[test]

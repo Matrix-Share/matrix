@@ -23,6 +23,14 @@
 //! Content stays end-to-end-authenticated, so a lying peer can only make its own
 //! sync incomplete — it adds no attack surface on integrity.
 //!
+//! **Security requirements when wiring this in.** (1) A reconciliation exposes
+//! your held `bundle_id`s to the peer — a carriage-graph/metadata leak — so run
+//! it **only over an authenticated, paired-peer link**, never with arbitrary
+//! strangers. (2) The peer fully controls the incoming message: this module is
+//! hardened against a crafted `lo > hi` range (which would otherwise panic) and
+//! caps the ranges/ids it will process per message, but the caller must still
+//! bound the number of rounds per session.
+//!
 //! [`docs/differential-transfer.md`]: https://github.com/nometria/project-lifeline/blob/main/docs/differential-transfer.md
 
 use serde::{Deserialize, Serialize};
@@ -32,6 +40,13 @@ use serde::{Deserialize, Serialize};
 const LIST_THRESHOLD: usize = 16;
 /// Fan-out when splitting a mismatching range.
 const BUCKETS: usize = 16;
+/// Cap on ranges processed from a single incoming (untrusted) message — bounds a
+/// peer that sends a pathologically long message. Honest messages are ≤ a few
+/// hundred (≈ `BUCKETS · depth`).
+const MAX_RANGES_PER_MSG: usize = 4096;
+/// Cap on ids processed from a single range's list — bounds a peer that stuffs an
+/// id list with millions of fabricated ids to burn CPU / grow `wants`.
+const MAX_IDS_PER_RANGE: usize = 65_536;
 
 /// What a peer asserts about one contiguous range `[lo, hi)` of the key order
 /// (`None` bound = unbounded).
@@ -113,7 +128,7 @@ impl<K: Ord + Clone + AsRef<[u8]>> Reconciler<K> {
     /// produce an **empty** response.
     pub fn reconcile(&mut self, incoming: &Message<K>) -> Message<K> {
         let mut out = Message::new();
-        for r in incoming {
+        for r in incoming.iter().take(MAX_RANGES_PER_MSG) {
             match &r.payload {
                 Payload::Fingerprint(their_fp) => {
                     let slice = self.slice(r.lo.as_ref(), r.hi.as_ref());
@@ -133,10 +148,11 @@ impl<K: Ord + Clone + AsRef<[u8]>> Reconciler<K> {
                     }
                 }
                 Payload::IdList(their_ids) => {
+                    let capped = &their_ids[..their_ids.len().min(MAX_IDS_PER_RANGE)];
                     // Scope the immutable slice borrow before touching `wants`.
                     let (missing, mine) = {
                         let slice = self.slice(r.lo.as_ref(), r.hi.as_ref());
-                        (missing_from(slice, their_ids), slice.to_vec())
+                        (missing_from(slice, capped), slice.to_vec())
                     };
                     self.wants.extend(missing);
                     // Reply with our ids so the peer learns *its* misses; resolved.
@@ -147,9 +163,10 @@ impl<K: Ord + Clone + AsRef<[u8]>> Reconciler<K> {
                     });
                 }
                 Payload::IdListFinal(their_ids) => {
+                    let capped = &their_ids[..their_ids.len().min(MAX_IDS_PER_RANGE)];
                     let missing = {
                         let slice = self.slice(r.lo.as_ref(), r.hi.as_ref());
-                        missing_from(slice, their_ids)
+                        missing_from(slice, capped)
                     };
                     self.wants.extend(missing); // resolved — no reply
                 }
@@ -183,7 +200,9 @@ impl<K: Ord + Clone + AsRef<[u8]>> Reconciler<K> {
             Some(hi) => self.items.partition_point(|x| x < hi),
             None => self.items.len(),
         };
-        &self.items[start..end]
+        // A peer fully controls `lo`/`hi`; a crafted `lo > hi` gives `start > end`,
+        // which would panic on `items[start..end]`. Clamp to an empty slice.
+        &self.items[start..end.max(start)]
     }
 
     /// Split a mismatching range into up to [`BUCKETS`] sub-ranges, each carrying
@@ -324,6 +343,26 @@ mod tests {
             x.sort();
             x
         });
+    }
+
+    #[test]
+    fn crafted_inverted_range_does_not_panic() {
+        // A malicious peer sends lo > hi (and an out-of-order id list). Must not
+        // panic (regression: `items[start..end]` with start > end).
+        let mut r = Reconciler::new((0..10).map(key).collect());
+        let evil = vec![
+            Range {
+                lo: Some(key(9)),
+                hi: Some(key(2)),
+                payload: Payload::Fingerprint([0u8; 32]),
+            },
+            Range {
+                lo: Some(key(8)),
+                hi: Some(key(1)),
+                payload: Payload::IdListFinal(vec![key(5), key(3), key(99)]),
+            },
+        ];
+        let _ = r.reconcile(&evil); // just must not panic
     }
 
     #[test]

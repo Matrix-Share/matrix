@@ -9,9 +9,19 @@
 //!
 //! This reuses the entire E2E path unchanged — the "recipient" is simply the
 //! region. Sender identity is still authenticated (sealed-sender), so recipients
-//! learn *who* sent it. The honest tradeoff, identical to BitChat's per-geohash
-//! keys: a geocast is **not confidential against anyone who knows or guesses the
-//! location** — which is the intended semantics of a regional broadcast.
+//! learn *who* sent it, and a geocast cannot be forged in someone else's name.
+//!
+//! **Confidentiality (read this).** A geocast provides essentially **no secrecy
+//! against relays**, and this is stronger than "anyone who guesses the location":
+//! the bundle's `dst` is a deterministic, *reversible* hash of the region geohash,
+//! and the region key is derived from that same public geohash. So **any relay
+//! that merely forwards the ciphertext can reverse `dst` to the ~1 km target cell,
+//! derive the region key, and decrypt the payload + unseal the sender** — it need
+//! not be in the region or guess anything. Treat a geocast as an *authenticated
+//! public regional broadcast*: use it for "SOS/alert to anyone near here", never
+//! for anything that must stay private from the relays carrying it. (This matches
+//! BitChat's per-geohash keys; it is a deliberate tradeoff for reaching strangers
+//! you hold no key for.)
 
 use crate::crypto::hkdf_sha256;
 use crate::message::{open_bundle_kex, Opened};
