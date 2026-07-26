@@ -31,6 +31,30 @@ message-carrying features (geocast, groups-in-the-node, custody):
   cap on radius/cell-count, so one call could seal hundreds of thousands of
   widely-sprayed bundles; the geocast dedup set was an unbounded `HashSet`. Now
   the radius and covering-cell count are clamped, and the dedup set is bounded.
+- **Hardened the not-yet-wired `timesync` + `reconcile` crates before they can be
+  wired.** `reconcile`: a crafted `lo > hi` range would have **panicked** the
+  reconciler (remote crash) — now clamped; added caps on ranges/ids processed per
+  message; documented that it must run only over authenticated links (it exposes
+  held `bundle_id`s). `timesync`: since a hostile time beacon could otherwise seize
+  a victim's clock and expire its whole store / un-expire replays, added a
+  **bounded-slew clamp** (one beacon moves the clock ≤ `max_step`) and saturating
+  arithmetic, plus a prominent doc requirement that **the caller must authenticate
+  beacons** and keep gating TTL/replay on the raw clock until it does.
+- **Documented (accepted design tradeoffs, not code bugs):** (1) a geocast is
+  decryptable by *any relay* on its path (its `dst` is a reversible commitment to
+  the region) — the geocast doc now states this plainly; treat geocast as an
+  authenticated *public* regional broadcast. (2) The cleartext, relay-visible
+  `priority` is authenticated only end-to-end (sealed sender), so an on-path relay
+  can downgrade an SOS; with `require_postage` on this can get it dropped for
+  missing postage. Tracked as a known limitation pending an authenticated
+  routing-header design.
+
+What the re-audit verified **safe**: the core E2E path (true sealed-sender,
+signature-over-immutable-header, sender-address rebinding, forward-secret prekeys,
+bundle-id AD binding, fresh nonces) survived all the recent refactors intact;
+group *cryptographic* attribution (owner==authenticated-sender) holds; forged
+delivery/custody-receipt *signatures* are rejected; inbound dispatch is exhaustive
+and every inbox delivery is from an authenticated sender.
 
 Earlier fixes from an internal cryptography audit of the E2E core (NFR-1; an independent
 audit remains a pre-launch gate):
