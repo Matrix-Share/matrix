@@ -13,28 +13,49 @@
 //!
 //! **Mesh messages are open; internet egress is node-authorized.** Any node
 //! relays any bundle (open store-carry-forward), but a gateway performs an actual
-//! internet fetch **only** for identities it has granted — everyone else is
+//! internet fetch **only** for requests it authorizes — everyone else is
 //! *refused without a fetch*, while their ordinary mesh messages still relay.
 //! This is capability-based access control at the exit, separate from L4 relay.
 //!
+//! Authorization is pluggable via [`AccessPolicy`]. Two policies ship here:
+//! * [`AllowList`] — the simplest: an operator-maintained set of identities, each
+//!   granted full egress. This is the "trivial local issuer" — equivalent to the
+//!   gateway having handed every listed identity a full-scope capability.
+//! * [`CapabilityPolicy`] — the real model: the requester **presents a
+//!   [`capability::Capability`]** (a signed, scoped, *attenuatable*,
+//!   offline-verifiable token), and the gateway authorizes strictly to the
+//!   capability's scope. See the [`capability`] module for why a portable token —
+//!   not a server lookup — is the model that works across a mesh partition.
+//!
 //! Also enforced here, because an exit that fetches arbitrary URLs is an
 //! SSRF/abuse risk:
-//! * requests are answered only for **authorized** requesters ([`AccessPolicy`]);
 //! * only `http`/`https`, and **never** `localhost` / private / loopback /
 //!   link-local targets ([`is_safe_url`]) — the real [`Fetcher`] must additionally
 //!   re-check the *resolved* IP to defeat DNS-rebinding;
-//! * the gateway operator opts in and scopes who may use it (they bear egress
-//!   liability); grants are revocable.
+//! * a per-request response byte ceiling from the capability's scope.
 //!
 //! Request/response bodies are sealed end-to-end between client and gateway with
 //! Lifeline's ordinary E2E path, so relays carrying the bundle never see the URL
 //! or the response — only the gateway (the chosen, trusted exit) does, exactly
 //! like a VPN/Tor exit.
 //!
+//! # No real-time calling — structurally
+//!
+//! In-flight Wi-Fi blocks VoIP with deep packet inspection. Lifeline does not
+//! need to: the transport is store-and-forward request/response, so a persistent
+//! low-latency bidirectional media stream has *no representation* here. "Messages
+//! flow, calls don't" is a property of the DTN, not a policy we maintain — and
+//! [`is_safe_url`] additionally admits only `http`/`https`, never `stun:` /
+//! `turn:` / media schemes.
+//!
 //! This crate is the transport-agnostic, network-free core (testable without any
 //! sockets). The client-side local proxy (an OS HTTP/SOCKS proxy that serialises
 //! app requests into sealed `NetRequest` bundles) and the real HTTP [`Fetcher`]
 //! are the integration layer.
+
+pub mod capability;
+
+pub use capability::{CapError, CapKey, Capability, Scope, ServiceClass};
 
 use lifeline_proto::Address;
 use serde::{Deserialize, Serialize};
@@ -85,13 +106,43 @@ impl NetResponse {
     }
 }
 
-/// Decides which identities a gateway will perform internet fetches for. This is
-/// the *internet-egress* gate — it does **not** affect mesh message relay.
-pub trait AccessPolicy {
-    fn allows(&self, requester: &Address) -> bool;
+/// The context an [`AccessPolicy`] decides over: who is asking, what they want to
+/// fetch, the capability they presented (if any), and the current time.
+pub struct Authz<'a> {
+    pub requester: &'a Address,
+    pub req: &'a NetRequest,
+    pub capability: Option<&'a Capability>,
+    /// Current time, unix seconds (for capability expiry).
+    pub now: u64,
 }
 
-/// The simplest policy: an explicit allow-list the operator grants into.
+/// A policy's verdict on an egress request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Decision {
+    /// Permit the fetch, at this egress class and (optional) response byte
+    /// ceiling.
+    Allow {
+        class: ServiceClass,
+        max_response_bytes: Option<u64>,
+    },
+    /// Refuse; the string is a human-readable reason returned to the requester.
+    Deny(String),
+}
+
+/// Decides whether — and to what scope — a gateway performs an internet fetch.
+/// This is the *internet-egress* gate; it does **not** affect mesh message relay.
+///
+/// This is the Policy Decision Point (PDP) in NIST-zero-trust terms; the
+/// [`InternetGateway`] is the enforcement point (PEP). Keeping them separate lets
+/// the decision logic evolve (add reputation/posture inputs, quota ledgers)
+/// without touching enforcement.
+pub trait AccessPolicy {
+    fn decide(&self, authz: &Authz) -> Decision;
+}
+
+/// The simplest policy: an explicit allow-list the operator grants into. Every
+/// listed identity gets full ([`ServiceClass::Bulk`]) egress; the presented
+/// capability, if any, is ignored. This is the "trivial local issuer."
 #[derive(Debug, Clone, Default)]
 pub struct AllowList {
     allowed: HashSet<Address>,
@@ -101,7 +152,7 @@ impl AllowList {
     pub fn new() -> Self {
         Self::default()
     }
-    /// Grant a requester internet access through this gateway.
+    /// Grant a requester full internet access through this gateway.
     pub fn grant(&mut self, who: Address) {
         self.allowed.insert(who);
     }
@@ -115,8 +166,64 @@ impl AllowList {
 }
 
 impl AccessPolicy for AllowList {
-    fn allows(&self, requester: &Address) -> bool {
-        self.allowed.contains(requester)
+    fn decide(&self, authz: &Authz) -> Decision {
+        if self.allowed.contains(authz.requester) {
+            Decision::Allow {
+                class: ServiceClass::Bulk,
+                max_response_bytes: None,
+            }
+        } else {
+            Decision::Deny("internet access not authorized by this gateway".into())
+        }
+    }
+}
+
+/// The capability model: the requester must **present** a
+/// [`Capability`](capability::Capability) issued (and signed) by an issuer this
+/// gateway trusts, and the request is authorized strictly to the capability's
+/// (possibly attenuated) scope.
+///
+/// The gateway holds only a set of **trusted issuer public keys** — no
+/// per-identity state to provision or sync. Verification is fully offline, so it
+/// works during a partition; attenuation lets a capability be delegated and
+/// narrowed hop-by-hop through the mesh with no issuer contact.
+#[derive(Debug, Clone, Default)]
+pub struct CapabilityPolicy {
+    trusted_issuers: HashSet<capability::VerKey>,
+}
+
+impl CapabilityPolicy {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// Trust capabilities signed by this issuer public key.
+    pub fn trust(&mut self, issuer: capability::VerKey) {
+        self.trusted_issuers.insert(issuer);
+    }
+    /// Stop trusting an issuer (all capabilities it signed become unusable).
+    pub fn untrust(&mut self, issuer: &capability::VerKey) {
+        self.trusted_issuers.remove(issuer);
+    }
+}
+
+impl AccessPolicy for CapabilityPolicy {
+    fn decide(&self, authz: &Authz) -> Decision {
+        let Some(cap) = authz.capability else {
+            return Decision::Deny("no egress capability presented".into());
+        };
+        let host = match host_of(&authz.req.url) {
+            Some(h) => h,
+            None => return Decision::Deny("request URL has no host".into()),
+        };
+        match cap.authorize(authz.requester, &host, &authz.req.method, authz.now, |k| {
+            self.trusted_issuers.contains(k)
+        }) {
+            Ok(g) => Decision::Allow {
+                class: g.class,
+                max_response_bytes: g.max_response_bytes,
+            },
+            Err(e) => Decision::Deny(e.to_string()),
+        }
     }
 }
 
@@ -127,8 +234,8 @@ pub trait Fetcher {
     fn fetch(&self, req: &NetRequest) -> NetResponse;
 }
 
-/// The gateway: authorize → SSRF-check → fetch. Refuses the unauthorized (and
-/// unsafe URLs) **without performing any fetch**.
+/// The gateway: authorize → SSRF-check → fetch → enforce the byte ceiling.
+/// Refuses the unauthorized (and unsafe URLs) **without performing any fetch**.
 pub struct InternetGateway<P: AccessPolicy, F: Fetcher> {
     policy: P,
     fetcher: F,
@@ -139,22 +246,56 @@ impl<P: AccessPolicy, F: Fetcher> InternetGateway<P, F> {
         InternetGateway { policy, fetcher }
     }
 
-    /// Handle a `NetRequest` from `requester`. Never fetches unless the requester
-    /// is authorized *and* the URL is safe.
-    pub fn handle(&self, requester: &Address, req: &NetRequest) -> NetResponse {
-        if !self.policy.allows(requester) {
-            return NetResponse::refused(&req.id, "internet access not authorized by this gateway");
-        }
+    /// Handle a `NetRequest` from `requester`, who may present a `capability`.
+    /// `now` is the current unix time (for capability expiry). Never fetches
+    /// unless the policy permits it *and* the URL is safe.
+    pub fn handle(
+        &self,
+        requester: &Address,
+        req: &NetRequest,
+        capability: Option<&Capability>,
+        now: u64,
+    ) -> NetResponse {
+        let authz = Authz {
+            requester,
+            req,
+            capability,
+            now,
+        };
+        let max_bytes = match self.policy.decide(&authz) {
+            Decision::Allow {
+                max_response_bytes, ..
+            } => max_response_bytes,
+            Decision::Deny(reason) => return NetResponse::refused(&req.id, reason),
+        };
         if let Err(reason) = is_safe_url(&req.url) {
             return NetResponse::refused(&req.id, reason);
         }
-        self.fetcher.fetch(req)
+        let resp = self.fetcher.fetch(req);
+        if let Some(cap) = max_bytes {
+            if resp.body.len() as u64 > cap {
+                return NetResponse::refused(
+                    &req.id,
+                    "response exceeds the capability's byte ceiling",
+                );
+            }
+        }
+        resp
     }
 
-    /// The policy (to grant/revoke on an `AllowList`, etc.).
+    /// The policy (to grant/revoke on an `AllowList`, trust issuers on a
+    /// `CapabilityPolicy`, etc.).
     pub fn policy_mut(&mut self) -> &mut P {
         &mut self.policy
     }
+}
+
+/// Extract the lowercased host from a URL, or `None` if it has none.
+pub fn host_of(raw: &str) -> Option<String> {
+    url::Url::parse(raw).ok().and_then(|u| {
+        u.host_str()
+            .map(|h| h.trim_end_matches('.').to_ascii_lowercase())
+    })
 }
 
 /// SSRF / abuse guard: only allow `http`/`https` to a **public** host. Rejects
@@ -237,14 +378,23 @@ mod tests {
     }
 
     /// A fetcher that records whether it was called (so we can prove the gateway
-    /// never fetches for an unauthorized/unsafe request).
+    /// never fetches for an unauthorized/unsafe request) and can emit a
+    /// controllable body size (to exercise the byte ceiling).
     struct MockFetcher {
         calls: std::cell::Cell<u32>,
+        body_len: usize,
     }
     impl MockFetcher {
         fn new() -> Self {
             MockFetcher {
                 calls: std::cell::Cell::new(0),
+                body_len: 23,
+            }
+        }
+        fn with_body_len(body_len: usize) -> Self {
+            MockFetcher {
+                calls: std::cell::Cell::new(0),
+                body_len,
             }
         }
     }
@@ -255,18 +405,20 @@ mod tests {
                 id: req.id.clone(),
                 status: 200,
                 headers: vec![("content-type".into(), "text/plain".into())],
-                body: b"hello from the internet".to_vec(),
+                body: vec![b'x'; self.body_len],
                 error: None,
             }
         }
     }
+
+    // --- AllowList policy (the trivial local issuer) --------------------------
 
     #[test]
     fn authorized_request_is_fetched() {
         let mut list = AllowList::new();
         list.grant(addr(1));
         let gw = InternetGateway::new(list, MockFetcher::new());
-        let resp = gw.handle(&addr(1), &req("https://example.com/status"));
+        let resp = gw.handle(&addr(1), &req("https://example.com/status"), None, 0);
         assert_eq!(resp.status, 200);
         assert!(resp.error.is_none());
         assert_eq!(gw.fetcher.calls.get(), 1);
@@ -276,7 +428,7 @@ mod tests {
     fn unauthorized_request_is_refused_without_fetching() {
         let list = AllowList::new(); // nobody granted
         let gw = InternetGateway::new(list, MockFetcher::new());
-        let resp = gw.handle(&addr(2), &req("https://example.com"));
+        let resp = gw.handle(&addr(2), &req("https://example.com"), None, 0);
         assert_eq!(resp.status, 0);
         assert!(resp.error.as_deref().unwrap().contains("not authorized"));
         assert_eq!(
@@ -291,9 +443,17 @@ mod tests {
         let mut list = AllowList::new();
         list.grant(addr(3));
         let mut gw = InternetGateway::new(list, MockFetcher::new());
-        assert_eq!(gw.handle(&addr(3), &req("https://ok.example")).status, 200);
+        assert_eq!(
+            gw.handle(&addr(3), &req("https://ok.example"), None, 0)
+                .status,
+            200
+        );
         gw.policy_mut().revoke(&addr(3));
-        assert_eq!(gw.handle(&addr(3), &req("https://ok.example")).status, 0);
+        assert_eq!(
+            gw.handle(&addr(3), &req("https://ok.example"), None, 0)
+                .status,
+            0
+        );
     }
 
     #[test]
@@ -313,7 +473,7 @@ mod tests {
             "file:///etc/passwd",
             "ftp://example.com/",
         ] {
-            let resp = gw.handle(&addr(1), &req(bad));
+            let resp = gw.handle(&addr(1), &req(bad), None, 0);
             assert_eq!(resp.status, 0, "{bad} must be refused");
             assert!(resp.error.is_some(), "{bad} must carry a refusal reason");
         }
@@ -329,5 +489,95 @@ mod tests {
         assert!(is_safe_url("https://example.com/path?q=1").is_ok());
         assert!(is_safe_url("http://93.184.216.34/").is_ok()); // a public IP literal
         assert!(is_safe_url("https://api.weather.gov/alerts").is_ok());
+    }
+
+    #[test]
+    fn voip_style_schemes_have_no_representation() {
+        // Real-time calling can't be expressed as a NetRequest, and even the URL
+        // guard admits only http/https — never media/signalling schemes.
+        for scheme in [
+            "stun:stun.l.google.com:19302",
+            "turn:turn.example.com",
+            "wss://call.example.com",
+        ] {
+            assert!(is_safe_url(scheme).is_err(), "{scheme} must be refused");
+        }
+    }
+
+    // --- CapabilityPolicy (the presented-token model) -------------------------
+
+    fn cap_for(issuer: &CapKey, subject: Address, scope: Scope, nonce: u8) -> Capability {
+        Capability::issue(issuer, subject, scope, issuer.public(), [nonce; 16])
+    }
+
+    #[test]
+    fn capability_policy_authorizes_within_scope() {
+        let issuer = CapKey::generate();
+        let mut policy = CapabilityPolicy::new();
+        policy.trust(issuer.public());
+        let subject = addr(1);
+        let cap = cap_for(
+            &issuer,
+            subject.clone(),
+            Scope::messaging(["whatsapp.net"]),
+            1,
+        );
+        let gw = InternetGateway::new(policy, MockFetcher::new());
+
+        // In-scope host → fetched.
+        let ok = gw.handle(&subject, &req("https://whatsapp.net/send"), Some(&cap), 100);
+        assert_eq!(ok.status, 200);
+        // Out-of-scope host → refused without fetching.
+        let bad = gw.handle(&subject, &req("https://news.example.com"), Some(&cap), 100);
+        assert_eq!(bad.status, 0);
+        assert_eq!(
+            gw.fetcher.calls.get(),
+            1,
+            "only the in-scope request fetched"
+        );
+    }
+
+    #[test]
+    fn capability_policy_refuses_missing_or_untrusted_capability() {
+        let issuer = CapKey::generate();
+        let rogue = CapKey::generate();
+        let mut policy = CapabilityPolicy::new();
+        policy.trust(issuer.public()); // trust only the real issuer
+        let subject = addr(1);
+        let gw = InternetGateway::new(policy, MockFetcher::new());
+
+        // No capability presented.
+        assert_eq!(
+            gw.handle(&subject, &req("https://example.com"), None, 0)
+                .status,
+            0
+        );
+        // A capability from an untrusted issuer.
+        let rogue_cap = cap_for(&rogue, subject.clone(), Scope::full_internet(None), 2);
+        assert_eq!(
+            gw.handle(&subject, &req("https://example.com"), Some(&rogue_cap), 0)
+                .status,
+            0
+        );
+        assert_eq!(gw.fetcher.calls.get(), 0, "neither may reach the fetcher");
+    }
+
+    #[test]
+    fn capability_byte_ceiling_is_enforced_after_fetch() {
+        let issuer = CapKey::generate();
+        let mut policy = CapabilityPolicy::new();
+        policy.trust(issuer.public());
+        let subject = addr(1);
+        let cap = cap_for(
+            &issuer,
+            subject.clone(),
+            Scope::full_internet(Some(100)), // 100-byte ceiling
+            3,
+        );
+        // Fetcher returns a 500-byte body — over the ceiling.
+        let gw = InternetGateway::new(policy, MockFetcher::with_body_len(500));
+        let resp = gw.handle(&subject, &req("https://example.com/big"), Some(&cap), 0);
+        assert_eq!(resp.status, 0);
+        assert!(resp.error.as_deref().unwrap().contains("byte ceiling"));
     }
 }

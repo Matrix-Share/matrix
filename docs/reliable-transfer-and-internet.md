@@ -112,6 +112,9 @@ the universal, DTN-safe base.)
   `AccessPolicy` (allow-list / signed grants / postage-paid quota). An
   unauthorized requester's `NetRequest` is answered with a signed *refusal*, and
   no fetch happens — but that node's ordinary mesh messages still relay normally.
+  The full authorization model — attenuatable, offline-verifiable **capability
+  tokens** and the `ServiceClass` egress tiers — is its own design record:
+  [`capability-egress-and-service-class.md`](capability-egress-and-service-class.md).
 - **SSRF / abuse guards on the exit.** An exit that fetches arbitrary URLs is a
   server-side-request-forgery and abuse risk. The gateway MUST: allow only
   `http`/`https`; reject `localhost`, `*.local/.internal`, and literals in
