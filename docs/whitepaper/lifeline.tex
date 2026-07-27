@@ -1,0 +1,561 @@
+\documentclass[11pt]{article}
+
+% --- Packages (all standard; compiles with a base TeX Live install) --------
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+
+% --- A lightweight convention for "what Lifeline actually implements" ------
+% Named abstractions are set in \abstr{...}; concrete build notes in a box.
+\newcommand{\abstr}[1]{\textsc{#1}}
+\definecolor{buildbg}{RGB}{243,247,250}
+\newcommand{\built}[1]{%
+  \par\vspace{2pt}\noindent\colorbox{buildbg}{%
+    \parbox{\dimexpr\linewidth-2\fboxsep}{\small\textbf{In Lifeline.}~#1}}%
+  \par\vspace{2pt}}
+
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{0.6em}{}
+
+\title{\textbf{Project Lifeline}\\[2pt]
+\large A Content-Addressed, Capability-Governed Delay-Tolerant Mesh\\
+for Offline, End-to-End-Encrypted Emergency Communication}
+\author{The Project Lifeline Contributors}
+\date{Working draft --- \today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Disasters remove exactly the infrastructure that messaging depends on: towers,
+backhaul, power, and the reachable servers that hold our identities and
+authorize our traffic. \emph{Project Lifeline} is a decentralized, offline-first,
+end-to-end-encrypted messenger built as a Delay/Disruption-Tolerant Network
+(DTN)~\cite{rfc4838} that keeps working while partitioned. It composes a
+self-sovereign identity layer, a content-addressed bundle with a Merkle
+manifest, a store-carry-forward router using binary spray-and-wait with custody
+transfer, forward-secret sealed-sender encryption, a Kademlia overlay for online
+discovery, and pluggable bridges to existing ecosystems (Nostr, Meshtastic).
+This paper records the system's architecture and its four principal design
+contributions: (i)~a \emph{residual differential transfer} framework that unifies
+several bandwidth optimizations as $\Delta = Q - \mathbb{E}[Q\,|\,R]$;
+(ii)~\emph{manifest-scoped HAVE swarm fetch}, a BitTorrent-over-DTN gap-fill that
+completes an object from many providers over many carriers with no duplicate
+traffic; (iii)~\emph{source-attributed custody reputation} for passively
+detecting black-hole relays without weakening the delivery guarantee; and
+(iv)~\emph{attenuable egress capabilities} with \emph{service-class} tiers, a
+macaroon/Biscuit-style authorization token that governs internet access through
+a gateway and---crucially for a mesh---is verified fully offline. We give a
+security analysis mapped to a standard threat taxonomy, describe our evaluation
+methodology and the benchmarks the DTN literature expects, and enumerate the
+open problems (independent cryptographic review, comparative evaluation on
+standard mobility traces, and quota/revocation for egress) that gate a
+production deployment.
+\end{abstract}
+
+\tableofcontents
+
+% ===========================================================================
+\section{Introduction}
+% ===========================================================================
+
+The design center of most messaging systems is a reachable server. In a
+disaster---an earthquake, a flood, a grid failure, a deliberate shutdown---that
+assumption is precisely what fails. Project Lifeline targets the regime where
+connectivity is \emph{intermittent, partitioned, and heterogeneous}: some nodes
+share a short-range radio for minutes, some carry data physically between
+partitions, and a lucky few briefly reach the wider internet.
+
+We take the position, following the end-to-end argument~\cite{saltzer1984endtoend}
+and the DTN architecture~\cite{rfc4838,rfc5050,rfc9171}, that reliability,
+security, and authorization must live at the \emph{endpoints and in the data
+they carry}, never in the links or in a server one must reach. Every design
+decision in Lifeline is a consequence of that stance.
+
+\paragraph{Contributions.} This paper documents:
+\begin{enumerate}[leftmargin=1.4em,itemsep=1pt]
+  \item A layered architecture (\S\ref{sec:arch}) whose seams are narrow traits,
+  so a new radio, overlay, or external network is a single implementation.
+  \item Four named contributions: the \abstr{Residual Differential Transfer}
+  framework (\S\ref{sec:diff}), \abstr{Manifest-Scoped HAVE Swarm Fetch}
+  (\S\ref{sec:swarm}), \abstr{Source-Attributed Custody Reputation}
+  (\S\ref{sec:custody}), and \abstr{Attenuable Egress Capabilities} with
+  \abstr{Service-Class} tiers (\S\ref{sec:egress}).
+  \item A security analysis mapped to a standard threat taxonomy
+  (\S\ref{sec:security}) and an evaluation methodology grounded in the DTN
+  benchmarking literature (\S\ref{sec:eval}).
+\end{enumerate}
+
+\paragraph{Status and honesty.} Lifeline is an implemented research system (a
+Rust workspace of 15 crates, $\sim$200 automated tests, and an acceptance
+simulation held to a $\geq 95\%$ delivery target). It has \emph{not} undergone
+independent cryptographic review; where a guarantee is aspirational or a
+mechanism is not yet wired into the live node, we say so explicitly.
+
+% ===========================================================================
+\section{System and Threat Model}\label{sec:model}
+% ===========================================================================
+
+\paragraph{Network model.} The network is a time-varying graph whose edges (a
+BLE contact, a Wi-Fi Aware link, a LoRa hop, an ultrasonic burst, an internet
+tunnel, a bridged relay) appear and vanish. There is no assumption of a
+contemporaneous end-to-end path; delivery is by \emph{store-carry-forward}. Each
+edge type is an \abstr{Interface} with a maximum transmission unit and a
+throughput class.
+
+\paragraph{Adversary.} We assume a Dolev--Yao network adversary that can
+observe, drop, replay, reorder, and inject on any link, plus a fraction of
+malicious \emph{participants} who follow the wire format but misbehave (drop
+bundles they accept, forge control messages, or attempt to spam). We assume the
+endpoints' devices and long-term secret keys are not compromised; the standard
+caveats of seizure and coercion apply and are discussed in \S\ref{sec:security}.
+We explicitly do \emph{not} claim resistance to global traffic
+analysis~\cite{vandenhooff2015vuvuzela,piotrowska2017loopix}.
+
+\paragraph{Goals.} In priority order: (1)~\emph{life-safety delivery}---an SOS
+must move even under spam pressure; (2)~\emph{confidentiality and integrity} of
+message content and, as far as possible, of metadata; (3)~\emph{availability}
+under partition; (4)~\emph{augmentation}, not replacement, of existing networks.
+
+% ===========================================================================
+\section{Architecture}\label{sec:arch}
+% ===========================================================================
+
+Lifeline is organized as five layers, each a thin trait boundary
+(Table~\ref{tab:layers}). The invariant that makes the system tractable is that
+\emph{relays are dumb}: an intermediate node forwards an opaque, sealed
+\abstr{Bundle} and can neither read it nor is trusted to have processed it
+correctly. All correctness is re-established at the recipient.
+
+\begin{table}[t]\centering\small
+\begin{tabular}{@{}p{2.4cm}p{4.2cm}p{6.2cm}@{}}
+\toprule
+\textbf{Layer} & \textbf{Concern} & \textbf{Key abstraction / crate}\\
+\midrule
+L1 Identity & self-sovereign naming & \abstr{Address}$=\mathrm{BLAKE3}(\mathrm{pk})[..16]$ (\texttt{proto}, \texttt{core})\\
+L2 Bundle & sealed unit of transfer & \abstr{Bundle}, \abstr{Manifest}, content id (\texttt{proto}, \texttt{core})\\
+L3 Discovery & find peers / content & Kademlia DHT, geocast, time-sync (\texttt{dht}, \texttt{geo}, \texttt{timesync})\\
+L4 Routing & store-carry-forward & spray-and-wait, custody, attribution (\texttt{router}, \texttt{engine})\\
+L5 Application & messages, groups, gateway & sealed-sender, groups, egress (\texttt{core}, \texttt{inet})\\
+\bottomrule
+\end{tabular}
+\caption{The five layers and where each lives in the Rust workspace. The
+\abstr{Interface}, \abstr{ExternalNet}, and \abstr{AccessPolicy} traits are the
+extension seams: a new carrier, bridged network, or egress policy is one
+\texttt{impl}.}
+\label{tab:layers}
+\end{table}
+
+\built{The narrow waist is the sealed \abstr{Bundle}, mirroring the IP
+hourglass. \texttt{transport::Interface} abstracts a carrier; the engine drives
+every attached interface concurrently and deduplicates by bundle id, so the same
+message riding BLE \emph{and} LoRa is stored once. Adding Meshtastic or Nostr
+required only an \texttt{ExternalNet} implementation, not a change to the core.}
+
+% ===========================================================================
+\section{Identity and the Bundle}\label{sec:bundle}
+% ===========================================================================
+
+\subsection{Self-sovereign identity}
+A node generates an Ed25519 signing key and an X25519 key-agreement key on first
+launch. Its network \abstr{Address} is $\mathrm{BLAKE3}(\text{sign\_pub})[..16]$
+---a 128-bit fingerprint of the public key. There is no registrar, phone number,
+or email: the key \emph{is} the identity, which is what lets identity survive
+when servers do not. Addresses double as the routing destination and the
+Kademlia key, so the same 128-bit space underlies naming and discovery.
+
+\subsection{Content addressing and the manifest}\label{sec:content}
+Large objects are split into fixed-size blocks, each named by its BLAKE3 hash
+---its \emph{content id} (CID)~\cite{benet2014ipfs}. An ordered \abstr{Manifest}
+(itself named by a root CID over the tuple of length, block size, and block
+CIDs) is a Merkle description of the whole object~\cite{merkle1987digsig}. This
+buys three properties for free:
+\begin{itemize}[leftmargin=1.4em,itemsep=1pt]
+  \item \textbf{Intrinsic integrity} --- a received block is trusted only if it
+  hashes to the requested CID; substitution is detected, not assumed away.
+  \item \textbf{Global deduplication} --- identical content yields identical
+  CIDs, so a block is carried once regardless of how many messages reference it
+  or how many carriers deliver it.
+  \item \textbf{A definition of ``done''} --- the object is complete iff the set
+  of manifest CIDs the store is missing is empty; reassembly then verifies the
+  whole object end-to-end.
+\end{itemize}
+For cross-partition resilience a bundle may additionally be protected with
+Reed--Solomon erasure coding~\cite{reed1960polynomial}, so any $k$ of $n$ shards
+reconstruct it even if some never arrive.
+
+% ===========================================================================
+\section{Routing}\label{sec:routing}
+% ===========================================================================
+
+\subsection{Store-carry-forward with binary spray-and-wait}
+Lifeline routes with binary spray-and-wait~\cite{spyropoulos2005sprayandwait}, a
+controlled-replication scheme that bounds the number of copies of a bundle to a
+budget $L$: a node holding $c>1$ copies hands half to a new contact and keeps
+half; a node holding one copy waits to deliver directly. This gives most of the
+delivery probability of epidemic routing~\cite{vahdat2000epidemic} at a small
+fraction of the transmission overhead---the metric that matters on
+battery- and spectrum-limited devices.
+
+\subsection{Priority and postage}
+Bundles carry a \abstr{Priority} $\in\{$SOS, Alert, Normal, Bulk$\}$ that orders
+scheduling. To resist flooding without ever delaying life-safety traffic, Normal
+and Bulk bundles must carry Hashcash-style proof-of-work
+``postage''~\cite{back2002hashcash} whose difficulty scales inversely with
+priority; SOS is exempt (difficulty $0$). A relay verifies postage before
+admitting a low-priority bundle, so a spammer pays $O(2^{k})$ hashes per message
+while a genuine SOS pays nothing.
+
+\subsection{Source-attributed custody reputation}\label{sec:custody}
+Custody transfer~\cite{rfc5050} lets a committed custodian accept responsibility
+for a bundle so an upstream node may free its copy. This creates a
+\emph{black-hole} risk: a malicious custodian accepts custody and silently drops
+the bundle. Detecting misbehavior in a DTN is hard because there is no path and
+no timely acknowledgement.
+
+Our contribution here, \abstr{Source-Attributed Custody Reputation}, exploits a
+structural fact: delivery receipts are sealed to the \emph{original sender}, so
+only the source can verify delivery. The source keeps a ledger mapping
+$\text{bundle} \rightarrow \text{custodian}$ at each custody hand-off; when a
+sealed delivery receipt arrives, it credits the custodians on that bundle's
+path; a custodian that repeatedly takes custody of bundles that never deliver
+(beyond a grace count) is demoted. Demotion only ever \emph{re-routes around} a
+suspected node when an alternative exists---it never drops traffic---so the
+$\geq 95\%$ delivery target is preserved even if the heuristic is wrong.
+
+\built{Implemented in \texttt{router::attribution::ForwardLedger}. It is passive
+(never alters store/forward) and source-local (no global reputation gossip to
+poison), which sidesteps the Sybil/eclipse amplification that plagues shared
+reputation systems (\S\ref{sec:security}).}
+
+% ===========================================================================
+\section{Reliable Multi-Carrier Transfer and Swarm Fetch}\label{sec:swarm}
+% ===========================================================================
+
+The disaster requirement is that an object ride \emph{every} available carrier
+at once and the recipient end up with \emph{all} of it, \emph{exactly once}, over
+links that are lossy and intermittent. The internet's designers solved the
+pieces of this long ago, and content addressing (\S\ref{sec:content}) already
+supplies no-duplication and integrity while the manifest supplies a completeness
+predicate. The remaining gap is \emph{multi-source} acquisition.
+
+\abstr{Manifest-Scoped HAVE Swarm Fetch} closes it, adapting the BitTorrent
+swarm~\cite{cohen2003bittorrent} to a DTN. For an object described by a manifest,
+the fetcher:
+\begin{enumerate}[leftmargin=1.4em,itemsep=1pt]
+  \item sends each candidate provider a \texttt{HaveQuery} listing its still-missing
+  CIDs; a provider answers \texttt{HaveReply} with the subset it holds (a HAVE
+  bitmap scoped to one object, not the whole store);
+  \item requests each missing block from a provider known to hold it, with the
+  choice offset by a per-fetch rotation counter and the block index, so distinct
+  blocks are pulled from distinct providers in the same round;
+  \item on retry, rotates each still-missing block to a \emph{different}
+  provider, routing around a provider that has gone dark or is a black hole.
+\end{enumerate}
+Because at most one provider is asked per block per round, there is no duplicate
+traffic; because blocks are content-addressed, any duplicate that does arrive is
+idempotent; and because the missing set is monotone non-increasing, completion is
+provable. This is the DTN analogue of a rarest-need, multi-source, carrier-
+agnostic download.
+
+\built{\texttt{NodeEngine::fetch\_content\_swarm}. Verified by two tests: two
+providers each holding a disjoint half of the blocks (completion requires
+combining both) and a primary provider that goes dark after first contact
+(completion via the surviving provider). For \emph{whole-store} synchronization
+between peers we instead use range-based set
+reconciliation~\cite{minsky2003setrec,eppstein2011difference}
+(crate \texttt{reconcile}), chosen over IBLTs for its deterministic,
+no-silent-omission behavior.}
+
+% ===========================================================================
+\section{Cryptographic Design}\label{sec:crypto}
+% ===========================================================================
+
+Lifeline composes audited primitives---Ed25519, X25519, HKDF-SHA256,
+XChaCha20-Poly1305, BLAKE3~\cite{oconnor2020blake3}, and
+Argon2id~\cite{biryukov2016argon2} for passphrase-wrapped key backup---and
+invents no new primitive.
+
+\paragraph{Sealed-sender forward-secret envelope.} A message is an
+ephemeral-static sealed box (X25519 + HKDF + XChaCha20-Poly1305) to the
+recipient, with the \emph{sender's signature placed inside the sealed
+plaintext}, so relays learn neither content nor sender. Forward secrecy in the
+present design comes not from a live ratchet---impractical when a sender may be
+offline for days---but from a ring of \emph{rotating prekeys} that bounds the
+window a seized long-term key can decrypt. This is a deliberate, documented
+weakening relative to a full Double Ratchet~\cite{perrin2016doubleratchet}; the
+X3DH-style asynchronous agreement~\cite{marlinspike2016x3dh} is the design
+Lifeline approximates for the store-and-forward setting.
+
+\paragraph{Groups and onion routing.} Groups use sender-keys (each member
+distributes a symmetric sending key sealed to the others), so a message is
+encrypted once and authenticated per sender. An optional onion
+layer~\cite{dingledine2004tor} wraps a bundle so each hop learns only the next,
+hiding the communication graph from any single relay.
+
+% ===========================================================================
+\section{Discovery: Overlay, Geocast, and Time}\label{sec:discovery}
+% ===========================================================================
+
+\paragraph{Kademlia overlay.} When some nodes have connectivity, Lifeline builds
+a Kademlia DHT~\cite{maymounkov2002kademlia} over the 128-bit address space
+($k$-buckets, iterative $\alpha$-parallel \textsc{find\_node}/\textsc{find\_value})
+for locating mailboxes and content providers. The DHT is transport-agnostic
+(a \abstr{DhtRpc} request/response seam) and is explicitly \emph{not} relied upon
+for offline operation.
+
+\paragraph{Geocast.} Geohash~\cite{niemeyer2008geohash} maps a region to a
+base-32 cell; a \emph{region-derived key} lets a sender address ``everyone in
+cell $g$'' by deriving a deterministic keypair from the geohash. We are candid
+that geocast confidentiality is weak by construction (the region commitment is
+reversible), and document it as an addressing convenience, not a privacy
+mechanism.
+
+\paragraph{Differential time synchronization.} With no reachable NTP
+server~\cite{rfc5905}, nodes agree on time by gossiping stratum-tagged beacons
+and applying a bounded-slew median correction. TTL gating on relays requires the
+caller to authenticate beacons first; this is enforced by API contract and noted
+as a hardening dependency.
+
+% ===========================================================================
+\section{Bridging Existing Ecosystems}\label{sec:bridge}
+% ===========================================================================
+
+Lifeline augments rather than replaces. The \abstr{ExternalNet} trait plus a
+\abstr{BridgeInterface} adapter let any external network appear to the engine as
+just another carrier. Two bridges are implemented: a live WebSocket
+client to Nostr relays~\cite{nostrnip01} (using a domain-separated bearer subkey
+so the Nostr identity is unlinkable to the mesh identity), and a Meshtastic
+adapter speaking the ServiceEnvelope/MeshPacket protobuf over
+MQTT~\cite{meshtastic}. Both features are off by default so the base build stays
+lean.
+
+% ===========================================================================
+\section{Capability-Governed Internet Egress}\label{sec:egress}
+% ===========================================================================
+
+A node with real internet can act as an \emph{exit} for others: the mesh becomes
+the access network, that node the gateway, over a store-and-forward request/
+response proxy (not a live socket, which a high-latency DTN cannot sustain). The
+governing requirement is a clean split: \emph{mesh messages are open to all, but
+internet egress is node-authorized}.
+
+The naive model---an allow-list on the gateway---fails in a partition, because
+the gateway cannot reach whatever server provisions the list. Every
+comparable real-world system keeps the authority in a reachable server: cellular
+PCRF, captive-portal RADIUS, and enterprise zero-trust
+proxies~\cite{rose2020ztarch}. Our contribution, \abstr{Attenuable Egress
+Capabilities}, instead puts the authority \emph{in a token the requester
+presents}, following macaroons~\cite{birgisson2014macaroons} and
+Biscuit~\cite{biscuit2021} and building on the Ed25519 we already ship. A
+capability is a signed \emph{grant} plus a signature-chain of narrowing
+\emph{attenuations}, with three properties:
+\begin{enumerate}[leftmargin=1.4em,itemsep=1pt]
+  \item \textbf{Offline verification} --- a gateway that trusts the issuer's
+  public key verifies the token with a signature check and a local clock; no
+  server, works partitioned.
+  \item \textbf{Narrow-only delegation} --- a holder appends a scope caveat
+  (fewer hosts, tighter expiry, smaller byte cap) and passes the token on
+  without contacting the issuer; the verifier conjoins every level, so a caveat
+  can only \emph{remove} authority.
+  \item \textbf{Unstrippable chain} --- each attenuation is signed by the key the
+  previous level delegated to and binds the previous signature, so caveats cannot
+  be reordered, spliced, or stripped.
+\end{enumerate}
+A \abstr{Service-Class} label ($\textsf{LifeSafety}\subset\textsf{Messaging}
+\subset\textsf{Interactive}\subset\textsf{Bulk}$) tiers the egress, the
+exit-side analogue of a 5G network slice or a DiffServ
+class~\cite{rfc2475,foukas2017slicing}; the \textsf{Messaging} tier is the
+zero-rated host-allowlist model familiar from in-flight Wi-Fi. The gateway
+additionally enforces SSRF defenses~\cite{owasp_ssrf}: only
+\texttt{http}/\texttt{https}, and never loopback, private~(RFC~1918),
+link-local, carrier-grade-NAT~\cite{rfc6598}, or cloud-metadata targets, with the
+real fetcher required to re-check the resolved IP against DNS rebinding. Real-time
+calling (VoIP) is blocked \emph{structurally}: a request/response DTN has no
+representation for a persistent bidirectional media stream.
+
+\built{Crate \texttt{inet}. \abstr{AccessPolicy} is a policy-decision point;
+\texttt{AllowList} is the trivial local issuer, \texttt{CapabilityPolicy} holds
+only a set of trusted issuer keys. Twenty tests cover forgery, splicing,
+stripping, expiry, subject-binding, monotone attenuation, offline verification
+across a simulated partition, and the SSRF and byte-ceiling guards.}
+
+% ===========================================================================
+\section{The Residual Differential Transfer Framework}\label{sec:diff}
+% ===========================================================================
+
+Several of Lifeline's optimizations are instances of one idea: never send what
+the receiver can reconstruct from what it already has. Formally, to transfer a
+quantity $Q$ when both parties share a reference $R$, transmit only the residual
+\begin{equation}
+  \Delta \;=\; Q - \mathbb{E}[Q \mid R],
+\end{equation}
+and let the receiver reconstruct $\hat{Q} = \mathbb{E}[Q\mid R] + \Delta$. Two
+dual regimes follow. In the \emph{coding} regime $R$ is shared exactly and
+$\Delta$ is a lossless delta (set reconciliation transmits $O(d\log|U|)$ for a
+symmetric difference of size $d$~\cite{minsky2003setrec}; a manifest transmits
+only missing CIDs). In the \emph{estimation} regime $R$ is a shared predictor and
+$\Delta$ is a correction (differential time-sync transmits an offset against a
+stratum reference, not an absolute clock; differential GPS transmits a local
+correction against a common ephemeris). Recognizing these as one framework let us
+reuse a single mental model---and a single validity check against the
+information-theoretic literature---across time-sync, reconciliation, and content
+delta, rather than re-deriving each. We flag that the framework is a design lens,
+not a novel theorem; the underlying results are classical.
+
+% ===========================================================================
+\section{Security Analysis}\label{sec:security}
+% ===========================================================================
+
+We analyze Lifeline against a taxonomy drawn from STRIDE~\cite{shostack2014threatmodeling}
+and the privacy dimensions of LINDDUN~\cite{deng2011linddun}, plus the
+attacks specific to overlays and DTNs. Table~\ref{tab:threats} summarizes the
+threat, the mechanism, and its residual limitation.
+
+\begin{table}[t]\centering\small
+\begin{tabular}{@{}p{3.1cm}p{6.0cm}p{4.0cm}@{}}
+\toprule
+\textbf{Threat} & \textbf{Mechanism in Lifeline} & \textbf{Residual limitation}\\
+\midrule
+Sybil~\cite{douceur2002sybil} & no shared reputation to inflate; custody
+attribution is source-local (\S\ref{sec:custody}) & DHT population still Sybil-able;
+no proof-of-personhood\\
+Eclipse~\cite{singh2006eclipse,heilman2015eclipse} & Kademlia bucket diversity;
+DHT not trusted offline & bucket-poisoning hardening is future work\\
+Wormhole~\cite{hu2003leashes} & content integrity per CID; onion hides graph &
+no packet leashes; geographic spoofing possible\\
+Black-hole custody & source-attributed reputation, passive demotion
+(\S\ref{sec:custody}) & heuristic; grey-hole (selective drop) harder\\
+Spoofing / tampering & Ed25519 signatures inside the sealed envelope;
+per-CID integrity & key seizure defeats it\\
+DoS / spam & priority-scaled Hashcash postage~\cite{back2002hashcash}; bounded
+buffers & sustained regional flooding\\
+Info disclosure (content) & sealed-sender E2E; onion routing &
+gateway sees egress plaintext (by design)\\
+Metadata / traffic analysis & sealed sender, onion, unlinkable bridge subkeys &
+\emph{not} resistant to a global
+adversary~\cite{vandenhooff2015vuvuzela,piotrowska2017loopix}\\
+Egress abuse (SSRF) & scheme/host guards, resolved-IP recheck~\cite{owasp_ssrf} &
+depends on the real fetcher honoring the contract\\
+Token forgery / escalation & signed, chained, offline-verifiable capabilities
+(\S\ref{sec:egress}) & format needs independent review\\
+\bottomrule
+\end{tabular}
+\caption{Threats, the mechanism addressing each, and the honestly-stated residual
+limitation. Implementation-level defenses (bounded CBOR decoding, decompression-
+bomb limits, zeroization, domain separation) are omitted for space.}
+\label{tab:threats}
+\end{table}
+
+The cautionary reference for this class of system is the break of
+Bridgefy~\cite{albrecht2021bridgefy}, a deployed BLE mesh messenger that offered
+neither authenticity nor confidentiality and permitted tracking and
+impersonation; its failures directly motivate Lifeline's sealed-sender design and
+its refusal to trust relays. We treat an independent cryptographic and protocol
+audit as a launch gate, not an afterthought.
+
+% ===========================================================================
+\section{Evaluation Methodology and Benchmarks}\label{sec:eval}
+% ===========================================================================
+
+\paragraph{What we measure today.} Lifeline ships an in-repo acceptance
+simulation held to a $\geq 95\%$ delivery target across partition, churn, and
+loss scenarios, plus $\sim$200 unit and integration tests exercising each
+subsystem (crypto round-trips, custody, swarm fetch, capability verification).
+This establishes functional correctness and a delivery floor, but it is
+\emph{not} a comparative performance evaluation.
+
+\paragraph{What a comparative evaluation requires.} The DTN literature evaluates
+routing on a standard metric set: delivery ratio, delivery latency, overhead
+(relay) ratio, buffer occupancy, and hop count~\cite{spyropoulos2005sprayandwait,
+vahdat2000epidemic}. The de-facto tool is the ONE
+simulator~\cite{keranen2009one}, driven by synthetic mobility (Random
+Waypoint~\cite{broch1998comparison}, the Working Day Movement
+Model~\cite{ekman2008workingday}) and real contact traces (the CRAWDAD
+\texttt{cambridge/haggle} Bluetooth traces~\cite{crawdad_haggle}, MIT Reality
+Mining~\cite{eagle2006realitymining}). Table~\ref{tab:metrics} lists the metrics
+we plan to report and the comparison baselines (epidemic and spray-and-wait
+routing, and where relevant Meshtastic and Briar's transport). This comparative
+study on standard traces is the principal piece of empirical work still
+outstanding.
+
+\begin{table}[t]\centering\small
+\begin{tabular}{@{}p{3.6cm}p{8.2cm}@{}}
+\toprule
+\textbf{Metric} & \textbf{Definition}\\
+\midrule
+Delivery ratio & fraction of unique messages delivered within TTL\\
+Delivery latency & creation-to-delivery time (median and CDF)\\
+Overhead ratio & $(\text{relayed} - \text{delivered})/\text{delivered}$\\
+Buffer occupancy & per-node storage over time\\
+Transmissions/delivery & energy proxy for battery-limited nodes\\
+Swarm completion time & rounds to complete a $k$-block object vs.\ \# providers\\
+\bottomrule
+\end{tabular}
+\caption{Planned evaluation metrics, following the DTN benchmarking
+literature~\cite{spyropoulos2005sprayandwait,keranen2009one}.}
+\label{tab:metrics}
+\end{table}
+
+% ===========================================================================
+\section{Related Work}\label{sec:related}
+% ===========================================================================
+
+Lifeline sits at the confluence of DTN routing~\cite{rfc4838,vahdat2000epidemic,
+spyropoulos2005sprayandwait}, content-addressed storage~\cite{benet2014ipfs,
+cohen2003bittorrent}, secure messaging~\cite{marlinspike2016x3dh,
+perrin2016doubleratchet}, peer-to-peer overlays~\cite{maymounkov2002kademlia},
+and capability-based authorization~\cite{birgisson2014macaroons,biscuit2021}. It
+differs from deployed mesh messengers in refusing to trust relays (cf.\ the
+Bridgefy break~\cite{albrecht2021bridgefy}), from Meshtastic~\cite{meshtastic} in
+providing end-to-end sealed-sender confidentiality and a routing/custody layer
+rather than a flood, and from server-anchored systems in keeping identity,
+routing, and \emph{authorization} all functional under partition. Its
+anonymity goals are weaker than mixnets~\cite{vandenhooff2015vuvuzela,
+piotrowska2017loopix}, a trade we make deliberately for latency and offline
+operation.
+
+% ===========================================================================
+\section{Limitations and Future Work}\label{sec:future}
+% ===========================================================================
+
+\begin{itemize}[leftmargin=1.4em,itemsep=1pt]
+  \item \textbf{Independent review.} No external cryptographic/protocol audit has
+  been done; the capability token format and the forward-secrecy claim need it.
+  \item \textbf{Comparative evaluation.} A study on standard traces
+  (\S\ref{sec:eval}) against epidemic/spray-and-wait baselines is outstanding.
+  \item \textbf{Egress quota and revocation.} Capabilities enforce a per-response
+  byte ceiling but not yet a cumulative token-bucket quota, and rely on short
+  expiry rather than revocation lists.
+  \item \textbf{Metadata protection.} Traffic-analysis resistance is limited;
+  integrating cover-traffic or mixing~\cite{piotrowska2017loopix} is future work.
+  \item \textbf{Overlay hardening.} Eclipse/bucket-poisoning defenses for the DHT
+  and grey-hole detection for custody remain to be strengthened.
+  \item \textbf{Live wiring.} Time-sync, reconciliation, and geocast exist and
+  are tested as crates but are not yet all driven by the live node.
+\end{itemize}
+
+% ===========================================================================
+\section{Conclusion}
+% ===========================================================================
+
+Project Lifeline shows that a messenger can keep its identity, its delivery
+guarantee, its confidentiality, and even its \emph{authorization decisions}
+working when every server is gone---by moving each of these into the endpoints
+and into the data itself. Content addressing gives integrity and dedup for free;
+a manifest turns ``complete'' into a checkable predicate; swarm fetch turns every
+peer and every carrier into a source; and attenuable capabilities turn internet
+egress into a portable, offline-verifiable right. The remaining work is
+empirical and adversarial: measure it against the field's benchmarks, and subject
+its cryptography to independent attack.
+
+\small
+\bibliographystyle{plain}
+\bibliography{lifeline}
+
+\end{document}
