@@ -228,17 +228,33 @@ pub struct NodeEngine {
     geocast_seen: HashSet<Bytes>,
 }
 
-/// A content object being pulled from a provider over the mesh (FR-13).
+/// A content object being pulled over the mesh (FR-13), possibly from **many**
+/// providers in parallel ("swarm fetch" — BitTorrent-over-DTN). Completeness is
+/// monotone (the missing set only shrinks) and idempotent (blocks are
+/// content-addressed and deduped), so pulling the same object from several peers
+/// over several carriers at once is always safe.
 struct PendingFetch {
     manifest: Manifest,
-    /// Peer we ask for the missing blocks (the content provider).
-    from: Address,
+    /// Peers we may ask for missing blocks. More than one enables multi-source
+    /// gap-fill and lets us route around a provider that has gone dark.
+    providers: Vec<Address>,
+    /// Per-CID set of providers that have *advertised* holding that block (via a
+    /// [`PayloadKind::HaveReply`]). Empty for a CID until someone answers a HAVE
+    /// query; we then fall back to asking all providers.
+    holders: HashMap<Bytes, Vec<Address>>,
+    /// Rotation counter, bumped each retry, so a block that a chosen provider
+    /// failed to deliver is re-asked of a *different* provider next round.
+    rotation: usize,
     /// Last tick we (re-)sent requests, for retransmission of lost requests.
     last_req: u64,
 }
 
 /// Ticks between re-requesting still-missing blocks of a pending fetch.
 const BLOCK_REREQUEST: u64 = 15;
+
+/// Cap on the number of CIDs carried in a single HAVE query/reply, to bound the
+/// size of a swarm-discovery message.
+const MAX_HAVE_CIDS: usize = 4096;
 
 /// Geohash precision for geocast cells (6 ≈ 1.2 km × 0.6 km). Fixed so a receiver
 /// can match its own cell against a geocast's address without a wire field.
@@ -517,26 +533,58 @@ impl NodeEngine {
         manifest
     }
 
+    /// Store a single content-addressed block (e.g. one received out-of-band or
+    /// cached individually), returning its CID. Complements
+    /// [`NodeEngine::store_content`] for callers that hold individual blocks
+    /// rather than a whole object — e.g. a swarm peer that carries only part of
+    /// an object.
+    pub fn store_block(&mut self, block: Vec<u8>) -> Bytes {
+        self.blocks.put(block)
+    }
+
     /// Whether a block is already in our local store (diagnostics / tests).
     pub fn has_block(&self, cid: &Bytes) -> bool {
         self.blocks.has(cid)
     }
 
-    /// Begin fetching the object described by `manifest` from provider `from`
-    /// (FR-13): requests each missing block by CID. Completed objects surface via
-    /// [`NodeEngine::take_fetched_content`]. If we already hold every block (e.g.
-    /// cached), the object completes immediately with no network traffic.
+    /// Begin fetching the object described by `manifest` from a single provider
+    /// `from` (FR-13). Thin wrapper over [`NodeEngine::fetch_content_swarm`].
     pub fn fetch_content(&mut self, manifest: Manifest, from: Address, now: u64) {
+        self.fetch_content_swarm(manifest, vec![from], now);
+    }
+
+    /// Begin **swarm fetching** the object described by `manifest` from any of
+    /// `providers` (FR-13) — the "BitTorrent-over-DTN" path. Each missing block
+    /// is pulled from whichever provider holds it, spread across providers for
+    /// parallelism, and re-asked of a *different* provider on retry so a dark or
+    /// black-hole provider can't stall the transfer. A HAVE query discovers which
+    /// provider holds which block; content-addressing keeps duplicate arrivals
+    /// idempotent. Completed objects surface via
+    /// [`NodeEngine::take_fetched_content`]; if we already hold every block the
+    /// object completes immediately with no traffic.
+    pub fn fetch_content_swarm(&mut self, manifest: Manifest, providers: Vec<Address>, now: u64) {
         let root = manifest.root.clone();
+        // De-duplicate providers, preserving order.
+        let mut seen = HashSet::new();
+        let providers: Vec<Address> = providers
+            .into_iter()
+            .filter(|p| seen.insert(p.clone()))
+            .collect();
         self.pending_fetches.insert(
             root.clone(),
             PendingFetch {
                 manifest,
-                from,
+                providers,
+                holders: HashMap::new(),
+                rotation: 0,
                 last_req: 0,
             },
         );
         self.try_complete_fetches();
+        // Ask every provider which of the still-missing blocks it holds, then
+        // fire the first round of requests (each block to one provider — no
+        // duplication; HAVE replies refine targeting for later rounds).
+        self.send_have_queries(&root, now);
         self.request_missing_blocks(&root, now);
     }
 
@@ -545,21 +593,45 @@ impl NodeEngine {
         std::mem::take(&mut self.fetched)
     }
 
-    /// Send a `BlockRequest` for every still-missing block of a pending fetch to
-    /// its provider (bulk priority — never competes with SOS).
+    /// Request every still-missing block of a pending fetch (bulk priority —
+    /// never competes with SOS), spreading the requests across providers.
+    ///
+    /// For each missing CID we pick a provider that has *advertised* holding it
+    /// (from HAVE replies) if any, else fall back to the whole provider list. The
+    /// choice is offset by the fetch's `rotation` counter and the block's index,
+    /// so (a) different blocks go to different providers in the same round
+    /// (parallel multi-source), and (b) a block a provider failed to deliver is
+    /// re-asked of a *different* provider next round (routes around a dead or
+    /// black-hole provider). No block is requested from more than one provider
+    /// per round, so there is no duplicate traffic; content-addressing makes any
+    /// duplicate arrivals harmless anyway.
     fn request_missing_blocks(&mut self, root: &Bytes, now: u64) {
         let Some(pf) = self.pending_fetches.get(root) else {
             return;
         };
-        let from = pf.from.clone();
         let missing = self.blocks.missing(&pf.manifest);
         if missing.is_empty() {
             return;
         }
-        let Some(provider) = self.contacts.get(&from).cloned() else {
-            return; // provider's key unknown yet — a retry will pick it up
-        };
-        for cid in missing {
+        let rotation = pf.rotation;
+        let all_providers = pf.providers.clone();
+        // Resolve each missing CID to a provider address to ask this round.
+        let mut plan: Vec<(Address, Bytes)> = Vec::new();
+        for (idx, cid) in missing.into_iter().enumerate() {
+            let candidates: &[Address] = match pf.holders.get(&cid) {
+                Some(h) if !h.is_empty() => h,
+                _ => &all_providers,
+            };
+            if candidates.is_empty() {
+                continue;
+            }
+            let who = candidates[(rotation + idx) % candidates.len()].clone();
+            plan.push((who, cid));
+        }
+        for (who, cid) in plan {
+            let Some(provider) = self.contacts.get(&who).cloned() else {
+                continue; // provider's key unknown yet — a retry will pick it up
+            };
             let payload = Payload {
                 kind: PayloadKind::BlockRequest,
                 body: Some(b64url_encode(&cid.0)),
@@ -575,6 +647,120 @@ impl NodeEngine {
         }
         if let Some(pf) = self.pending_fetches.get_mut(root) {
             pf.last_req = now;
+            pf.rotation = pf.rotation.wrapping_add(1);
+        }
+    }
+
+    /// Ask each provider of a pending fetch which of the still-missing blocks it
+    /// holds (a HAVE query), so later rounds target confirmed holders.
+    fn send_have_queries(&mut self, root: &Bytes, now: u64) {
+        let Some(pf) = self.pending_fetches.get(root) else {
+            return;
+        };
+        let missing = self.blocks.missing(&pf.manifest);
+        if missing.is_empty() {
+            return;
+        }
+        let cids: Vec<Vec<u8>> = missing
+            .iter()
+            .take(MAX_HAVE_CIDS)
+            .map(|c| c.0.clone())
+            .collect();
+        let body = match to_cbor(&(root.0.clone(), cids)) {
+            Ok(b) => b64url_encode(&b),
+            Err(_) => return,
+        };
+        let providers = pf.providers.clone();
+        for who in providers {
+            let Some(provider) = self.contacts.get(&who).cloned() else {
+                continue;
+            };
+            let payload = Payload {
+                kind: PayloadKind::HaveQuery,
+                body: Some(body.clone()),
+                coords: None,
+                battery_pct: None,
+                attach: None,
+                group_id: None,
+            };
+            let opts = SealOptions::normal(now).with_priority(Priority::Bulk);
+            if let Ok(b) = seal_bundle(&self.identity, &provider, &payload, &opts) {
+                self.originate(b, now);
+            }
+        }
+    }
+
+    /// Serve an inbound HAVE query: of the queried CIDs, reply with the subset we
+    /// actually hold (bounded), so the asker can target us for those blocks.
+    fn handle_have_query(&mut self, opened: lifeline_core::message::Opened, now: u64) {
+        let Some(body) = opened.payload.body.as_ref() else {
+            return;
+        };
+        let Ok(raw) = b64url_decode(body) else {
+            return;
+        };
+        let Ok((root, cids)): Result<(Vec<u8>, Vec<Vec<u8>>), _> = from_cbor(&raw) else {
+            return;
+        };
+        let have: Vec<Vec<u8>> = cids
+            .into_iter()
+            .take(MAX_HAVE_CIDS)
+            .filter(|c| self.blocks.has(&Bytes::new(c.clone())))
+            .collect();
+        if have.is_empty() {
+            return; // nothing to offer — stay silent
+        }
+        let body = match to_cbor(&(root, have)) {
+            Ok(b) => b64url_encode(&b),
+            Err(_) => return,
+        };
+        let payload = Payload {
+            kind: PayloadKind::HaveReply,
+            body: Some(body),
+            coords: None,
+            battery_pct: None,
+            attach: None,
+            group_id: None,
+        };
+        let opts = SealOptions::normal(now).with_priority(Priority::Bulk);
+        if let Ok(b) = seal_bundle(&self.identity, &opened.sender, &payload, &opts) {
+            self.originate(b, now);
+        }
+    }
+
+    /// Record a HAVE reply: the sender holds these CIDs of a pending fetch, so
+    /// future rounds can target it. Then fire a request round with the new info.
+    fn handle_have_reply(&mut self, opened: lifeline_core::message::Opened, now: u64) {
+        let Some(body) = opened.payload.body.as_ref() else {
+            return;
+        };
+        let Ok(raw) = b64url_decode(body) else {
+            return;
+        };
+        let Ok((root, cids)): Result<(Vec<u8>, Vec<Vec<u8>>), _> = from_cbor(&raw) else {
+            return;
+        };
+        let root = Bytes::new(root);
+        let sender = opened.sender.id.clone();
+        let Some(pf) = self.pending_fetches.get_mut(&root) else {
+            return;
+        };
+        // Only record CIDs that are genuinely part of this object's manifest.
+        let manifest_cids: HashSet<&Bytes> = pf.manifest.blocks.iter().collect();
+        let mut learned = false;
+        for c in cids.into_iter().take(MAX_HAVE_CIDS) {
+            let cid = Bytes::new(c);
+            if !manifest_cids.contains(&cid) {
+                continue;
+            }
+            let holders = pf.holders.entry(cid).or_default();
+            if !holders.contains(&sender) {
+                holders.push(sender.clone());
+                learned = true;
+            }
+        }
+        if learned {
+            self.request_missing_blocks(&root, now);
         }
     }
 
@@ -1486,6 +1672,8 @@ impl NodeEngine {
             PayloadKind::Onion => self.handle_onion(opened, bundle.priority, now),
             PayloadKind::BlockRequest => self.handle_block_request(opened, now),
             PayloadKind::BlockResponse => self.handle_block_response(opened),
+            PayloadKind::HaveQuery => self.handle_have_query(opened, now),
+            PayloadKind::HaveReply => self.handle_have_reply(opened, now),
             // Application payloads delivered to the inbox (+ delivery receipt).
             PayloadKind::Text
             | PayloadKind::Sos
