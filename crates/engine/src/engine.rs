@@ -105,6 +105,10 @@ struct Beacon {
     gw: bool,
     /// The node's current gradient (hops to nearest gateway), if any.
     grad: Option<u16>,
+    /// Differential time beacon, if this node has a fresh time fix. Optional +
+    /// skipped-when-none so it stays wire-compatible with older beacons.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ts: Option<lifeline_timesync::TimeBeacon>,
 }
 
 /// What we've learned about a neighbour from its beacon, used to route downhill.
@@ -226,7 +230,22 @@ pub struct NodeEngine {
     my_pos: Option<lifeline_geo::GeoPoint>,
     /// Bundle ids of geocasts already delivered to our app (dedup).
     geocast_seen: HashSet<Bytes>,
+    /// Differential mesh time (FR — offline clock). Disciplined by neighbour
+    /// beacons and, if present, a local GPS reference. Advisory only: it is used
+    /// for a coarse "mesh time" display and message timestamps, and is **never**
+    /// fed into TTL/expiry or any security decision — beacons are unauthenticated,
+    /// so gating security on them would be a clock-skew attack surface. (The crate
+    /// still bounds each step, limiting drift regardless.)
+    time: lifeline_timesync::TimeSync,
+    /// Addresses this node *explicitly paired* with (added via invite code / QR —
+    /// an out-of-band trust act), as opposed to peers merely auto-discovered from
+    /// a beacon (TOFU presence). Only paired peers are allowed to discipline our
+    /// clock, so a stranger who simply beacons at us cannot skew our time.
+    paired: HashSet<Address>,
 }
+
+/// How long a time fix stays fresh before a node stops advertising / trusting it.
+const TIME_STALE_S: i64 = 3600;
 
 /// A content object being pulled over the mesh (FR-13), possibly from **many**
 /// providers in parallel ("swarm fetch" — BitTorrent-over-DTN). Completeness is
@@ -348,6 +367,8 @@ impl NodeEngine {
             fetched: Vec::new(),
             my_pos: None,
             geocast_seen: HashSet::new(),
+            time: lifeline_timesync::TimeSync::new(),
+            paired: HashSet::new(),
         }
     }
 
@@ -373,6 +394,7 @@ impl NodeEngine {
     /// strictly required — beacons discover peers automatically — but lets a
     /// node send before it has heard the recipient's beacon.
     pub fn add_contact(&mut self, who: IdentityPublic) {
+        self.paired.insert(who.id.clone());
         self.contacts.insert(who.id.clone(), who);
     }
 
@@ -893,6 +915,22 @@ impl NodeEngine {
         self.my_pos.map(|p| (p.lat, p.lon))
     }
 
+    /// Provide an authoritative time (e.g. from a GPS fix), making this node a
+    /// stratum-1 reference that disciplines its neighbours' clocks. `gps_unix` and
+    /// `local_now` are both unix seconds.
+    pub fn set_gps_time(&mut self, gps_unix: i64, local_now: u64) {
+        self.time.set_reference(gps_unix, local_now as i64);
+    }
+
+    /// The node's best estimate of network ("mesh") time in unix seconds, or
+    /// `None` if it has no fix yet. **Advisory** — coarse display/timestamp use
+    /// only; never gate expiry or security on it (beacons are unauthenticated).
+    pub fn mesh_time(&self, local_now: u64) -> Option<i64> {
+        self.time
+            .has_fix()
+            .then(|| self.time.corrected(local_now as i64))
+    }
+
     /// **Geocast** a payload to everyone within `radius_m` of (`lat`, `lon`) —
     /// region addressing (FR — "SOS to anyone near here"). The message is sealed
     /// to a key derived from each covered geohash cell, so any node *in* that cell
@@ -1390,6 +1428,8 @@ impl NodeEngine {
             id: beacon_id,
             gw: self.router.is_gateway(),
             grad: self.router.gradient(now),
+            // Share our time only if we have a fresh fix (else `None`).
+            ts: self.time.advertise(now as i64, TIME_STALE_S),
         })
         .expect("cbor beacon");
         // Announces to gossip onward — throttled to at most once per
@@ -1533,6 +1573,16 @@ impl NodeEngine {
                     // fabricated identities: only learn a *new* peer if we have
                     // room; already-known peers keep updating.
                     let known = self.contacts.contains_key(&b.id.id);
+                    // Discipline our clock only to *explicitly paired* contacts
+                    // (added out-of-band via invite/QR) — never a peer merely
+                    // auto-discovered from a beacon, so a stranger can't skew our
+                    // time. The crate's bounded slew limits damage even so; this
+                    // stays advisory (display/timestamps), not a TTL/security input.
+                    if self.paired.contains(&b.id.id) {
+                        if let Some(tb) = b.ts {
+                            self.time.observe(tb, now as i64, TIME_STALE_S);
+                        }
+                    }
                     if known || self.contacts.len() < MAX_CONTACTS {
                         self.peer_addr.insert((p, peer), b.id.id.clone());
                         self.peer_meta.insert(

@@ -13,6 +13,7 @@ lifeline-router = { path = "../router" }
 lifeline-sync = { path = "../sync" }
 lifeline-transport = { path = "../transport" }
 lifeline-geo = { path = "../geo" }
+lifeline-timesync = { path = "../timesync" }
 serde.workspace = true
 
 [dev-dependencies]
