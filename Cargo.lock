@@ -926,6 +926,7 @@ dependencies = [
  "lifeline-core",
  "lifeline-geo",
  "lifeline-proto",
+ "lifeline-reconcile",
  "lifeline-router",
  "lifeline-sync",
  "lifeline-timesync",

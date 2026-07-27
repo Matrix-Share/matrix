@@ -14,6 +14,7 @@ lifeline-sync = { path = "../sync" }
 lifeline-transport = { path = "../transport" }
 lifeline-geo = { path = "../geo" }
 lifeline-timesync = { path = "../timesync" }
+lifeline-reconcile = { path = "../reconcile" }
 serde.workspace = true
 
 [dev-dependencies]

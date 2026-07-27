@@ -42,6 +42,11 @@ pub enum FrameKind {
     /// A gossiped gateway announce `(GatewayAnnounce, distance)` — lets nodes
     /// build a gradient toward the nearest gateway (FR-36).
     Announce,
+    /// A held-bundle digest: a bounded list of the sender's stored bundle ids,
+    /// so a neighbour can suppress re-offering bundles the sender already holds
+    /// (anti-entropy; §12.3). Bundle ids are already visible on the wire, so this
+    /// leaks nothing new.
+    Digest,
 }
 
 impl FrameKind {
@@ -52,6 +57,7 @@ impl FrameKind {
             FrameKind::State => 2,
             FrameKind::Ack => 3,
             FrameKind::Announce => 4,
+            FrameKind::Digest => 5,
         }
     }
     fn from_u8(v: u8) -> Option<FrameKind> {
@@ -61,6 +67,7 @@ impl FrameKind {
             2 => Some(FrameKind::State),
             3 => Some(FrameKind::Ack),
             4 => Some(FrameKind::Announce),
+            5 => Some(FrameKind::Digest),
             _ => None,
         }
     }
