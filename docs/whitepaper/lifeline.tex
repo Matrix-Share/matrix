@@ -490,32 +490,59 @@ replication. Every message also carries an offline-verifiable delivery proof
 ($100\%$ verified).
 
 \begin{table}[t]\centering\small
-\begin{tabular}{@{}lrrrr@{}}
+\begin{tabular}{@{}lrrrrr@{}}
 \toprule
-\textbf{Strategy} & \textbf{Delivery} & \textbf{Verified} & \textbf{Median lat.} &
-\textbf{Overhead}\\
+\textbf{Strategy} & \textbf{Delivery} & \textbf{Median lat.} & \textbf{Overhead} &
+\textbf{Mean hops} & \textbf{Peak buf.}\\
 \midrule
-Direct delivery (no relay) & $0.0\%$ & $0.0\%$ & --- & $0.00$\\
-Binary spray-and-wait \textbf{(default)} & $100.0\%$ & $100.0\%$ & $90$\,s & $\mathbf{10.0}$\\
-Epidemic flooding & $100.0\%$ & $100.0\%$ & $90$\,s & $24.0$\\
+Direct delivery (no relay) & $0.0\%$ & --- & $0.00$ & --- & $24$\\
+Binary spray-and-wait \textbf{(default)} & $100.0\%$ & $90$\,s & $\mathbf{10.0}$ & $2.75$ & $\mathbf{240}$\\
+Epidemic flooding & $100.0\%$ & $90$\,s & $24.0$ & $2.75$ & $576$\\
 \bottomrule
 \end{tabular}
-\caption{In-repo comparative evaluation (\texttt{cargo run -p lifeline-sim --
-bench}; seed 42, 700 ticks). Overhead = forwarded copies per delivered message.
-Spray-and-wait recovers epidemic's full delivery at $2.4\times$ lower overhead;
-direct delivery establishes the no-relay floor.}
+\caption{Mule-partition scenario (three radio-isolated clusters, one moving mule;
+seed 42, 700 ticks). Overhead = forwarded copies per delivered message; peak buf.
+= peak total bundles stored across all nodes. Direct delivery cannot cross the
+partition; spray-and-wait recovers epidemic's full delivery at $2.4\times$ lower
+overhead \emph{and} buffer. All delivered messages were offline-verified.}
 \label{tab:results}
 \end{table}
 
-\paragraph{What remains.} This baseline is deliberately synthetic. The de-facto
-external tool is the ONE simulator~\cite{keranen2009one}, driven by synthetic
-mobility (Random Waypoint~\cite{broch1998comparison}, the Working Day Movement
-Model~\cite{ekman2008workingday}) and real contact traces (the CRAWDAD
-\texttt{cambridge/haggle} Bluetooth traces~\cite{crawdad_haggle}, MIT Reality
-Mining~\cite{eagle2006realitymining}). Table~\ref{tab:metrics} lists the full
-metric set; extending our harness to ingest these standard traces and to add
-buffer-occupancy and hop-count reporting is the principal empirical work still
-outstanding.
+\paragraph{A Random-Waypoint run.} The harness also drives contacts from a
+mobility model instead of clusters. Table~\ref{tab:rwp} is the canonical Random
+Waypoint setting~\cite{broch1998comparison} (24 nodes roaming a square, in
+contact within radio range). Here the network is intermittently \emph{connected},
+so even no-relay direct delivery eventually reaches $100\%$---but at $5.5\times$
+spray-and-wait's latency. Epidemic shaves a little more latency ($30$ vs.\ $40$\,s)
+but pays $4\times$ the buffer and overhead. Spray-and-wait is again the knee of the
+curve: near-epidemic latency at a quarter of the cost.
+
+\begin{table}[t]\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Strategy} & \textbf{Delivery} & \textbf{Median lat.} & \textbf{Overhead} &
+\textbf{Mean hops} & \textbf{Peak buf.}\\
+\midrule
+Direct delivery (no relay) & $100.0\%$ & $220$\,s & $2.0$ & $1.00$ & $\mathbf{48}$\\
+Binary spray-and-wait \textbf{(default)} & $100.0\%$ & $40$\,s & $\mathbf{11.5}$ & $2.21$ & $276$\\
+Epidemic flooding & $100.0\%$ & $\mathbf{30}$\,s & $46.0$ & $4.04$ & $1104$\\
+\bottomrule
+\end{tabular}
+\caption{Random Waypoint scenario (24 nodes, seed 42, 700 ticks). A connected
+setting: direct delivery reaches everyone eventually but slowly; epidemic is
+marginally fastest at $4\times$ spray-and-wait's buffer and overhead.}
+\label{tab:rwp}
+\end{table}
+
+\paragraph{What remains.} The harness now reports the full metric set
+(Table~\ref{tab:metrics}: delivery, latency, overhead, hop count, buffer
+occupancy) under both cluster and mobility-driven contacts, and it replays an
+explicit contact trace via a \texttt{TraceMobility} driver. The remaining
+empirical work is to feed it \emph{real} traces at scale---the CRAWDAD
+\texttt{cambridge/haggle} Bluetooth traces~\cite{crawdad_haggle} and MIT Reality
+Mining~\cite{eagle2006realitymining} (not vendored here for licensing reasons)---
+and to cross-check against the reference ONE simulator~\cite{keranen2009one} and
+the Working Day Movement Model~\cite{ekman2008workingday}.
 
 \begin{table}[t]\centering\small
 \begin{tabular}{@{}p{3.6cm}p{8.2cm}@{}}
@@ -530,8 +557,9 @@ Transmissions/delivery & energy proxy for battery-limited nodes\\
 Swarm completion time & rounds to complete a $k$-block object vs.\ \# providers\\
 \bottomrule
 \end{tabular}
-\caption{Planned evaluation metrics, following the DTN benchmarking
-literature~\cite{spyropoulos2005sprayandwait,keranen2009one}.}
+\caption{The evaluation metric set, following the DTN benchmarking
+literature~\cite{spyropoulos2005sprayandwait,keranen2009one}. All but
+swarm-completion time are now reported by \texttt{sim::bench}.}
 \label{tab:metrics}
 \end{table}
 

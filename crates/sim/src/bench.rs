@@ -12,6 +12,7 @@
 //! worst overhead, and spray-and-wait recovers most of epidemic's delivery at a
 //! fraction of its overhead.
 
+use crate::mobility::RandomWaypoint;
 use crate::{DeliveryReport, Mule, RoutingStrategy, World};
 
 /// Phones per cluster in the benchmark scenario.
@@ -64,6 +65,29 @@ fn build(strategy: RoutingStrategy, seed: u64) -> World {
     w
 }
 
+/// Build a **Random Waypoint** world under a given strategy: `nodes` roaming a
+/// square, in contact when within radio range (Broch et al.). Every node sends
+/// one message to a pseudo-random peer, so traffic doesn't presuppose the
+/// topology. This is the standard synthetic-mobility evaluation setting; the
+/// same builder accepts a replayed real trace via [`World::set_mobility`].
+fn build_rwp(strategy: RoutingStrategy, seed: u64, nodes: usize) -> World {
+    let mut w = World::new(seed);
+    w.set_strategy(strategy);
+    // 100x100 area, ~5 units/tick, 18-unit radio range: contacts are frequent
+    // but the graph is not a single clique.
+    w.set_mobility(Box::new(RandomWaypoint::new(seed, 100.0, 5.0, 18.0)));
+    for _ in 0..nodes {
+        w.add_node(0, false, vec![]); // cluster ignored under a mobility model
+    }
+    // Deterministic pseudo-random sender→recipient pairing (no self-sends).
+    for i in 0..nodes {
+        let to = (i.wrapping_mul(7).wrapping_add(3)) % nodes;
+        let to = if to == i { (to + 1) % nodes } else { to };
+        w.send_text(i, to, "are you safe?");
+    }
+    w
+}
+
 /// One strategy's result.
 #[derive(Debug, Clone)]
 pub struct BenchRow {
@@ -71,7 +95,7 @@ pub struct BenchRow {
     pub report: DeliveryReport,
 }
 
-/// Run the comparison across all strategies for `ticks`, at a fixed `seed`.
+/// Run the mule-partition comparison across all strategies for `ticks`.
 pub fn run_comparison(seed: u64, ticks: u64) -> Vec<BenchRow> {
     STRATEGIES
         .iter()
@@ -83,26 +107,42 @@ pub fn run_comparison(seed: u64, ticks: u64) -> Vec<BenchRow> {
         .collect()
 }
 
-/// Render a comparison as a fixed-width table.
+/// Run the Random-Waypoint comparison across all strategies for `ticks`.
+pub fn run_comparison_rwp(seed: u64, ticks: u64, nodes: usize) -> Vec<BenchRow> {
+    STRATEGIES
+        .iter()
+        .map(|&strategy| {
+            let mut w = build_rwp(strategy, seed, nodes);
+            let report = w.run(ticks);
+            BenchRow { strategy, report }
+        })
+        .collect()
+}
+
+/// Render a comparison as a fixed-width table with the full DTN metric set.
 pub fn format_table(rows: &[BenchRow]) -> String {
     let mut out = String::new();
     out.push_str(&format!(
-        "{:<16} {:>9} {:>10} {:>12} {:>12} {:>10}\n",
-        "strategy", "delivery", "verified", "mean-lat(s)", "median(s)", "overhead"
+        "{:<16} {:>9} {:>11} {:>9} {:>9} {:>10} {:>10}\n",
+        "strategy", "delivery", "median-lat", "overhead", "mean-hops", "peak-buf", "mean-buf"
     ));
-    out.push_str(&format!("{}\n", "-".repeat(72)));
+    out.push_str(&format!("{}\n", "-".repeat(78)));
     for r in rows {
         out.push_str(&format!(
-            "{:<16} {:>8.1}% {:>9.1}% {:>12.0} {:>12} {:>10.2}\n",
+            "{:<16} {:>8.1}% {:>9}s {:>9.2} {:>9.2} {:>10} {:>10.1}\n",
             strategy_name(r.strategy),
             r.report.pct_delivered(),
-            r.report.pct_verified(),
-            r.report.mean_latency_s(),
             r.report.median_latency_s(),
             r.report.overhead_ratio(),
+            r.report.mean_hops(),
+            r.report.peak_buffer,
+            r.report.mean_buffer,
         ));
     }
-    out.push_str("\noverhead = forwarded copies per delivered message (lower is cheaper).\n");
+    out.push_str(
+        "\noverhead = forwarded copies per delivered message; peak/mean-buf = total\n\
+         bundles stored across all nodes (lower is cheaper on both).\n",
+    );
     out
 }
 
@@ -146,5 +186,49 @@ mod tests {
         // Spray-and-wait recovers most of epidemic's delivery (within the same
         // partitioned scenario both rely on the mule to cross partitions).
         assert!(spray.report.delivered > 0);
+    }
+
+    #[test]
+    fn random_waypoint_comparison_reports_full_metrics() {
+        let rows = run_comparison_rwp(3, 500, 16);
+        assert_eq!(rows.len(), 3);
+        let by = |s: RoutingStrategy| rows.iter().find(|r| r.strategy == s).unwrap();
+        let spray = by(RoutingStrategy::SprayAndWait);
+        let epidemic = by(RoutingStrategy::Epidemic);
+        let direct = by(RoutingStrategy::Direct);
+
+        // Relaying should deliver at least as much as no-relay direct delivery.
+        assert!(spray.report.delivered >= direct.report.delivered);
+        // Epidemic floods, so it never uses less buffer or fewer transmissions
+        // than spray-and-wait for the same delivered set.
+        assert!(epidemic.report.peak_buffer >= spray.report.peak_buffer);
+        assert!(epidemic.report.overhead_ratio() >= spray.report.overhead_ratio());
+        // The new metrics are populated for anything delivered.
+        if spray.report.delivered > 0 {
+            assert!(spray.report.mean_hops() >= 1.0);
+            assert!(spray.report.peak_buffer > 0);
+        }
+    }
+
+    #[test]
+    fn trace_driven_delivery_over_a_relay_chain() {
+        use crate::mobility::TraceMobility;
+        // A hand-authored 3-node contact trace: 0 meets 1 early, 1 meets 2 later.
+        // A message 0→2 can only arrive by being relayed through 1 (store-carry-
+        // forward), exercising the trace-replay path end to end.
+        let mut w = World::new(1);
+        w.set_mobility(Box::new(TraceMobility::from_events([
+            (2, 0, 1),
+            (3, 0, 1),
+            (10, 1, 2),
+            (11, 1, 2),
+        ])));
+        for _ in 0..3 {
+            w.add_node(0, false, vec![]);
+        }
+        w.send_text(0, 2, "relayed via 1");
+        let report = w.run(30);
+        assert_eq!(report.delivered, 1, "trace-relayed message must arrive");
+        assert!(report.hops.first().copied().unwrap_or(0) >= 1);
     }
 }

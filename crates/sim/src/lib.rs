@@ -14,6 +14,7 @@
 //! verification.
 
 pub mod bench;
+pub mod mobility;
 pub mod scenarios;
 mod world;
 

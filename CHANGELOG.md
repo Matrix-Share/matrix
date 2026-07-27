@@ -6,6 +6,26 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Mobility-model & trace-driven evaluation + full DTN metric set
+  (`lifeline-sim`).** Extends the comparative harness beyond the cluster/mule
+  scenario:
+  - New `mobility` module: `RandomWaypoint` (the canonical synthetic model —
+    nodes roam a square, in contact within radio range) and `TraceMobility`,
+    which replays an explicit `(tick, a, b)` contact list so a real trace
+    (CRAWDAD Haggle, Reality Mining) can be converted and fed in verbatim (the
+    ingestion path ships; copyrighted trace data is not vendored).
+    `World::set_mobility` swaps either in for the cluster contact model.
+  - `DeliveryReport` now also reports **hop count** (`mean_hops`) and **buffer
+    occupancy** (`peak_buffer`, `mean_buffer`) — completing the DTN standard
+    metric set (delivery, latency, overhead, hops, buffer).
+  - `bench::run_comparison_rwp` and the `-- bench` binary print a second
+    Random-Waypoint table. Measured (seed 42, 24 nodes): direct delivery reaches
+    100% but at 5.5× spray-and-wait's latency; epidemic is marginally faster than
+    spray (30 vs 40 s) at **4× the buffer and overhead** — spray-and-wait is the
+    knee of the curve. Three new tests (RWP metrics, deterministic RWP,
+    trace-relay delivery).
+
 ### Security
 - **Overlay hardening: eclipse resistance + grey-hole custody detection.**
   - **DHT eclipse guard (`lifeline-dht`).** A k-bucket now caps how many slots a

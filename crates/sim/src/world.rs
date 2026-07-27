@@ -110,6 +110,8 @@ struct SentMessage {
     /// Tick at which the message was submitted (for latency).
     sent_tick: u64,
     delivered_tick: Option<u64>,
+    /// Hop count of the copy that was delivered (hop-count metric).
+    delivered_hops: Option<u16>,
     verified_tick: Option<u64>,
 }
 
@@ -129,6 +131,12 @@ pub struct DeliveryReport {
     /// Per-delivered-message latency in **seconds** (delivered − sent), the DTN
     /// standard metric. Sorted ascending.
     pub latencies_s: Vec<u64>,
+    /// Hop count of each delivered message (the delivered copy's `hops`).
+    pub hops: Vec<u16>,
+    /// Peak total store occupancy (bundles across all nodes at any tick).
+    pub peak_buffer: usize,
+    /// Mean total store occupancy across ticks.
+    pub mean_buffer: f64,
 }
 
 impl DeliveryReport {
@@ -174,6 +182,15 @@ impl DeliveryReport {
             self.latencies_s[self.latencies_s.len() / 2]
         }
     }
+
+    /// Mean hop count over delivered messages.
+    pub fn mean_hops(&self) -> f64 {
+        if self.hops.is_empty() {
+            0.0
+        } else {
+            self.hops.iter().map(|&h| h as u64).sum::<u64>() as f64 / self.hops.len() as f64
+        }
+    }
 }
 
 /// The simulated world.
@@ -193,6 +210,15 @@ pub struct World {
     erasure_sent: Vec<ErasureSent>,
     /// Forwarding strategy for routers added afterward (evaluation harness).
     strategy: RoutingStrategy,
+    /// Optional mobility model driving contacts (evaluation harness). When set,
+    /// it replaces the cluster-based contact model.
+    mobility: Option<Box<dyn crate::mobility::Mobility>>,
+    /// Peak total store occupancy (bundles) observed across all nodes at any tick.
+    peak_buffer: usize,
+    /// Running sum of per-tick total store occupancy, and the sample count, for
+    /// the mean.
+    buffer_sum: u64,
+    buffer_samples: u64,
     rng: StdRng,
 }
 
@@ -216,6 +242,10 @@ impl World {
             loss: 0.0,
             erasure_sent: Vec::new(),
             strategy: RoutingStrategy::default(),
+            mobility: None,
+            peak_buffer: 0,
+            buffer_sum: 0,
+            buffer_samples: 0,
             rng: StdRng::seed_from_u64(seed),
         }
     }
@@ -224,6 +254,13 @@ impl World {
     /// harness). Call before [`World::add_node`].
     pub fn set_strategy(&mut self, strategy: RoutingStrategy) {
         self.strategy = strategy;
+    }
+
+    /// Drive contacts from a [`Mobility`](crate::mobility::Mobility) model
+    /// (Random Waypoint, a replayed trace) instead of the cluster model
+    /// (evaluation harness).
+    pub fn set_mobility(&mut self, mobility: Box<dyn crate::mobility::Mobility>) {
+        self.mobility = Some(mobility);
     }
 
     /// Set a per-handoff bundle loss probability in `[0,1]` (FR-28 / Problem C:
@@ -301,6 +338,7 @@ impl World {
             original: bundle,
             sent_tick: self.tick,
             delivered_tick: None,
+            delivered_hops: None,
             verified_tick: None,
         });
         id
@@ -391,7 +429,16 @@ impl World {
         for n in &mut self.nodes {
             n.router.tick(self.now);
         }
+        self.sample_buffer_occupancy();
         self.tick += 1;
+    }
+
+    /// Sample total store occupancy across all nodes (buffer-occupancy metric).
+    fn sample_buffer_occupancy(&mut self) {
+        let total: usize = self.nodes.iter().map(|n| n.router.stats().store_len).sum();
+        self.peak_buffer = self.peak_buffer.max(total);
+        self.buffer_sum = self.buffer_sum.saturating_add(total as u64);
+        self.buffer_samples += 1;
     }
 
     /// Update mule cluster placement from their routes.
@@ -425,9 +472,26 @@ impl World {
         }
     }
 
-    /// Run all opportunistic contacts this tick: nodes co-located in the same
+    /// Run all opportunistic contacts this tick. If a mobility model is set, it
+    /// supplies the in-contact pairs; otherwise nodes co-located in the same
     /// cluster can exchange (models BLE/Wi-Fi-Aware in-range links).
     fn run_contacts(&mut self) {
+        // Mobility-driven contacts (evaluation harness): take the model out to
+        // avoid borrowing `self` twice, get this tick's pairs, put it back.
+        if self.mobility.is_some() {
+            let mut mob = self.mobility.take();
+            let pairs = mob
+                .as_mut()
+                .map(|m| m.contacts(self.tick, self.nodes.len()))
+                .unwrap_or_default();
+            self.mobility = mob;
+            for (a, b) in pairs {
+                if a < self.nodes.len() && b < self.nodes.len() && a != b {
+                    self.exchange(a, b);
+                }
+            }
+            return;
+        }
         // Group node indices by current cluster.
         let mut by_cluster: HashMap<usize, Vec<usize>> = HashMap::new();
         for (i, n) in self.nodes.iter().enumerate() {
@@ -583,6 +647,7 @@ impl World {
         {
             if sm.delivered_tick.is_none() {
                 sm.delivered_tick = Some(tick);
+                sm.delivered_hops = Some(bundle.hops);
             }
         }
         self.nodes[idx].log_event(LogEvent::Received, &bundle.bundle_id, now);
@@ -669,6 +734,12 @@ impl World {
             })
             .collect();
         latencies_s.sort_unstable();
+        let hops: Vec<u16> = self.sent.iter().filter_map(|s| s.delivered_hops).collect();
+        let mean_buffer = if self.buffer_samples == 0 {
+            0.0
+        } else {
+            self.buffer_sum as f64 / self.buffer_samples as f64
+        };
         DeliveryReport {
             sent: self.sent.len(),
             delivered,
@@ -679,6 +750,9 @@ impl World {
             dropped_expired: expired,
             dropped_nopostage: nopostage,
             latencies_s,
+            hops,
+            peak_buffer: self.peak_buffer,
+            mean_buffer,
         }
     }
 
