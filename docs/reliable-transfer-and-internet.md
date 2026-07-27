@@ -45,22 +45,33 @@ So the *core* of Part 1 is **already in place** — it falls straight out of
 content-addressing (no-dupe + integrity) + a manifest (completeness) + a
 multi-interface engine (all carriers) + ARQ/reassembly (lossy links).
 
-### The one genuine gap: **swarm (multi-source) fetch**
+### The one genuine gap: **swarm (multi-source) fetch** — now built
 
-Today `fetch_content(manifest, from)` pulls missing blocks from **one** named
-provider. The BitTorrent lesson is to pull the gap from **whoever has it, over
-whatever carrier, in parallel**. The enhancement, using pieces we now have:
+Previously `fetch_content(manifest, from)` pulled missing blocks from **one**
+named provider. The BitTorrent lesson is to pull the gap from **whoever has it,
+over whatever carrier, in parallel**. This is now implemented as
+`NodeEngine::fetch_content_swarm(manifest, providers, now)`:
 
-1. At contact, **reconcile** the block-store CID sets (`lifeline-reconcile`) →
-   learn which of *my* missing CIDs *this* peer holds (difference-sized exchange).
-2. Request those CIDs from that peer (already solicited + CID-verified).
-3. Repeat opportunistically with every peer over every carrier; completeness is
-   monotone (the `missing` set only shrinks) and idempotent (CID dedup), so
-   parallel/duplicate fetches are safe and the object provably completes.
+1. **HAVE discovery.** The fetcher sends each provider a `HaveQuery` listing the
+   still-missing CIDs of the object; a provider answers `HaveReply` with the
+   subset it holds. The fetcher records a per-CID holder set — a BitTorrent-style
+   HAVE bitmap, but scoped to one object's manifest.
+2. **Spread + rotate.** Each missing block is requested from a provider known to
+   hold it (else any provider), with the choice offset by a per-fetch rotation
+   counter and the block index — so different blocks go to different providers in
+   the same round (parallel multi-source), and a block a provider failed to
+   deliver is re-asked of a *different* provider next round (routes around a dark
+   or black-hole provider). No block is requested from more than one provider per
+   round, so there is no duplicate traffic.
+3. **Monotone + idempotent.** Completeness only ever grows (the `missing` set
+   shrinks) and blocks are content-addressed, so parallel/duplicate arrivals are
+   harmless and the object provably completes.
 
-This is "BitTorrent-over-DTN": a rarest-first-ish, multi-source, carrier-agnostic
-gap fill on top of the existing manifest + reconciliation. It's the natural next
-build after wiring reconciliation into contacts.
+Verified by `swarm_pulls_disjoint_blocks_from_two_providers` (two providers each
+holding half the blocks — completion *requires* both) and
+`swarm_routes_around_a_dead_provider` (the primary provider goes dark; the fetch
+completes via the live one). `lifeline-reconcile` remains the tool for
+*whole-store* CID-set sync between peers; HAVE queries are the per-object case.
 
 ---
 

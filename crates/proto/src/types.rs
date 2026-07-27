@@ -239,6 +239,15 @@ pub enum PayloadKind {
     /// A content-addressed block in reply to a request (FR-13): body carries the
     /// `(cid, bytes)` so the receiver can verify the hash before storing.
     BlockResponse = 11,
+    /// Swarm fetch (FR-13): "of these block CIDs of object `root`, which do you
+    /// hold?" Body is CBOR `(root, [cid])`. Lets a fetcher discover which of many
+    /// peers can serve each missing block — BitTorrent-style HAVE discovery.
+    HaveQuery = 12,
+    /// Swarm fetch (FR-13): the answer to a [`HaveQuery`] — the subset of the
+    /// queried CIDs the replier actually holds. Body is CBOR `(root, [cid])`.
+    ///
+    /// [`HaveQuery`]: PayloadKind::HaveQuery
+    HaveReply = 13,
     /// A payload type this build does not understand (a value from a newer peer).
     /// Never constructed locally; the engine drops it. Reserved discriminant so
     /// it round-trips distinctly from any real kind.
@@ -260,6 +269,8 @@ impl From<u8> for PayloadKind {
             9 => PayloadKind::Onion,
             10 => PayloadKind::BlockRequest,
             11 => PayloadKind::BlockResponse,
+            12 => PayloadKind::HaveQuery,
+            13 => PayloadKind::HaveReply,
             _ => PayloadKind::Unknown,
         }
     }
@@ -429,6 +440,8 @@ mod tests {
             PayloadKind::Text,
             PayloadKind::Custody,
             PayloadKind::BlockResponse,
+            PayloadKind::HaveQuery,
+            PayloadKind::HaveReply,
         ] {
             assert_eq!(from_cbor::<PayloadKind>(&to_cbor(&k).unwrap()).unwrap(), k);
         }

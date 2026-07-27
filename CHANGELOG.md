@@ -7,6 +7,24 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Swarm (multi-source) fetch — "BitTorrent-over-DTN" (`lifeline-engine`).**
+  Content fetch (FR-13) now pulls a manifest's missing blocks from **many
+  providers in parallel** instead of one named peer, via
+  `NodeEngine::fetch_content_swarm(manifest, providers, now)`
+  (`fetch_content` is now a one-provider wrapper). Two new payload kinds,
+  `HaveQuery`/`HaveReply`, let the fetcher discover which provider holds which
+  block (a per-object BitTorrent-style HAVE bitmap); requests are then spread
+  across providers and **rotated on retry**, so different blocks come from
+  different peers in the same round and a block a provider fails to deliver is
+  re-asked of a *different* provider next round — routing around a dark or
+  black-hole provider. No block is asked of more than one provider per round (no
+  duplicate traffic), and content-addressing keeps any duplicate arrivals
+  idempotent, so completeness is monotone and provable. New `store_block` seeds
+  an individual cached block. Tests: `swarm_pulls_disjoint_blocks_from_two_providers`
+  (two providers each holding half — completion requires both) and
+  `swarm_routes_around_a_dead_provider` (primary goes dark; completes via the
+  live one). Closes the one gap flagged in
+  [`docs/reliable-transfer-and-internet.md`](docs/reliable-transfer-and-internet.md).
 - **Capability-based egress + `ServiceClass` for the internet gateway
   (`lifeline-inet`).** Generalises gateway authorization from a flat "who's on
   the allow-list" to a portable, offline-verifiable, *attenuatable* capability
