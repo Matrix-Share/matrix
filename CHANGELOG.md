@@ -6,6 +6,18 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Documentation
+- **Technical white paper** ([`docs/whitepaper/`](docs/whitepaper/)). An
+  academic-style LaTeX paper (`lifeline.tex` + a fully-verified `lifeline.bib`)
+  synthesising the architecture and its four named contributions — *residual
+  differential transfer*, *manifest-scoped HAVE swarm fetch*, *source-attributed
+  custody reputation*, and *attenuable egress capabilities* with *service-class*
+  tiers — with a threat-taxonomy security analysis (STRIDE/LINDDUN + Sybil,
+  eclipse, wormhole, black-hole, traffic-analysis) and an evaluation-methodology
+  section grounding future benchmarks in the DTN literature (delivery ratio /
+  latency / overhead metrics, the ONE simulator, and standard mobility models
+  and contact traces). Every citation was verified against a primary source.
+
 ### Added
 - **Swarm (multi-source) fetch — "BitTorrent-over-DTN" (`lifeline-engine`).**
   Content fetch (FR-13) now pulls a manifest's missing blocks from **many
