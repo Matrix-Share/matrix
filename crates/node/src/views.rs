@@ -67,6 +67,17 @@ pub enum Command {
     Block { addr: String },
     /// Unblock a previously blocked contact.
     Unblock { addr: String },
+    /// Set this node's current GPS position, required for geocast *receive* (a
+    /// node only accepts a geocast whose region cell matches its own position).
+    SetPosition { lat: f64, lon: f64 },
+    /// Geocast: broadcast a message to everyone within `radius_m` of a point,
+    /// addressed by region (geohash) rather than identity (FR — area alerts).
+    Geocast {
+        lat: f64,
+        lon: f64,
+        radius_m: f64,
+        body: String,
+    },
 }
 
 /// The full UI snapshot, serialized to the browser as JSON.

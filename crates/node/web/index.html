@@ -317,6 +317,17 @@
         <div class="hint" id="emHint" style="margin-top:10px">SOS is highest priority and attaches your GPS &amp; battery if allowed.</div>
       </div>
 
+      <div class="bccard">
+        <h2>Geocast to an area</h2>
+        <div class="sub">Alert everyone within a radius of a point, addressed by region instead of by contact. Uses your device GPS as the center.</div>
+        <div class="row" style="align-items:flex-end">
+          <div style="flex:1"><textarea id="geoMsg" rows="1" placeholder="Area alert (e.g. evacuate the riverbank)…"></textarea></div>
+          <div style="flex:none;width:110px"><label class="sub" for="geoRad">Radius (m)</label><input id="geoRad" type="number" value="1000" min="100" max="5000" step="100"></div>
+          <button class="btn btn-primary" id="geoBtn">Geocast</button>
+        </div>
+        <div class="hint" id="geoHint" style="margin-top:10px">Sending and receiving area alerts both need location permission.</div>
+      </div>
+
       <div class="grid2">
         <div class="card">
           <h2>Live activity</h2>
@@ -609,6 +620,17 @@ $('bcMsg').addEventListener('input',e=>{e.target.style.height='auto';e.target.st
 $('bcBtn').onclick=async()=>{const t=$('bcMsg').value.trim();if(!t){toast('Type an announcement first');return;}
   await post('/api/broadcast',{body:t});$('bcMsg').value='';$('bcMsg').style.height='auto';toast('Broadcasting to the mesh…');};
 $('safeBtn').onclick=async()=>{await post('/api/safe',{note:"I'm safe"});toast("Sent 'I'm safe' to all contacts");};
+$('geoBtn').onclick=async()=>{const t=$('geoMsg').value.trim();if(!t){toast('Type an area alert first');return;}
+  const btn=$('geoBtn');btn.disabled=true;$('geoHint').textContent='Getting location…';
+  const pos=await getPos();
+  if(!pos){$('geoHint').textContent='Location unavailable — a geocast needs your GPS to pick the region.';toast('Location needed for geocast');btn.disabled=false;return;}
+  const radius_m=Math.max(100,Math.min(5000,parseFloat($('geoRad').value)||1000));
+  // Register our own position too, so this node also receives area alerts.
+  await post('/api/position',{lat:pos.lat,lon:pos.lon});
+  await post('/api/geocast',{lat:pos.lat,lon:pos.lon,radius_m,body:t});
+  $('geoMsg').value='';$('geoMsg').style.height='auto';
+  $('geoHint').textContent=`Geocast sent to ~${radius_m}m around (${pos.lat.toFixed(4)}, ${pos.lon.toFixed(4)}).`;
+  toast('Area alert sent');setTimeout(()=>btn.disabled=false,1500);};
 $('sosBtn').onclick=async()=>{const btn=$('sosBtn');btn.disabled=true;$('emHint').textContent='Getting location…';
   const [pos,battery_pct]=await Promise.all([getPos(),getBattery()]);const body={note:'SOS',battery_pct};
   if(pos){body.lat=pos.lat;body.lon=pos.lon;body.acc_m=pos.acc_m;}await post('/api/sos',body);
