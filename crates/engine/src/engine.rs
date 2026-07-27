@@ -242,10 +242,24 @@ pub struct NodeEngine {
     /// a beacon (TOFU presence). Only paired peers are allowed to discipline our
     /// clock, so a stranger who simply beacons at us cannot skew our time.
     paired: HashSet<Address>,
+    /// Bundle ids each neighbour last told us it holds (from its held-bundle
+    /// digest). Feeds `PeerInfo.known` so we don't re-offer a bundle a peer
+    /// already has (anti-entropy; §12.3).
+    peer_bundles: HashMap<(usize, PeerId), HashSet<Bytes>>,
+    /// Fingerprint of our held-bundle set at the last digest we broadcast, so an
+    /// unchanged store doesn't re-broadcast the same digest (the differential
+    /// idea — send the summary only when it moved).
+    last_digest_fp: [u8; 32],
+    /// Next tick we may broadcast a held-bundle digest (throttle).
+    next_digest: u64,
 }
 
 /// How long a time fix stays fresh before a node stops advertising / trusting it.
 const TIME_STALE_S: i64 = 3600;
+/// Ticks between held-bundle digest broadcasts.
+const DIGEST_INTERVAL: u64 = 5;
+/// Max bundle ids carried in one digest, to bound its wire size.
+const MAX_DIGEST_IDS: usize = 4096;
 
 /// A content object being pulled over the mesh (FR-13), possibly from **many**
 /// providers in parallel ("swarm fetch" — BitTorrent-over-DTN). Completeness is
@@ -369,6 +383,9 @@ impl NodeEngine {
             geocast_seen: HashSet::new(),
             time: lifeline_timesync::TimeSync::new(),
             paired: HashSet::new(),
+            peer_bundles: HashMap::new(),
+            last_digest_fp: [0u8; 32],
+            next_digest: 0,
         }
     }
 
@@ -1441,6 +1458,25 @@ impl NodeEngine {
         } else {
             Vec::new()
         };
+        // Held-bundle digest (anti-entropy): broadcast our stored bundle ids so
+        // neighbours can suppress re-offering bundles we already hold. Throttled,
+        // and — the differential idea — sent only when our set's fingerprint has
+        // actually moved since the last digest.
+        let digest_bytes = if now >= self.next_digest {
+            self.next_digest = now + DIGEST_INTERVAL;
+            let mut ids: Vec<Bytes> = self.router.known_ids().into_iter().collect();
+            ids.sort_unstable();
+            ids.truncate(MAX_DIGEST_IDS);
+            let fp = lifeline_reconcile::fingerprint(&ids);
+            if !ids.is_empty() && fp != self.last_digest_fp {
+                self.last_digest_fp = fp;
+                to_cbor(&ids).ok()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         for p in 0..self.ports.len() {
             // Advertise our identity beacon.
             let mid = self.next_mid();
@@ -1463,6 +1499,17 @@ impl NodeEngine {
                             if let Ok(enc) = f.encode() {
                                 let _ = self.ports[p].iface.broadcast(&enc);
                             }
+                        }
+                    }
+                }
+            }
+            // Broadcast our held-bundle digest, if we have a fresh one.
+            if let Some(ref dbytes) = digest_bytes {
+                let mid = self.next_mid();
+                if let Ok(frames) = Fragmenter::fragment(FrameKind::Digest, mid, dbytes, usable) {
+                    for f in &frames {
+                        if let Ok(enc) = f.encode() {
+                            let _ = self.ports[p].iface.broadcast(&enc);
                         }
                     }
                 }
@@ -1512,7 +1559,13 @@ impl NodeEngine {
                     addr,
                     is_gateway: meta.is_gateway,
                     gradient: meta.gradient,
-                    known: HashSet::new(),
+                    // Anti-entropy: don't re-offer bundles this peer's digest says
+                    // it already holds (retires the previously-inert `known`).
+                    known: self
+                        .peer_bundles
+                        .get(&(p, peer))
+                        .cloned()
+                        .unwrap_or_default(),
                     soft_max_bytes,
                 };
                 // Offer DTN bundles (spray-and-wait decisions inside).
@@ -1608,6 +1661,14 @@ impl NodeEngine {
             FrameKind::Announce => {
                 if let Ok((ann, dist)) = from_cbor::<(GatewayAnnounce, u16)>(&payload) {
                     self.observe_announce(ann, dist, now);
+                }
+            }
+            FrameKind::Digest => {
+                // Record which bundle ids this peer holds, to suppress re-offering
+                // them (anti-entropy). Bounded so a peer can't inflate our state.
+                if let Ok(ids) = from_cbor::<Vec<Bytes>>(&payload) {
+                    let set: HashSet<Bytes> = ids.into_iter().take(MAX_DIGEST_IDS).collect();
+                    self.peer_bundles.insert((p, peer), set);
                 }
             }
             FrameKind::Bundle => {
@@ -1940,6 +2001,13 @@ impl NodeEngine {
             .values()
             .collect::<std::collections::HashSet<_>>()
             .len()
+    }
+
+    /// Total bundle ids learned from neighbours' held-bundle digests (anti-
+    /// entropy diagnostics): how many `(peer, bundle)` "already-held" facts we
+    /// currently know and use to suppress redundant offers.
+    pub fn peer_digest_ids(&self) -> usize {
+        self.peer_bundles.values().map(|s| s.len()).sum()
     }
 
     /// Whether this node currently stores a copy of `bundle_id` (tests/UI).

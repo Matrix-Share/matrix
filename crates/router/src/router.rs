@@ -666,6 +666,26 @@ mod tests {
     }
 
     #[test]
+    fn known_set_suppresses_reoffering_a_held_bundle() {
+        // Anti-entropy: a peer whose digest says it already holds a bundle is not
+        // offered that bundle again.
+        let mut r = DtnRouter::new(addr(1), RouterConfig::default());
+        r.ingest(bundle(5, addr(9), Priority::Normal, 0), 1);
+        // Control: an empty `known` → the bundle is offered.
+        assert_eq!(r.offer_to(&peer(addr(2)), 2).len(), 1);
+
+        // A fresh router + a peer that already holds bundle id 5 → suppressed.
+        let mut r2 = DtnRouter::new(addr(1), RouterConfig::default());
+        r2.ingest(bundle(5, addr(9), Priority::Normal, 0), 1);
+        let mut p = peer(addr(3));
+        p.known.insert(Bytes::new(vec![5; 16]));
+        assert!(
+            r2.offer_to(&p, 2).is_empty(),
+            "a bundle the peer already holds must not be re-offered"
+        );
+    }
+
+    #[test]
     fn binary_spray_splits_budget() {
         let mut r = DtnRouter::new(addr(1), RouterConfig::default());
         r.ingest(bundle(5, addr(9), Priority::Normal, 0), 1);

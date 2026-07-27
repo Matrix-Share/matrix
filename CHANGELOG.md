@@ -7,6 +7,17 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Anti-entropy held-bundle digest wired into the live node (retires the inert
+  `PeerInfo.known`).** The engine now broadcasts a bounded, sorted list of the
+  bundle ids it holds (a new `FrameKind::Digest`), throttled and — the
+  differential idea — sent only when the set's `lifeline-reconcile::fingerprint`
+  actually changes. A neighbour records each peer's digest and feeds it into
+  `PeerInfo.known`, so the router stops re-offering a bundle a peer already holds.
+  The previously-dead `known` field (always empty in the live node) is now
+  populated end-to-end. New diagnostic `peer_digest_ids`; three tests (router
+  `known`-suppression, digest received-and-recorded over contact, empty store
+  sends nothing). Bundle ids are already visible on the wire, so the digest leaks
+  nothing new.
 - **Differential time-sync wired into the live node (`lifeline-engine`).** The
   `lifeline-timesync` crate existed and was tested but wasn't driven by the node.
   The engine now owns a `TimeSync`: it piggybacks a `TimeBeacon` on its ordinary
