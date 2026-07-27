@@ -924,8 +924,12 @@ dependencies = [
 name = "lifeline-inet"
 version = "0.1.0"
 dependencies = [
+ "ed25519-dalek",
  "lifeline-proto",
+ "rand",
  "serde",
+ "serde_bytes",
+ "thiserror",
  "url",
 ]
 

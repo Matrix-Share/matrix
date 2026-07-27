@@ -6,6 +6,43 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Capability-based egress + `ServiceClass` for the internet gateway
+  (`lifeline-inet`).** Generalises gateway authorization from a flat "who's on
+  the allow-list" to a portable, offline-verifiable, *attenuatable* capability
+  token — the model that actually works across a mesh partition, where no
+  policy server is reachable. Full design record:
+  [`docs/capability-egress-and-service-class.md`](docs/capability-egress-and-service-class.md).
+  - **Why a token, not a lookup.** Cellular PCRF, captive-portal RADIUS, and
+    enterprise zero-trust proxies all decide egress by consulting a *reachable
+    server* — which fails exactly when the mesh matters. Following the
+    macaroon/Biscuit design (built on the Ed25519 we already ship), the authority
+    now rides *in the credential the requester presents*: any gateway trusting
+    the issuer verifies it with a signature check and local clock, no network.
+  - **Attenuation (narrow-only delegation).** A holder can append a `Scope`
+    caveat (fewer hosts, tighter expiry, smaller byte cap) and hand the token on
+    **without contacting the issuer** — enabling an authorization chain to form
+    hop-by-hop across the mesh (authority → gateway operator → neighbour). The
+    verifier ANDs every level, so a caveat can only ever *remove* authority; a
+    signature chain binds each caveat to its predecessor so caveats can't be
+    reordered, spliced, or stripped.
+  - **`ServiceClass` egress tiers** (`LifeSafety ⊂ Messaging ⊂ Interactive ⊂
+    Bulk`) — Lifeline's analogue of a 5G slice / DiffServ class, but for the
+    *exit*. Orthogonal to mesh `Priority`. The `Messaging` tier is the zero-rated
+    host-allowlist model (cf. in-flight free WhatsApp); attenuation can only lower
+    the class.
+  - **`AccessPolicy` is now a PDP/PEP split** (`decide(Authz) -> Decision`).
+    `AllowList` remains as the trivial local issuer (full `Bulk` egress);
+    `CapabilityPolicy` holds only a set of trusted issuer public keys — no
+    per-identity state to sync. `InternetGateway::handle` now takes a presented
+    capability + current time and enforces the scope's per-response byte ceiling.
+  - **VoIP is blocked structurally, not by DPI:** a request/response DTN has no
+    representation for a persistent real-time media stream, and `is_safe_url`
+    admits only `http`/`https`. 20 tests (13 capability + 7 gateway), including
+    forged/tampered/spliced/stripped/expired/wrong-subject rejection, monotone
+    attenuation, offline verification across a simulated partition, and the byte
+    ceiling. fmt+clippy clean; acceptance sim intact.
+
 ### Security
 Fixes from a second internal security re-audit, this time of the newer
 message-carrying features (geocast, groups-in-the-node, custody):
