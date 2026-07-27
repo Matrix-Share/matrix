@@ -470,18 +470,48 @@ subsystem (crypto round-trips, custody, swarm fetch, capability verification).
 This establishes functional correctness and a delivery floor, but it is
 \emph{not} a comparative performance evaluation.
 
-\paragraph{What a comparative evaluation requires.} The DTN literature evaluates
-routing on a standard metric set: delivery ratio, delivery latency, overhead
-(relay) ratio, buffer occupancy, and hop count~\cite{spyropoulos2005sprayandwait,
-vahdat2000epidemic}. The de-facto tool is the ONE
-simulator~\cite{keranen2009one}, driven by synthetic mobility (Random
-Waypoint~\cite{broch1998comparison}, the Working Day Movement
+\paragraph{An in-repo comparative baseline.} We ship a reproducible harness
+(\texttt{sim::bench}) that runs the \emph{same} partitioned scenario---three
+radio-isolated clusters bridged by a single moving data mule, with every phone
+messaging counterparts one and two clusters away---under three forwarding
+strategies, using the DTN standard metric set: delivery ratio, delivery latency,
+and overhead (relay) ratio~\cite{spyropoulos2005sprayandwait,vahdat2000epidemic}.
+Table~\ref{tab:results} reports the result (seed 42, 700 ticks). It reproduces the
+expected ordering exactly: no-relay \emph{direct delivery} cannot cross a
+partition and delivers nothing; \emph{epidemic} flooding~\cite{vahdat2000epidemic}
+delivers everything but at the highest overhead; and Lifeline's default
+\emph{binary spray-and-wait}~\cite{spyropoulos2005sprayandwait} matches epidemic's
+$100\%$ delivery and latency while using $2.4\times$ fewer transmissions per
+delivered message ($10.0$ vs.\ $24.0$)---the whole point of controlled
+replication. Every message also carries an offline-verifiable delivery proof
+($100\%$ verified).
+
+\begin{table}[t]\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Strategy} & \textbf{Delivery} & \textbf{Verified} & \textbf{Median lat.} &
+\textbf{Overhead}\\
+\midrule
+Direct delivery (no relay) & $0.0\%$ & $0.0\%$ & --- & $0.00$\\
+Binary spray-and-wait \textbf{(default)} & $100.0\%$ & $100.0\%$ & $90$\,s & $\mathbf{10.0}$\\
+Epidemic flooding & $100.0\%$ & $100.0\%$ & $90$\,s & $24.0$\\
+\bottomrule
+\end{tabular}
+\caption{In-repo comparative evaluation (\texttt{cargo run -p lifeline-sim --
+bench}; seed 42, 700 ticks). Overhead = forwarded copies per delivered message.
+Spray-and-wait recovers epidemic's full delivery at $2.4\times$ lower overhead;
+direct delivery establishes the no-relay floor.}
+\label{tab:results}
+\end{table}
+
+\paragraph{What remains.} This baseline is deliberately synthetic. The de-facto
+external tool is the ONE simulator~\cite{keranen2009one}, driven by synthetic
+mobility (Random Waypoint~\cite{broch1998comparison}, the Working Day Movement
 Model~\cite{ekman2008workingday}) and real contact traces (the CRAWDAD
 \texttt{cambridge/haggle} Bluetooth traces~\cite{crawdad_haggle}, MIT Reality
-Mining~\cite{eagle2006realitymining}). Table~\ref{tab:metrics} lists the metrics
-we plan to report and the comparison baselines (epidemic and spray-and-wait
-routing, and where relevant Meshtastic and Briar's transport). This comparative
-study on standard traces is the principal piece of empirical work still
+Mining~\cite{eagle2006realitymining}). Table~\ref{tab:metrics} lists the full
+metric set; extending our harness to ingest these standard traces and to add
+buffer-occupancy and hop-count reporting is the principal empirical work still
 outstanding.
 
 \begin{table}[t]\centering\small

@@ -99,6 +99,47 @@ impl RoutingPolicy for SprayAndWaitPolicy {
     }
 }
 
+/// **Epidemic routing** baseline (Vahdat & Becker, 2000): hand a copy to *every*
+/// contact and keep your own — the bundle floods the network. Maximizes delivery
+/// probability and minimizes latency at the cost of the highest transmission
+/// overhead and buffer pressure. Included as an evaluation baseline against which
+/// [`SprayAndWaitPolicy`] trades a little delivery for a large overhead reduction.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct EpidemicPolicy;
+
+impl RoutingPolicy for EpidemicPolicy {
+    fn decide(&self, ctx: &OfferContext) -> OfferAction {
+        // Flood: offer one copy to every peer, never depleting our own budget, so
+        // the bundle propagates to the whole reachable component. (The router
+        // marks a peer offered, so we don't re-hand it the same bundle in one
+        // contact window.)
+        OfferAction::Forward {
+            give: 1,
+            keep: ctx.copies_left.max(1),
+        }
+    }
+}
+
+/// **Direct-delivery** baseline (single-copy, no relaying): forward only to the
+/// final destination. Zero relay overhead, but delivers only when sender and
+/// recipient meet directly — so in a partitioned world it establishes the
+/// *lower bound* that store-carry-forward routing must beat.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DirectDeliveryPolicy;
+
+impl RoutingPolicy for DirectDeliveryPolicy {
+    fn decide(&self, ctx: &OfferContext) -> OfferAction {
+        if ctx.peer_is_dst {
+            OfferAction::Forward {
+                give: 1,
+                keep: ctx.copies_left,
+            }
+        } else {
+            OfferAction::Hold
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,6 +197,30 @@ mod tests {
         c.soft_max_bytes = Some(50); // link cap below the 100-byte bundle
         assert_eq!(p.decide(&c), OfferAction::Hold);
         c.priority = Priority::Alert; // emergency bypasses the cap
+        assert!(matches!(p.decide(&c), OfferAction::Forward { .. }));
+    }
+
+    #[test]
+    fn epidemic_floods_every_peer_keeping_own_budget() {
+        let p = EpidemicPolicy;
+        let mut c = ctx();
+        c.copies_left = 3;
+        // Offers a copy to a plain relay (not dst, not gateway) — flooding.
+        assert_eq!(p.decide(&c), OfferAction::Forward { give: 1, keep: 3 });
+        // Even a single-copy bundle keeps flooding (keep >= 1).
+        c.copies_left = 1;
+        assert_eq!(p.decide(&c), OfferAction::Forward { give: 1, keep: 1 });
+    }
+
+    #[test]
+    fn direct_delivery_only_hands_to_destination() {
+        let p = DirectDeliveryPolicy;
+        let mut c = ctx();
+        // A relay (even a gateway) gets nothing.
+        c.peer_helps_gateway = true;
+        assert_eq!(p.decide(&c), OfferAction::Hold);
+        // Only the destination receives.
+        c.peer_is_dst = true;
         assert!(matches!(p.decide(&c), OfferAction::Forward { .. }));
     }
 }

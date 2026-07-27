@@ -8,7 +8,7 @@
 //! ```
 
 use lifeline_sim::scenarios;
-use lifeline_sim::{DeliveryReport, World};
+use lifeline_sim::{bench, DeliveryReport, World};
 
 fn banner(title: &str) {
     println!("\n\x1b[1m━━ {title} ━━\x1b[0m");
@@ -45,6 +45,16 @@ fn run(title: &str, mut w: World, ticks: u64) -> DeliveryReport {
 }
 
 fn main() {
+    // `cargo run -p lifeline-sim -- bench` prints the comparative evaluation
+    // table (spray-and-wait vs. epidemic vs. direct on the same partitioned
+    // scenario) instead of the acceptance demo.
+    if std::env::args().nth(1).as_deref() == Some("bench") {
+        banner("Comparative routing evaluation · 3-cluster partition + mule (seed 42, 700 ticks)");
+        let rows = bench::run_comparison(42, 700);
+        print!("{}", bench::format_table(&rows));
+        return;
+    }
+
     println!("\x1b[1mProject Lifeline — decentralized offline mesh · acceptance simulator\x1b[0m");
 
     run(

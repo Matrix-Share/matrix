@@ -6,6 +6,21 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Comparative routing evaluation harness (`lifeline-sim::bench`).** Turns the
+  white paper's evaluation methodology into concrete, reproducible numbers. Adds
+  two baseline routing policies alongside Lifeline's default — `EpidemicPolicy`
+  (flooding; Vahdat \& Becker) and `DirectDeliveryPolicy` (no relaying) — and
+  parameterises the simulated `World` with a `RoutingStrategy`. The harness runs
+  the *same* partitioned mule scenario under all three and reports the DTN
+  standard metrics (delivery ratio, mean/median latency, overhead ratio); the
+  `DeliveryReport` now carries per-message latency and an `overhead_ratio()`.
+  Run it with `cargo run -p lifeline-sim -- bench`. Result (seed 42): direct
+  delivery cannot cross a partition (0%), while **binary spray-and-wait matches
+  epidemic's 100% delivery at 2.4× lower overhead** (10.0 vs 24.0 forwarded
+  copies per delivered message) — the payoff of controlled replication, now
+  measured. Two tests assert the harness runs and the expected ordering holds.
+
 ### Documentation
 - **Technical white paper** ([`docs/whitepaper/`](docs/whitepaper/)). An
   academic-style LaTeX paper (`lifeline.tex` + a fully-verified `lifeline.bib`)

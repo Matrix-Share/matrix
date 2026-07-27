@@ -9,7 +9,10 @@ use lifeline_proto::{
     Address, Bundle, Bytes, DeliveryReceipt, IdentityPublic, LogEvent, Payload, PayloadKind,
     Priority,
 };
-use lifeline_router::{DtnRouter, IngestOutcome, PeerInfo, RouterConfig};
+use lifeline_router::{
+    DirectDeliveryPolicy, DtnRouter, EpidemicPolicy, IngestOutcome, PeerInfo, RouterConfig,
+    RoutingPolicy, SprayAndWaitPolicy,
+};
 use lifeline_sync::SharedState;
 use rand::rngs::StdRng;
 use rand::Rng;
@@ -18,6 +21,31 @@ use std::collections::{HashMap, HashSet};
 
 /// Seconds of simulated time per tick.
 const STEP_SECS: u64 = 10;
+
+/// Which forwarding strategy the world's routers use — so the evaluation harness
+/// can compare Lifeline's default against classic baselines on the *same*
+/// scenario (same seed, mobility, and traffic).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RoutingStrategy {
+    /// Lifeline's default: binary spray-and-wait + gateway gradient.
+    #[default]
+    SprayAndWait,
+    /// Epidemic flooding (Vahdat & Becker) — the delivery/latency ceiling and
+    /// overhead worst case.
+    Epidemic,
+    /// Direct delivery only (no relaying) — the no-store-carry-forward floor.
+    Direct,
+}
+
+impl RoutingStrategy {
+    fn policy(self) -> Box<dyn RoutingPolicy> {
+        match self {
+            RoutingStrategy::SprayAndWait => Box::new(SprayAndWaitPolicy),
+            RoutingStrategy::Epidemic => Box::new(EpidemicPolicy),
+            RoutingStrategy::Direct => Box::new(DirectDeliveryPolicy),
+        }
+    }
+}
 /// Freshness window for a gateway announce (PRD Appendix B: 1 h).
 const ANNOUNCE_TTL_S: u64 = 3600;
 
@@ -79,6 +107,8 @@ struct SentMessage {
     #[allow(dead_code)]
     to: usize,
     original: Bundle,
+    /// Tick at which the message was submitted (for latency).
+    sent_tick: u64,
     delivered_tick: Option<u64>,
     verified_tick: Option<u64>,
 }
@@ -96,6 +126,9 @@ pub struct DeliveryReport {
     pub dropped_expired: u64,
     /// Bundles refused by relays for missing/invalid PoW postage (FR-46).
     pub dropped_nopostage: u64,
+    /// Per-delivered-message latency in **seconds** (delivered − sent), the DTN
+    /// standard metric. Sorted ascending.
+    pub latencies_s: Vec<u64>,
 }
 
 impl DeliveryReport {
@@ -111,6 +144,34 @@ impl DeliveryReport {
             0.0
         } else {
             100.0 * self.verified as f64 / self.sent as f64
+        }
+    }
+
+    /// Overhead (relay) ratio: forwarded copies per delivered message — the DTN
+    /// cost metric. Lower is cheaper; epidemic flooding scores worst.
+    pub fn overhead_ratio(&self) -> f64 {
+        if self.delivered == 0 {
+            0.0
+        } else {
+            self.forwarded_copies as f64 / self.delivered as f64
+        }
+    }
+
+    /// Mean delivery latency in seconds over delivered messages.
+    pub fn mean_latency_s(&self) -> f64 {
+        if self.latencies_s.is_empty() {
+            0.0
+        } else {
+            self.latencies_s.iter().sum::<u64>() as f64 / self.latencies_s.len() as f64
+        }
+    }
+
+    /// Median delivery latency in seconds (0 if nothing delivered).
+    pub fn median_latency_s(&self) -> u64 {
+        if self.latencies_s.is_empty() {
+            0
+        } else {
+            self.latencies_s[self.latencies_s.len() / 2]
         }
     }
 }
@@ -130,6 +191,8 @@ pub struct World {
     loss: f64,
     /// Erasure-coded groups sent, tracked by group id (FR-28).
     erasure_sent: Vec<ErasureSent>,
+    /// Forwarding strategy for routers added afterward (evaluation harness).
+    strategy: RoutingStrategy,
     rng: StdRng,
 }
 
@@ -152,8 +215,15 @@ impl World {
             require_postage: false,
             loss: 0.0,
             erasure_sent: Vec::new(),
+            strategy: RoutingStrategy::default(),
             rng: StdRng::seed_from_u64(seed),
         }
+    }
+
+    /// Set the forwarding strategy for routers added afterward (evaluation
+    /// harness). Call before [`World::add_node`].
+    pub fn set_strategy(&mut self, strategy: RoutingStrategy) {
+        self.strategy = strategy;
     }
 
     /// Set a per-handoff bundle loss probability in `[0,1]` (FR-28 / Problem C:
@@ -179,7 +249,7 @@ impl World {
             require_postage: self.require_postage,
             ..RouterConfig::default()
         };
-        let mut router = DtnRouter::new(public.id.clone(), cfg);
+        let mut router = DtnRouter::with_policy(public.id.clone(), cfg, self.strategy.policy());
         if is_gateway {
             router.set_gateway(caps.clone());
         }
@@ -229,6 +299,7 @@ impl World {
             from,
             to,
             original: bundle,
+            sent_tick: self.tick,
             delivered_tick: None,
             verified_tick: None,
         });
@@ -589,6 +660,15 @@ impl World {
             expired += s.dropped_expired;
             nopostage += s.dropped_nopostage;
         }
+        let mut latencies_s: Vec<u64> = self
+            .sent
+            .iter()
+            .filter_map(|s| {
+                s.delivered_tick
+                    .map(|d| d.saturating_sub(s.sent_tick) * STEP_SECS)
+            })
+            .collect();
+        latencies_s.sort_unstable();
         DeliveryReport {
             sent: self.sent.len(),
             delivered,
@@ -598,6 +678,7 @@ impl World {
             duplicates_suppressed: dups,
             dropped_expired: expired,
             dropped_nopostage: nopostage,
+            latencies_s,
         }
     }
 
