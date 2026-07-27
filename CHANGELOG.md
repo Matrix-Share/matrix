@@ -6,6 +6,23 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+- **Overlay hardening: eclipse resistance + grey-hole custody detection.**
+  - **DHT eclipse guard (`lifeline-dht`).** A k-bucket now caps how many slots a
+    single (non-empty) `endpoint` may occupy (`MAX_PER_ENDPOINT_PER_BUCKET`), so
+    an attacker controlling one network source cannot pack a victim's bucket with
+    many minted ids — the classic eclipse vector (Singh et al.; Heilman et al.).
+    Combined with the existing incumbent-retention policy. Empty endpoints
+    (in-process/test) are exempt.
+  - **Grey-hole custody detection (`lifeline-router`).** Source-attributed
+    reputation previously demoted only *black holes* (a run of consecutive
+    misses); a **grey hole** that delivers just often enough to reset its
+    consecutive-miss counter slipped through. The `ForwardLedger` now also tracks
+    a lifetime delivered/missed tally per custodian and demotes any whose delivery
+    ratio falls below `GREY_MIN_DELIVERY_RATIO` over at least `GREY_MIN_SAMPLES`
+    observations. Two tests: a 1-in-3 deliverer is caught; a ~90% honest-but-lossy
+    carrier is not.
+
 ### Added
 - **Egress quota + revocation for `lifeline-inet` (capability follow-ups).** Two
   of the C/E follow-ups from the capability model are now implemented:

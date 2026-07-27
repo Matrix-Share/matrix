@@ -89,6 +89,14 @@ fn bucket_index(local: &Address, other: &Address) -> Option<usize> {
     None
 }
 
+/// Max slots in a single bucket that one endpoint (network source) may occupy.
+/// Bounds an **eclipse** attacker who controls one address/endpoint and mints
+/// many node ids into the same bucket, trying to fill a victim's routing table
+/// with its own contacts (Singh et al., "Eclipse Attacks on Overlay Networks";
+/// Heilman et al. on the same for Bitcoin). Empty endpoints (reachability
+/// implied, e.g. in-process/test contacts) are exempt.
+pub const MAX_PER_ENDPOINT_PER_BUCKET: usize = 2;
+
 /// One k-bucket: up to `k` contacts, most-recently-seen at the back. When full
 /// we keep the incumbents (the conservative Kademlia policy: long-lived nodes
 /// are more likely to stay up, and it resists eviction flooding).
@@ -106,12 +114,29 @@ impl KBucket {
         }
     }
 
+    /// Count entries sharing `endpoint` (only meaningful for non-empty ones).
+    fn endpoint_count(&self, endpoint: &[u8]) -> usize {
+        self.entries
+            .iter()
+            .filter(|e| e.endpoint == endpoint)
+            .count()
+    }
+
     fn observe(&mut self, c: Contact) {
         if let Some(pos) = self.entries.iter().position(|e| e.id == c.id) {
             // Seen again → refresh position (LRU) and any updated endpoint.
             self.entries.remove(pos);
             self.entries.push_back(c);
-        } else if self.entries.len() < self.k {
+            return;
+        }
+        // Eclipse guard: a single non-empty endpoint may hold at most
+        // MAX_PER_ENDPOINT_PER_BUCKET slots in this bucket, so one network source
+        // cannot dominate it with many minted ids.
+        if !c.endpoint.is_empty() && self.endpoint_count(&c.endpoint) >= MAX_PER_ENDPOINT_PER_BUCKET
+        {
+            return;
+        }
+        if self.entries.len() < self.k {
             self.entries.push_back(c);
         }
         // Full → drop the newcomer (incumbents retained).
@@ -462,6 +487,52 @@ mod tests {
             });
         }
         (map, ids)
+    }
+
+    #[test]
+    fn eclipse_guard_caps_contacts_per_endpoint_in_a_bucket() {
+        // One attacker endpoint mints many node ids that all fall in the same
+        // bucket relative to `local` and tries to fill the table with them.
+        let local = id(1);
+        let mut rt = RoutingTable::new(local.clone(), DEFAULT_K);
+        let attacker_ep = b"attacker-endpoint".to_vec();
+
+        // Find ids that share a bucket, then flood that endpoint into it.
+        let mut inserted_bucket: Option<usize> = None;
+        let mut same_bucket = 0;
+        for i in 100u64..400 {
+            let cid = id(i);
+            let Some(bi) = bucket_index(&local, &cid) else {
+                continue;
+            };
+            match inserted_bucket {
+                None => {
+                    inserted_bucket = Some(bi);
+                    rt.observe(Contact::new(cid, attacker_ep.clone()));
+                    same_bucket += 1;
+                }
+                Some(want) if want == bi => {
+                    rt.observe(Contact::new(cid, attacker_ep.clone()));
+                    same_bucket += 1;
+                }
+                _ => {}
+            }
+            if same_bucket >= 10 {
+                break;
+            }
+        }
+        assert!(same_bucket >= 5, "test needs several same-bucket ids");
+        // Despite offering many ids, the attacker endpoint holds at most the cap.
+        let held = rt
+            .buckets
+            .iter()
+            .flat_map(|b| b.entries.iter())
+            .filter(|c| c.endpoint == attacker_ep)
+            .count();
+        assert!(
+            held <= MAX_PER_ENDPOINT_PER_BUCKET,
+            "one endpoint packed {held} slots into a bucket (cap {MAX_PER_ENDPOINT_PER_BUCKET})"
+        );
     }
 
     #[test]
