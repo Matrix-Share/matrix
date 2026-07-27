@@ -1,0 +1,413 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\newtheorem{conjecture}{Conjecture}
+\theoremstyle{definition}
+\newtheorem{problem}{Problem}
+\newtheorem{remark}{Remark}
+
+\newcommand{\Nwin}{N_{\mathrm{win}}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+
+\title{\textbf{Containing an Adversarial Bearer Token in a Partitionable Mesh}\\[2pt]
+\large Numeric-Invariant Maintenance When the Spender Is Hostile and the
+Verifiers Are Unknown and Mobile}
+\author{Project Lifeline --- Research Note}
+\date{Working draft --- \today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Escrow and demarcation protocols maintain a global numeric invariant (e.g.\ ``total
+spent $\le B$'') across a partitioned system \emph{without} coordination, by
+pre-splitting the budget among \emph{cooperative, known} sites. We ask what
+happens when those assumptions fail in the way a disaster mesh forces them to:
+the metered object is a \emph{transferable bearer token}, the spender is
+\emph{adversarial}, and the verifier set is \emph{unknown and mobile}. We show the
+static answer is inflation --- a token of budget $B$ realizes up to $kB$ across
+$k$ reachable partition-components, matching offline double-spending --- and that
+the interesting question is dynamic: how much over-spend accrues before a gossiped
+revocation catches up. We model this as a race between two growth processes on the
+contact graph and prove two results. (i)~\emph{Mean field:} on the complete graph
+with self-seeding detection, the expected over-spend is $\E[\Nwin]\approx (a/d)\ln
+N$ where $a$ is the adversary's spend rate, $d$ the gossip rate, and $N$ the number
+of verifiers --- a closed form with the counter-intuitive prediction that
+over-spend \emph{grows} with network size. (ii)~\emph{Spatial:} on graphs with
+finite propagation speed the problem is a two-type first-passage-percolation
+competition; over-spend is a.s.\ finite iff the detection front is strictly faster
+than the adversary's mobility, a dichotomy we prove on trees and the line and
+which, on $\mathbb{Z}^2$, coincides with a known open problem in probability. A
+corollary is a \emph{conservation--bandwidth} lower bound: bounding over-spend to a
+constant costs per-node detection bandwidth $\Omega(a/\beta)$. We position all of
+this honestly against escrow/CRDT, offline e-cash, and blockchain-under-delay, give
+a simulation protocol against our open-source harness, and list the open problems.
+\end{abstract}
+
+\tableofcontents
+
+% ===========================================================================
+\section{The gap: escrow assumes friends}\label{sec:gap}
+% ===========================================================================
+
+Maintaining a global numeric invariant under partition \emph{without} coordination
+is a solved problem when the participants cooperate. The \emph{escrow transactional
+method}~\cite{ONeil1986Escrow}, the \emph{demarcation
+protocol}~\cite{Barbara1994Demarcation}, \emph{bounded-counter
+CRDTs}~\cite{Balegas2015BoundedCounter}, and the \emph{homeostasis
+protocol}~\cite{Roy2015Homeostasis} all enforce a cap ``$\sum x_i \le B$'' by
+pre-allocating each of $g$ \emph{known} sites a private sub-budget $B/g$: each site
+spends locally within its allowance, the global sum is conserved by construction,
+and sites renegotiate only on contact. This is exactly a
+partition-tolerant, coordination-free realization of a conserved scalar --- the
+positive resolution of the relevant CAP corner~\cite{GilbertLynch2002,Abadi2012PACELC,
+Rahman2017PCAP}.
+
+Three assumptions make it work, and a disaster-mesh capability
+(\S\ref{sec:model}) violates all three.
+
+\begin{center}
+\begin{tabular}{@{}p{5.6cm}p{7.4cm}@{}}
+\toprule
+\textbf{Escrow / demarcation / bounded-counter assume} & \textbf{Bearer capability in a mesh} \\
+\midrule
+sites are \emph{known} and fixed & verifiers (gateways) appear and vanish; the set is unknown a priori \\
+the \emph{system} owns the budget and splits it among sites & a \emph{bearer token} is held and \emph{moved by the spender} \\
+sites are \emph{cooperative} & the spender is \emph{adversarial}; verifiers are mutually unreachable \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{problem}[Adversarial bearer-token invariant maintenance]\label{prob:main}
+Maintain a global numeric invariant $\sum \text{(spend)} \le B$ under partition
+when the metered object is a transferable bearer token, the spender is adversarial
+and chooses where to present it, and the verifier set is unknown, dynamic, and
+mobile, with verifiers deciding \emph{offline} (from the token and local state
+only).
+\end{problem}
+
+No prior mechanism we are aware of addresses Problem~\ref{prob:main}; escrow's
+pre-allocation has no cooperative site to allocate to, and its invariant has no
+defense against a token the adversary carries between verifiers. This note
+characterizes what \emph{is} achievable.
+
+% ===========================================================================
+\section{Model}\label{sec:model}
+% ===========================================================================
+
+\paragraph{Verifiers and the token.} A set of $N$ \emph{verifiers} (gateways)
+sits on a contact graph $G=(V,E)$ (or, in the continuum, as a Poisson field of
+intensity $\rho_g$ on $\R^2$~\cite{StoyanKendallMecke1995}). A bearer capability
+$\kappa$ carries a global budget $B>0$. A verifier presented $\kappa$ decides
+admit/deny from $(\kappa,\text{local state})$ alone (\emph{offline}) and, if it
+admits, meters up to $B$ locally before refusing further (a per-verifier escrow
+of $B$).
+
+\paragraph{The adversary.} A single mobile holder of $\kappa$ visits verifiers.
+Each newly visited verifier that has not been \emph{immunized} (below) admits an
+over-budget spend, which we count as one unit of over-spend. Let $a$ be the rate
+(spends per unit time) at which the adversary reaches fresh verifiers; in the
+continuum $a \asymp \rho_g\, r\, v$ (coverage of a Boolean model swept by a
+range-$r$ holder at speed $v$~\cite{StoyanKendallMecke1995}).
+
+\paragraph{Detection (self-seeding).} Each spend produces a signed
+spend-receipt. Receipts propagate by gossip through the mesh; a verifier that has
+seen enough receipts for $\kappa$ to conclude ``budget exceeded'' becomes
+\emph{immunized} and refuses $\kappa$ (and, if issuance binds the holder's
+identity as in Chaum--Fiat--Naor offline cash~\cite{ChaumFiatNaor1988}, attributes
+and revokes). Crucially, \emph{the adversary's own spends seed the detection
+epidemic}: every over-spent verifier is a receipt source. Let the gossip spread at
+rate $d$ (per immunized-verifier contact rate); on a graph the front advances at
+first-passage speed $s_D$, governed by the epidemic threshold / spectral
+radius~\cite{Ganesh2005Epidemics}.
+
+\paragraph{Quantity of interest.} The realized over-spend is $B\cdot\Nwin$, where
+\[
+\Nwin \;=\; \#\{\text{verifiers the adversary spends at \emph{before} they are immunized}\}.
+\]
+Everything below characterizes $\Nwin$.
+
+% ===========================================================================
+\section{The static bound: inflation is unavoidable}\label{sec:static}
+% ===========================================================================
+
+\begin{proposition}[Per-component inflation]\label{prop:inflation}
+Suppose the network is partitioned into components $C_1,\dots,C_k$ with no
+inter-component communication during spending, each containing at least one
+verifier. Then an adversary present in $j\le k$ components realizes over-spend up
+to $jB$, and no offline scheme prevents it. The tight achievable guarantee for an
+offline scheme is a per-verifier cap of $B$; a per-component cap of $B$ additionally
+requires reachable intra-component coordination; a global cap of $B$ is
+unachievable.
+\end{proposition}
+
+\begin{proof}
+Upper construction: $\kappa$ verifies identically at every verifier (the signature
+and local clock are all an offline verifier sees), so each of the $j$ components
+admits up to its local cap $B$, totalling $jB$. Lower bound: suppose an offline
+scheme guaranteed total $<jB$. Take honest verifiers $u\in C_i$, $w\in C_{i'}$ that
+never communicate. Each decides from $(\kappa,\text{local state})$; by an
+indistinguishability argument $u$'s admissions are independent of any spend at $w$,
+so if $u$ would admit $B$ in isolation it admits $B$ here, and symmetrically $w$,
+giving $\ge 2B$ across the pair and $jB$ across all. Preventing this needs $u,w$ to
+share state, i.e.\ a path between $C_i$ and $C_{i'}$, contradicting partition. This
+is the offline double-spending phenomenon of untraceable
+cash~\cite{ChaumFiatNaor1988}: prevention is impossible offline, only detection.
+\end{proof}
+
+\begin{remark}
+Proposition~\ref{prop:inflation} is the CAP corner~\cite{GilbertLynch2002} for a
+\emph{conserved scalar} rather than a consistent register, and its ``$B/g$''
+escape is escrow~\cite{ONeil1986Escrow,Barbara1994Demarcation}. It is not the
+contribution of this note; it is the setup. The static bound treats partitions as
+given. The rest treats them as \emph{dynamic} --- the realistic case, where the
+adversary \emph{moves} and detection \emph{spreads}, and the question is not
+\emph{whether} over-spend occurs but \emph{how much} before containment.
+\end{remark}
+
+% ===========================================================================
+\section{Mean-field dynamics: a closed form}\label{sec:meanfield}
+% ===========================================================================
+
+We first solve the well-mixed case exactly (to leading order), because it is
+tractable and already yields a surprising prediction.
+
+\paragraph{Setup.} $N$ verifiers on the complete graph, continuous time. Let
+$I(t)$ be the number of immunized verifiers and $S(t)=N-I(t)$ the susceptible
+(not-yet-immunized) ones, $I(0)=1$ (the first over-spend seeds detection). Two
+Poisson mechanisms consume susceptibles:
+\begin{itemize}[leftmargin=1.4em,itemsep=1pt]
+  \item \textbf{Adversary} reaches a uniformly random verifier at rate $a$; if
+  susceptible (prob.\ $S/N$) it over-spends and that verifier becomes immunized.
+  Contribution to over-spend: $\mathrm{d}\Nwin = a\,(S/N)\,\mathrm{d}t$.
+  \item \textbf{Gossip} immunizes: each of the $I$ immunized verifiers contacts a
+  random verifier at rate $d$, immunizing it if susceptible. Rate $d\,I\,(S/N)$;
+  contributes \emph{no} over-spend.
+\end{itemize}
+
+\begin{theorem}[Mean-field over-spend]\label{thm:meanfield}
+In the model above, as $N\to\infty$ with $a=O(1)$ fixed and $d>0$ fixed,
+\[
+\boxed{\;\E[\Nwin] \;=\; \frac{a}{d}\,\ln N \;+\; O(1).\;}
+\]
+Equivalently, realized over-spend is $B\cdot\E[\Nwin]=\frac{aB}{d}\ln N + O(B)$.
+\end{theorem}
+
+\begin{proof}[Proof (mean-field, leading order)]
+Write $s(t)=S(t)/N$. Over-spend is $\E[\Nwin]=a\int_0^\infty \E[s(t)]\,\mathrm{d}t$
+by the adversary mechanism. The immunized count obeys, in the fluid limit,
+$\dot I = (a + dI)\,s$. For large $N$ the gossip term dominates the seed while
+$I\ll N$: $\dot I \approx dI$ (since $s\approx 1$ early), so $I(t)\approx e^{dt}$
+from $I(0)=1$. Thus $I$ stays $o(N)$ --- and $s\approx 1$ --- until the takeoff
+time
+\[
+t^\star \;=\; \inf\{t: I(t)=N/2\} \;\approx\; \frac{1}{d}\ln\frac{N}{2} \;=\; \frac{\ln N}{d}+O(1).
+\]
+After $t^\star$ the logistic $\dot s = -(a/N + dI/N)\,s\cdot N/N$ saturates in
+additional time $O(1/d)$, during which $\int s\,\mathrm{d}t=O(1/d)=O(1)$.
+Therefore $\int_0^\infty \E[s(t)]\,\mathrm{d}t = t^\star + O(1) = \frac{\ln N}{d}+O(1)$,
+and multiplying by $a$ gives the claim. (Rigor: the fluid limit is the
+$N\to\infty$ law-of-large-numbers for the density-dependent Markov chain; the
+$e^{dt}$ growth phase and $O(1/d)$ saturation are standard for logistic/SI
+dynamics.)
+\end{proof}
+
+\begin{remark}[Two testable predictions]
+Theorem~\ref{thm:meanfield} says (i)~over-spend scales as the ratio $a/d$ of
+adversary speed to gossip speed --- fast detection is the lever --- and (ii)~it
+\emph{grows} as $\ln N$: \emph{a larger relief network is more abusable per token},
+because the detection epidemic takes logarithmically longer to take off. Both are
+directly measurable (\S\ref{sec:sim}). Note that in the well-mixed model detection
+\emph{always} eventually saturates, so $\Nwin$ is always finite; the true
+\emph{phase transition} to unbounded over-spend requires spatial structure or a
+sub-threshold epidemic, treated next.
+\end{remark}
+
+% ===========================================================================
+\section{Spatial dynamics: a containment dichotomy}\label{sec:spatial}
+% ===========================================================================
+
+On graphs with finite propagation speed, the adversary can \emph{outrun} the
+detection front. Model the two spreads as a two-type first-passage percolation
+(FPP): type-1 (adversary reach) and type-2 (immunization) grow from the initial
+spend region with speeds $s_A$ and $s_D$; a verifier is over-spent iff type-1
+reaches it first~\cite{HaggstromPemantle1998}.
+
+\begin{theorem}[Containment dichotomy]\label{thm:dichotomy}
+Consider the two-type FPP on an infinite graph with speeds $s_A$ (adversary) and
+$s_D$ (detection front) from a common origin. Then:
+\begin{enumerate}[leftmargin=1.6em,itemsep=1pt]
+  \item \emph{(Sub-critical detection, $s_A>s_D$.)} $\Nwin=\infty$ a.s.; over-spend
+  grows linearly in time, at rate $\Theta(s_A-s_D)$.
+  \item \emph{(Super-critical detection, $s_D>s_A$, on the line and on
+  $b$-ary trees, $b\ge 2$.)} $\Nwin<\infty$ a.s.; the detection front encircles
+  the adversary and over-spend is bounded.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+(1)~If the adversary front is strictly faster it maintains a positive lead $\ell(t)
+= (s_A-s_D)t+o(t)$; the shell of vertices between the two fronts, all reached by
+the adversary before immunization, has size growing linearly, so $\Nwin\ge
+(s_A-s_D)t\to\infty$.
+(2)~On the line, ``encirclement'' means both endpoints of the adversary's reached
+interval are immunized; since $s_D>s_A$ the detection front started at the origin
+overtakes each endpoint in finite time, after which no fresh susceptible is
+reachable, so $\Nwin<\infty$. On a $b$-ary tree the reached set is a subtree; the
+detection front, strictly faster on every ray from the origin, immunizes each
+frontier vertex before the adversary can descend past it, so only finitely many
+vertices are over-spent. (Both use the finite-speed shape theorem for FPP and the
+strict speed gap; details are standard for FPP on the line/tree.)
+\end{proof}
+
+\begin{conjecture}[Planar containment]\label{conj:planar}
+On $\mathbb{Z}^2$ (and more generally $\mathbb{Z}^n$), if $s_D>s_A$ then
+$\Nwin<\infty$ a.s.
+\end{conjecture}
+
+\begin{remark}[Honest status]
+Conjecture~\ref{conj:planar} is, in general, \emph{open in probability theory}: it
+is the ``strong non-coexistence / strangulation'' question for competing FPP.
+H\"aggstr\"om and Pemantle~\cite{HaggstromPemantle1998} proved that at \emph{equal}
+speeds the two types \emph{coexist} (both grow unboundedly) with positive
+probability; strict strangulation at unequal speeds is proven only in special cases
+and conjectured in general. Our applied containment guarantee therefore inherits a
+genuine open problem: it is a theorem on the line and trees
+(Theorem~\ref{thm:dichotomy}), a well-supported conjecture on $\mathbb{Z}^2$, and,
+on realistic mesh graphs, an empirical claim we can (and should) test
+(\S\ref{sec:sim}). We consider this coupling a feature: a practical
+double-spend-containment question that is equivalent to a hard percolation
+problem.
+\end{remark}
+
+% ===========================================================================
+\section{The conservation--bandwidth lower bound}\label{sec:bandwidth}
+% ===========================================================================
+
+Both regimes say the same operational thing: over-spend is small only if detection
+is fast, and detection speed is bought with gossip traffic.
+
+\begin{corollary}[Conservation costs bandwidth]\label{cor:bandwidth}
+Let each verifier gossip revocation receipts at per-node rate $m$, giving detection
+rate $d \asymp \beta m$ (contact rate $\beta$ times messages per contact). To hold
+mean-field over-spend to a target $\E[\Nwin]\le T$, Theorem~\ref{thm:meanfield}
+forces
+\[
+m \;\ge\; \frac{a\,\ln N}{\beta\,T},
+\qquad\text{i.e.}\qquad
+\boxed{\;T\cdot m \;\ge\; \frac{a\,\ln N}{\beta}.\;}
+\]
+In the spatial regime, bounding over-spend requires $s_D>s_A$, i.e.\
+$\beta m \gtrsim v$ (gossip must outrun mobility), so $m=\Omega(v/\beta)$ and total
+detection bandwidth is $\Omega(Nv/\beta)$.
+\end{corollary}
+
+\begin{remark}
+Corollary~\ref{cor:bandwidth} is an uncertainty-principle-shaped tradeoff:
+\emph{over-spend $\times$ detection-bandwidth is bounded below by a network
+constant}. On a battery- and spectrum-limited mesh this is a hard physical
+constraint, and it makes the adversary's dominant strategy explicit --- suppress
+detection bandwidth (jam or prolong the partition) to raise $\Nwin$. It is the
+quantitative statement of ``you cannot get conservation for free.'' To our
+knowledge this bound is new; it is the analogue, on a spatial/dynamical axis, of
+Chaum--Pedersen's result that transferable offline cash must grow in representation
+size per transfer~\cite{ChaumPedersen1992} --- there, transferability inflates
+\emph{metadata}; here, it inflates \emph{spend}, and detection cost scales with the
+partition/mobility structure.
+\end{remark}
+
+% ===========================================================================
+\section{Positioning: three doors, honestly}\label{sec:doors}
+% ===========================================================================
+
+Problem~\ref{prob:main} has exactly three escapes, each a known technique for a
+different scarcity type; the synthesis (not any door) is what this note organizes.
+
+\begin{center}
+\begin{tabular}{@{}p{3.2cm}p{4.6cm}p{4.8cm}@{}}
+\toprule
+\textbf{Escape} & \textbf{Mechanism} & \textbf{Cost / when} \\
+\midrule
+Sacrifice availability & escrow / demarcation / bounded-counter (pre-split $B/g$)~\cite{ONeil1986Escrow,Barbara1994Demarcation,Balegas2015BoundedCounter} & strands a lone component to $B/g$; needs cooperative known sites --- \emph{fails Problem~\ref{prob:main}} \\
+Sacrifice offline / accept latency & detect-and-attribute on merge (CFN e-cash; blockchain confirmations)~\cite{ChaumFiatNaor1988,PassSeemanShelat2017,Rosenfeld2014Hashrate} & over-spend up to $\Nwin$; latency = merge time; \emph{this note quantifies $\Nwin$} \\
+Externalize to physics & proof-of-work / stake / location~\cite{Back2002Hashcash,Douceur2002Sybil} & bounds \emph{creation} (Sybil), \emph{not use} (double-spend) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The sharp refinement: \textbf{physics conserves creation, not use.} Proof-of-work
+bounds how many tokens/identities can \emph{exist} (Sybil
+resistance~\cite{Douceur2002Sybil,Back2002Hashcash}) but does nothing against
+spending one minted token twice --- usage-conservation is irreducibly the escrow or
+detection door. Blockchain (door 2, \emph{using} door 3 for its order) makes the
+mapping precise: confirmation depth $=$ detection latency, and security degrades
+with network delay $\Delta$~\cite{PassSeemanShelat2017,Rosenfeld2014Hashrate}. Our
+mesh is door 2 \emph{without} a global order, so containment is spatial strangulation
+(\S\ref{sec:spatial}), not chain depth --- a regime between the e-cash and
+blockchain literatures.
+
+% ===========================================================================
+\section{Simulation protocol}\label{sec:sim}
+% ===========================================================================
+
+The claims are falsifiable against the project's open harness (\texttt{sim::bench},
+\texttt{mobility}), which already has verifiers, mobility models (Random Waypoint,
+replayed traces), and a gossip channel. Build a \emph{spend-gossip detector} and a
+\emph{mobile double-spender}, then measure:
+\begin{enumerate}[leftmargin=1.6em,itemsep=1pt]
+  \item \textbf{Mean-field law (Thm.~\ref{thm:meanfield}).} On a well-mixed
+  topology, sweep $N$ and the ratio $a/d$; fit $\E[\Nwin]$ against $(a/d)\ln N$.
+  Confirm the $\ln N$ growth and the $a/d$ slope.
+  \item \textbf{Spatial dichotomy (Thm.~\ref{thm:dichotomy}, Conj.~\ref{conj:planar}).}
+  On Random-Waypoint / grid topologies, sweep the mobility-to-gossip ratio $v/(\beta
+  m)$ across $1$; verify the transition from linear-in-time (unbounded) $\Nwin$ to
+  bounded $\Nwin$, locating the empirical boundary against $s_D=s_A$.
+  \item \textbf{Bandwidth bound (Cor.~\ref{cor:bandwidth}).} Sweep per-node gossip
+  rate $m$; verify the product floor $T\cdot m \gtrsim (a\ln N)/\beta$ and the
+  $\Omega(v/\beta)$ threshold.
+  \item \textbf{Partition-prolonging adversary.} Give the adversary the option to
+  jam detection links; confirm its payoff-maximizing strategy suppresses gossip
+  (couples resource abuse to availability attack).
+\end{enumerate}
+Each measurement is a direct test of a stated result; a mismatch falsifies the
+model, not merely the implementation.
+
+% ===========================================================================
+\section{Open problems}\label{sec:open}
+% ===========================================================================
+
+\begin{enumerate}[leftmargin=1.6em,itemsep=1pt]
+  \item \textbf{Planar strangulation (Conj.~\ref{conj:planar}).} Prove or refute
+  containment on $\mathbb{Z}^2$ / random geometric graphs when $s_D>s_A$; this is
+  the competing-FPP non-coexistence question specialized to our seeding.
+  \item \textbf{Optimal escrow under a partition-size law.} If disaster partitions
+  have component-count distribution $k\sim\pi$, the pre-split $g$ minimizing
+  $\E[\text{unavailability}+\text{over-spend risk}]$ is a newsvendor problem;
+  characterize $g^\star=\pi^{-1}(\cdot)$ from real outage traces.
+  \item \textbf{Detection with adversarial seeding.} Here detection is seeded by
+  the adversary's own spends; analyze when an adversary can \emph{suppress} its
+  seeds (spend only at leaf verifiers with poor onward gossip) to delay detection,
+  and the verifier-placement that resists it.
+  \item \textbf{Tightness of Cor.~\ref{cor:bandwidth}.} Pin the constant and the
+  gossip model (push/pull/spatial) under which the product bound is tight.
+\end{enumerate}
+
+Results here are exact in mean field (Thm.~\ref{thm:meanfield}), proven on
+line/tree (Thm.~\ref{thm:dichotomy}), conjectural on the plane
+(Conj.~\ref{conj:planar}), and empirically testable throughout (\S\ref{sec:sim}).
+
+\small
+\bibliographystyle{plain}
+\bibliography{containment}
+
+\end{document}
