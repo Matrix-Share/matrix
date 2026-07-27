@@ -50,8 +50,12 @@ fn main() {
     // scenario) instead of the acceptance demo.
     if std::env::args().nth(1).as_deref() == Some("bench") {
         banner("Comparative routing evaluation · 3-cluster partition + mule (seed 42, 700 ticks)");
-        let rows = bench::run_comparison(42, 700);
-        print!("{}", bench::format_table(&rows));
+        print!("{}", bench::format_table(&bench::run_comparison(42, 700)));
+        banner("Comparative routing evaluation · Random Waypoint, 24 nodes (seed 42, 700 ticks)");
+        print!(
+            "{}",
+            bench::format_table(&bench::run_comparison_rwp(42, 700, 24))
+        );
         return;
     }
 
