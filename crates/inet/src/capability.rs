@@ -180,6 +180,11 @@ pub struct Scope {
     /// minimum across the chain; enforced by the gateway after fetch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_response_bytes: Option<u64>,
+    /// Optional *cumulative* byte quota for the whole capability, bytes. Effective
+    /// = minimum across the chain; metered by the gateway's quota ledger across
+    /// requests (the "paid pass with a data cap" tier). `None` = unmetered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_total_bytes: Option<u64>,
     /// Optional expiry, unix seconds. Effective = earliest across the chain.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub not_after: Option<u64>,
@@ -198,6 +203,7 @@ impl Scope {
             methods: MethodRule::Only(vec!["GET".into(), "HEAD".into(), "POST".into()]),
             class: ServiceClass::Messaging,
             max_response_bytes: Some(4 * 1024 * 1024),
+            max_total_bytes: None,
             not_after: None,
         }
     }
@@ -209,6 +215,7 @@ impl Scope {
             methods: MethodRule::Any,
             class: ServiceClass::Bulk,
             max_response_bytes,
+            max_total_bytes: None,
             not_after: None,
         }
     }
@@ -218,6 +225,15 @@ impl Scope {
         self.not_after = Some(match self.not_after {
             Some(existing) => existing.min(unix_secs),
             None => unix_secs,
+        });
+        self
+    }
+
+    /// Set/lower a cumulative byte quota (builder-style; keeps the smaller cap).
+    pub fn with_total_quota(mut self, bytes: u64) -> Scope {
+        self.max_total_bytes = Some(match self.max_total_bytes {
+            Some(existing) => existing.min(bytes),
+            None => bytes,
         });
         self
     }
@@ -293,6 +309,8 @@ pub struct Granted {
     pub class: ServiceClass,
     /// Effective single-response byte ceiling (minimum across the chain), if any.
     pub max_response_bytes: Option<u64>,
+    /// Effective cumulative byte quota (minimum across the chain), if any.
+    pub max_total_bytes: Option<u64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -535,15 +553,18 @@ impl Capability {
         // Evaluate every level; a request must satisfy all of them.
         let mut class = self.grant.scope.class;
         let mut max_bytes = self.grant.scope.max_response_bytes;
+        let mut max_total = self.grant.scope.max_total_bytes;
         self.grant.scope.permits(host, method, now)?;
         for att in &self.atts {
             att.caveat.permits(host, method, now)?;
             class = class.most_restrictive(att.caveat.class);
             max_bytes = min_opt(max_bytes, att.caveat.max_response_bytes);
+            max_total = min_opt(max_total, att.caveat.max_total_bytes);
         }
         Ok(Granted {
             class,
             max_response_bytes: max_bytes,
+            max_total_bytes: max_total,
         })
     }
 }

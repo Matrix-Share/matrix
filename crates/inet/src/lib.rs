@@ -59,7 +59,7 @@ pub use capability::{CapError, CapKey, Capability, Scope, ServiceClass};
 
 use lifeline_proto::Address;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 
 /// A request to fetch something on the real internet, carried over the mesh to a
@@ -116,14 +116,26 @@ pub struct Authz<'a> {
     pub now: u64,
 }
 
+/// Metering handle for an authorized request: which capability to charge and its
+/// cumulative quota, so the gateway's [`QuotaLedger`] can enforce a data cap
+/// across requests. `None` for the unmetered [`AllowList`] path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Meter {
+    /// Capability id (its nonce) — the ledger key.
+    pub cap_id: [u8; 16],
+    /// Cumulative byte quota for this capability, if any.
+    pub max_total_bytes: Option<u64>,
+}
+
 /// A policy's verdict on an egress request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Decision {
     /// Permit the fetch, at this egress class and (optional) response byte
-    /// ceiling.
+    /// ceiling, optionally metered against a cumulative quota.
     Allow {
         class: ServiceClass,
         max_response_bytes: Option<u64>,
+        meter: Option<Meter>,
     },
     /// Refuse; the string is a human-readable reason returned to the requester.
     Deny(String),
@@ -171,6 +183,7 @@ impl AccessPolicy for AllowList {
             Decision::Allow {
                 class: ServiceClass::Bulk,
                 max_response_bytes: None,
+                meter: None, // the trivial local issuer is unmetered
             }
         } else {
             Decision::Deny("internet access not authorized by this gateway".into())
@@ -190,6 +203,11 @@ impl AccessPolicy for AllowList {
 #[derive(Debug, Clone, Default)]
 pub struct CapabilityPolicy {
     trusted_issuers: HashSet<capability::VerKey>,
+    /// Capability ids revoked before their natural expiry. A revoked capability
+    /// is refused even if it otherwise verifies and is unexpired — the
+    /// issuer/operator's break-glass control (short expiry remains the primary
+    /// mechanism; this is for the "revoke *now*" case).
+    revoked: HashSet<[u8; 16]>,
 }
 
 impl CapabilityPolicy {
@@ -204,6 +222,17 @@ impl CapabilityPolicy {
     pub fn untrust(&mut self, issuer: &capability::VerKey) {
         self.trusted_issuers.remove(issuer);
     }
+    /// Revoke a specific capability by id (its nonce) before it expires.
+    pub fn revoke(&mut self, cap_id: [u8; 16]) {
+        self.revoked.insert(cap_id);
+    }
+    /// Undo a revocation.
+    pub fn unrevoke(&mut self, cap_id: &[u8; 16]) {
+        self.revoked.remove(cap_id);
+    }
+    pub fn is_revoked(&self, cap_id: &[u8; 16]) -> bool {
+        self.revoked.contains(cap_id)
+    }
 }
 
 impl AccessPolicy for CapabilityPolicy {
@@ -211,6 +240,9 @@ impl AccessPolicy for CapabilityPolicy {
         let Some(cap) = authz.capability else {
             return Decision::Deny("no egress capability presented".into());
         };
+        if self.revoked.contains(&cap.id()) {
+            return Decision::Deny("capability has been revoked".into());
+        }
         let host = match host_of(&authz.req.url) {
             Some(h) => h,
             None => return Decision::Deny("request URL has no host".into()),
@@ -221,9 +253,43 @@ impl AccessPolicy for CapabilityPolicy {
             Ok(g) => Decision::Allow {
                 class: g.class,
                 max_response_bytes: g.max_response_bytes,
+                meter: Some(Meter {
+                    cap_id: cap.id(),
+                    max_total_bytes: g.max_total_bytes,
+                }),
             },
             Err(e) => Decision::Deny(e.to_string()),
         }
+    }
+}
+
+/// A per-capability cumulative spend ledger — the token-bucket "data cap" that
+/// makes a stolen or over-eager capability unable to drain a gateway's scarce
+/// backhaul. Keyed by capability id (nonce).
+#[derive(Debug, Clone, Default)]
+pub struct QuotaLedger {
+    spent: HashMap<[u8; 16], u64>,
+}
+
+impl QuotaLedger {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// Bytes already spent by this capability.
+    pub fn spent(&self, cap_id: &[u8; 16]) -> u64 {
+        self.spent.get(cap_id).copied().unwrap_or(0)
+    }
+    /// Whether this capability still has quota headroom (true if unmetered).
+    pub fn has_headroom(&self, meter: &Meter) -> bool {
+        match meter.max_total_bytes {
+            Some(cap) => self.spent(&meter.cap_id) < cap,
+            None => true,
+        }
+    }
+    /// Record `bytes` spent by a capability (called after a served response).
+    pub fn record(&mut self, cap_id: [u8; 16], bytes: u64) {
+        let e = self.spent.entry(cap_id).or_insert(0);
+        *e = e.saturating_add(bytes);
     }
 }
 
@@ -234,23 +300,30 @@ pub trait Fetcher {
     fn fetch(&self, req: &NetRequest) -> NetResponse;
 }
 
-/// The gateway: authorize → SSRF-check → fetch → enforce the byte ceiling.
-/// Refuses the unauthorized (and unsafe URLs) **without performing any fetch**.
+/// The gateway: authorize → quota-check → SSRF-check → fetch → enforce the
+/// per-response byte ceiling → meter the spend. Refuses the unauthorized, the
+/// quota-exhausted, and unsafe URLs **without performing any fetch**.
 pub struct InternetGateway<P: AccessPolicy, F: Fetcher> {
     policy: P,
     fetcher: F,
+    quota: QuotaLedger,
 }
 
 impl<P: AccessPolicy, F: Fetcher> InternetGateway<P, F> {
     pub fn new(policy: P, fetcher: F) -> Self {
-        InternetGateway { policy, fetcher }
+        InternetGateway {
+            policy,
+            fetcher,
+            quota: QuotaLedger::new(),
+        }
     }
 
     /// Handle a `NetRequest` from `requester`, who may present a `capability`.
     /// `now` is the current unix time (for capability expiry). Never fetches
-    /// unless the policy permits it *and* the URL is safe.
+    /// unless the policy permits it, the capability has quota headroom, *and* the
+    /// URL is safe. Metering is `&mut`, so this takes `&mut self`.
     pub fn handle(
-        &self,
+        &mut self,
         requester: &Address,
         req: &NetRequest,
         capability: Option<&Capability>,
@@ -262,12 +335,22 @@ impl<P: AccessPolicy, F: Fetcher> InternetGateway<P, F> {
             capability,
             now,
         };
-        let max_bytes = match self.policy.decide(&authz) {
+        let (max_bytes, meter) = match self.policy.decide(&authz) {
             Decision::Allow {
-                max_response_bytes, ..
-            } => max_response_bytes,
+                max_response_bytes,
+                meter,
+                ..
+            } => (max_response_bytes, meter),
             Decision::Deny(reason) => return NetResponse::refused(&req.id, reason),
         };
+        // Cumulative-quota gate: if the capability is already at/over its data
+        // cap, refuse *before* fetching (so an exhausted credential can't keep
+        // spending a gateway's backhaul).
+        if let Some(m) = &meter {
+            if !self.quota.has_headroom(m) {
+                return NetResponse::refused(&req.id, "capability data quota exhausted");
+            }
+        }
         if let Err(reason) = is_safe_url(&req.url) {
             return NetResponse::refused(&req.id, reason);
         }
@@ -280,13 +363,22 @@ impl<P: AccessPolicy, F: Fetcher> InternetGateway<P, F> {
                 );
             }
         }
+        // Meter the served bytes against the capability's cumulative quota.
+        if let Some(m) = meter {
+            self.quota.record(m.cap_id, resp.body.len() as u64);
+        }
         resp
     }
 
-    /// The policy (to grant/revoke on an `AllowList`, trust issuers on a
+    /// The policy (to grant/revoke on an `AllowList`, trust/revoke on a
     /// `CapabilityPolicy`, etc.).
     pub fn policy_mut(&mut self) -> &mut P {
         &mut self.policy
+    }
+
+    /// The quota ledger (to inspect or reset per-capability spend).
+    pub fn quota(&self) -> &QuotaLedger {
+        &self.quota
     }
 }
 
@@ -417,7 +509,7 @@ mod tests {
     fn authorized_request_is_fetched() {
         let mut list = AllowList::new();
         list.grant(addr(1));
-        let gw = InternetGateway::new(list, MockFetcher::new());
+        let mut gw = InternetGateway::new(list, MockFetcher::new());
         let resp = gw.handle(&addr(1), &req("https://example.com/status"), None, 0);
         assert_eq!(resp.status, 200);
         assert!(resp.error.is_none());
@@ -427,7 +519,7 @@ mod tests {
     #[test]
     fn unauthorized_request_is_refused_without_fetching() {
         let list = AllowList::new(); // nobody granted
-        let gw = InternetGateway::new(list, MockFetcher::new());
+        let mut gw = InternetGateway::new(list, MockFetcher::new());
         let resp = gw.handle(&addr(2), &req("https://example.com"), None, 0);
         assert_eq!(resp.status, 0);
         assert!(resp.error.as_deref().unwrap().contains("not authorized"));
@@ -460,7 +552,7 @@ mod tests {
     fn ssrf_targets_are_refused_even_for_authorized_requesters() {
         let mut list = AllowList::new();
         list.grant(addr(1));
-        let gw = InternetGateway::new(list, MockFetcher::new());
+        let mut gw = InternetGateway::new(list, MockFetcher::new());
         for bad in [
             "http://localhost/admin",
             "http://127.0.0.1:8080/",
@@ -522,7 +614,7 @@ mod tests {
             Scope::messaging(["whatsapp.net"]),
             1,
         );
-        let gw = InternetGateway::new(policy, MockFetcher::new());
+        let mut gw = InternetGateway::new(policy, MockFetcher::new());
 
         // In-scope host → fetched.
         let ok = gw.handle(&subject, &req("https://whatsapp.net/send"), Some(&cap), 100);
@@ -544,7 +636,7 @@ mod tests {
         let mut policy = CapabilityPolicy::new();
         policy.trust(issuer.public()); // trust only the real issuer
         let subject = addr(1);
-        let gw = InternetGateway::new(policy, MockFetcher::new());
+        let mut gw = InternetGateway::new(policy, MockFetcher::new());
 
         // No capability presented.
         assert_eq!(
@@ -575,9 +667,82 @@ mod tests {
             3,
         );
         // Fetcher returns a 500-byte body — over the ceiling.
-        let gw = InternetGateway::new(policy, MockFetcher::with_body_len(500));
+        let mut gw = InternetGateway::new(policy, MockFetcher::with_body_len(500));
         let resp = gw.handle(&subject, &req("https://example.com/big"), Some(&cap), 0);
         assert_eq!(resp.status, 0);
         assert!(resp.error.as_deref().unwrap().contains("byte ceiling"));
+    }
+
+    #[test]
+    fn cumulative_quota_is_metered_and_then_exhausts() {
+        let issuer = CapKey::generate();
+        let mut policy = CapabilityPolicy::new();
+        policy.trust(issuer.public());
+        let subject = addr(1);
+        // 250-byte cumulative quota; each response is 100 bytes.
+        let cap = Capability::issue(
+            &issuer,
+            subject.clone(),
+            Scope::full_internet(None).with_total_quota(250),
+            issuer.public(),
+            [11u8; 16],
+        );
+        let mut gw = InternetGateway::new(policy, MockFetcher::with_body_len(100));
+        // First two requests fit (100, 200 spent).
+        assert_eq!(
+            gw.handle(&subject, &req("https://example.com/1"), Some(&cap), 0)
+                .status,
+            200
+        );
+        assert_eq!(
+            gw.handle(&subject, &req("https://example.com/2"), Some(&cap), 0)
+                .status,
+            200
+        );
+        assert_eq!(gw.quota().spent(&cap.id()), 200);
+        // Third: still has headroom (200 < 250) so it is served, pushing spend
+        // to 300 — the cap bounds total to roughly quota + one response.
+        assert_eq!(
+            gw.handle(&subject, &req("https://example.com/3"), Some(&cap), 0)
+                .status,
+            200
+        );
+        // Fourth: now over quota → refused *without* fetching.
+        let calls_before = gw.fetcher.calls.get();
+        let resp = gw.handle(&subject, &req("https://example.com/4"), Some(&cap), 0);
+        assert_eq!(resp.status, 0);
+        assert!(resp.error.as_deref().unwrap().contains("quota exhausted"));
+        assert_eq!(
+            gw.fetcher.calls.get(),
+            calls_before,
+            "an exhausted quota must not reach the fetcher"
+        );
+    }
+
+    #[test]
+    fn revoked_capability_is_refused_without_fetching() {
+        let issuer = CapKey::generate();
+        let mut policy = CapabilityPolicy::new();
+        policy.trust(issuer.public());
+        let subject = addr(1);
+        let cap = cap_for(&issuer, subject.clone(), Scope::full_internet(None), 12);
+        let mut gw = InternetGateway::new(policy, MockFetcher::new());
+        // Works before revocation.
+        assert_eq!(
+            gw.handle(&subject, &req("https://example.com"), Some(&cap), 0)
+                .status,
+            200
+        );
+        // Operator revokes the capability by id.
+        gw.policy_mut().revoke(cap.id());
+        let calls_before = gw.fetcher.calls.get();
+        let resp = gw.handle(&subject, &req("https://example.com"), Some(&cap), 0);
+        assert_eq!(resp.status, 0);
+        assert!(resp.error.as_deref().unwrap().contains("revoked"));
+        assert_eq!(
+            gw.fetcher.calls.get(),
+            calls_before,
+            "a revoked capability must not reach the fetcher"
+        );
     }
 }

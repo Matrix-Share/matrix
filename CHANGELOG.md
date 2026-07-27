@@ -7,6 +7,18 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Egress quota + revocation for `lifeline-inet` (capability follow-ups).** Two
+  of the C/E follow-ups from the capability model are now implemented:
+  - **Cumulative data quota (token bucket).** A `Scope` may carry a
+    `max_total_bytes` cap (effective = min across the attenuation chain). The
+    gateway keeps a `QuotaLedger` keyed by `Capability::id` — it refuses a request
+    **before fetching** once the capability is at/over its cap, and meters served
+    bytes after each response, so a stolen or over-eager credential cannot drain
+    a gateway's scarce backhaul. `InternetGateway::handle` is now `&mut self`.
+  - **Revocation before expiry.** `CapabilityPolicy::revoke(cap_id)` is a
+    break-glass control: a revoked capability is refused without fetching even if
+    it otherwise verifies and is unexpired (short expiry stays the primary
+    mechanism). Two new tests (quota metering/exhaustion, revocation).
 - **Comparative routing evaluation harness (`lifeline-sim::bench`).** Turns the
   white paper's evaluation methodology into concrete, reproducible numbers. Adds
   two baseline routing policies alongside Lifeline's default — `EpidemicPolicy`
