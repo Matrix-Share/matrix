@@ -210,15 +210,24 @@ VPN/Tor exit or your ISP. Users choose which gateway to trust; relays in between
 see only a sealed bundle bound for the gateway, never the URL. This is stated
 plainly rather than implied.
 
-**Not yet in scope (documented, not silently missing):**
+**Now implemented (was a follow-up):**
 
-- **Live cross-request quota (token bucket).** Today the byte ceiling is
-  *per-response*. Enforcing a cumulative "50 MB/day" cap needs the gateway to
-  keep a per-capability (`Capability::id`) spend ledger — stateful, deliberately
-  left to the enforcement follow-up.
-- **Revocation before expiry.** A capability is valid until `not_after`.
-  Short expiries + re-issuance are the intended mechanism; issuer-published
-  revocation lists (or short-lived, frequently-refreshed grants) are a follow-up.
+- **Live cross-request quota (token bucket).** A `Scope` can carry a
+  `max_total_bytes` cumulative cap (effective = min across the chain). The
+  gateway keeps a `QuotaLedger` keyed by `Capability::id`; it refuses a request
+  **before fetching** once the capability is at/over its cap, and meters served
+  bytes after each response. Total spend is bounded to roughly `quota + one
+  response`. This is the token-bucket "data pass" that stops a stolen or
+  over-eager credential draining a gateway's scarce backhaul. Test:
+  `cumulative_quota_is_metered_and_then_exhausts`.
+- **Revocation before expiry.** `CapabilityPolicy::revoke(cap_id)` is the
+  break-glass control: a revoked capability is refused (without fetching) even if
+  it otherwise verifies and is unexpired. Short expiry remains the primary
+  mechanism; this handles "revoke *now*." Test:
+  `revoked_capability_is_refused_without_fetching`.
+
+**Still not in scope (documented, not silently missing):**
+
 - **Third-party caveats** (macaroon-style "valid only if service Y also
   authorizes") are not implemented; only first-party (locally-checkable) caveats.
 - **Format review.** The token is a composition of audited primitives (Ed25519,
