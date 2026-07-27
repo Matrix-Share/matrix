@@ -42,6 +42,15 @@ pub const GRACE_MISSES: u32 = 2;
 /// full, the soonest-to-expire entry is dropped.
 pub const MAX_PENDING: usize = 4096;
 
+/// Minimum custody observations (delivered + missed) for a custodian before the
+/// **grey-hole** delivery-ratio rule can fire — enough signal to distinguish a
+/// selective dropper from an unlucky honest carrier.
+pub const GREY_MIN_SAMPLES: u32 = 8;
+/// A custodian whose lifetime delivery ratio falls below this (with at least
+/// [`GREY_MIN_SAMPLES`] observations) is penalized as a grey hole — even if it
+/// never strings together [`GRACE_MISSES`] *consecutive* misses.
+pub const GREY_MIN_DELIVERY_RATIO: f32 = 0.5;
+
 /// One bundle we originated that at least one peer took custody of, awaiting
 /// delivery confirmation.
 #[derive(Debug, Clone)]
@@ -51,12 +60,41 @@ struct Pending {
     deadline: u64,
 }
 
+/// Lifetime custody outcomes for one custodian, used by the grey-hole rule.
+/// Unlike `misses` (a *consecutive* black-hole counter that a single delivery
+/// clears), these totals persist across deliveries, so a peer that reliably
+/// drops *some* fraction of what it carries cannot launder its record by
+/// occasionally delivering.
+#[derive(Debug, Clone, Copy, Default)]
+struct CustodianStats {
+    delivered: u32,
+    missed: u32,
+}
+
+impl CustodianStats {
+    fn samples(&self) -> u32 {
+        self.delivered.saturating_add(self.missed)
+    }
+    /// True once we have enough samples and the delivery ratio is below the
+    /// grey-hole floor.
+    fn is_grey_hole(&self) -> bool {
+        let n = self.samples();
+        if n < GREY_MIN_SAMPLES {
+            return false;
+        }
+        (self.delivered as f32 / n as f32) < GREY_MIN_DELIVERY_RATIO
+    }
+}
+
 /// Source-side ledger of custody → delivery outcomes, per bundle and per peer.
 #[derive(Debug, Clone, Default)]
 pub struct ForwardLedger {
     pending: HashMap<Bytes, Pending>,
-    /// Accumulated misses per custodian (only grows on expiry).
+    /// Accumulated *consecutive* misses per custodian (cleared by a delivery) —
+    /// the black-hole signal.
     misses: HashMap<Address, u32>,
+    /// Lifetime delivered/missed totals per custodian — the grey-hole signal.
+    stats: HashMap<Address, CustodianStats>,
 }
 
 impl ForwardLedger {
@@ -95,14 +133,23 @@ impl ForwardLedger {
             return Vec::new();
         };
         for c in &p.custodians {
+            // Clear the *consecutive* black-hole strikes...
             self.misses.remove(c);
+            // ...but persist the lifetime tally, so a grey hole can't launder a
+            // poor delivery ratio by delivering here and there.
+            self.stats.entry(c.clone()).or_default().delivered += 1;
         }
         p.custodians
     }
 
-    /// Expire everything past `now`. Returns the custodians to **penalize** — only
-    /// those whose miss count has crossed [`GRACE_MISSES`] (a black hole, not an
-    /// unlucky honest carrier). A peer may appear once per bundle it dropped.
+    /// Expire everything past `now`. Returns the custodians to **penalize** —
+    /// those that are either a **black hole** (more than [`GRACE_MISSES`]
+    /// *consecutive* misses) or a **grey hole** (a lifetime delivery ratio below
+    /// [`GREY_MIN_DELIVERY_RATIO`] over at least [`GREY_MIN_SAMPLES`]
+    /// observations, so a selective dropper that occasionally delivers to reset
+    /// its consecutive strikes is still caught). Honest carriers that just lacked
+    /// contact opportunities clear both bars. A peer may appear once per bundle it
+    /// dropped.
     pub fn expire(&mut self, now: u64) -> Vec<Address> {
         let expired: Vec<Bytes> = self
             .pending
@@ -118,7 +165,10 @@ impl ForwardLedger {
             for c in p.custodians {
                 let n = self.misses.entry(c.clone()).or_insert(0);
                 *n += 1;
-                if *n > GRACE_MISSES {
+                let black_hole = *n > GRACE_MISSES;
+                let st = self.stats.entry(c.clone()).or_default();
+                st.missed += 1;
+                if black_hole || st.is_grey_hole() {
                     penalize.push(c);
                 }
             }
@@ -215,6 +265,47 @@ mod tests {
             }
         }
         assert!(penalized);
+    }
+
+    #[test]
+    fn a_grey_hole_is_caught_despite_resetting_consecutive_misses() {
+        // addr(6) delivers only 1 of every 3 bundles (a ~33% carrier) — a clear
+        // grey hole. The delivery on every third round resets the *consecutive*
+        // miss counter (which never exceeds GRACE_MISSES = 2), so the black-hole
+        // rule alone would never fire; the lifetime ratio rule must catch it.
+        let mut l = ForwardLedger::new();
+        let mut penalized = false;
+        for i in 0..30u8 {
+            l.record_custody(&bid(i), &addr(6), 10);
+            if i % 3 == 0 {
+                l.confirm_delivery(&bid(i)); // delivered (clears consecutive strikes)
+            } else if l.expire(20).contains(&addr(6)) {
+                penalized = true; // dropped
+            }
+        }
+        assert!(
+            penalized,
+            "a selective (grey-hole) dropper must be penalized by the ratio rule"
+        );
+    }
+
+    #[test]
+    fn a_mostly_reliable_carrier_is_not_grey_holed() {
+        // addr(4) delivers ~90% and drops ~10% — an honest, lossy carrier. Its
+        // ratio stays above the floor, so it is never penalized.
+        let mut l = ForwardLedger::new();
+        let mut penalized = false;
+        for i in 0..40u8 {
+            l.record_custody(&bid(i), &addr(4), 10);
+            if i % 10 == 9 {
+                if l.expire(20).contains(&addr(4)) {
+                    penalized = true;
+                }
+            } else {
+                l.confirm_delivery(&bid(i));
+            }
+        }
+        assert!(!penalized, "a mostly-reliable carrier must not be demoted");
     }
 
     #[test]

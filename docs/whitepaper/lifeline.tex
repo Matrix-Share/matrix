@@ -425,12 +425,15 @@ threat, the mechanism, and its residual limitation.
 Sybil~\cite{douceur2002sybil} & no shared reputation to inflate; custody
 attribution is source-local (\S\ref{sec:custody}) & DHT population still Sybil-able;
 no proof-of-personhood\\
-Eclipse~\cite{singh2006eclipse,heilman2015eclipse} & Kademlia bucket diversity;
-DHT not trusted offline & bucket-poisoning hardening is future work\\
+Eclipse~\cite{singh2006eclipse,heilman2015eclipse} & Kademlia incumbent
+retention + a per-endpoint diversity cap per bucket & id-space Sybil still
+possible; no proof-of-work node ids\\
 Wormhole~\cite{hu2003leashes} & content integrity per CID; onion hides graph &
 no packet leashes; geographic spoofing possible\\
-Black-hole custody & source-attributed reputation, passive demotion
-(\S\ref{sec:custody}) & heuristic; grey-hole (selective drop) harder\\
+Black/grey-hole custody & source-attributed reputation: consecutive-miss
+demotion \emph{and} a lifetime delivery-ratio rule for selective droppers
+(\S\ref{sec:custody}) & heuristic; adaptive adversary can sit at the ratio
+threshold\\
 Spoofing / tampering & Ed25519 signatures inside the sealed envelope;
 per-CID integrity & key seizure defeats it\\
 DoS / spam & priority-scaled Hashcash postage~\cite{back2002hashcash}; bounded
@@ -564,8 +567,10 @@ operation.
   expiry rather than revocation lists.
   \item \textbf{Metadata protection.} Traffic-analysis resistance is limited;
   integrating cover-traffic or mixing~\cite{piotrowska2017loopix} is future work.
-  \item \textbf{Overlay hardening.} Eclipse/bucket-poisoning defenses for the DHT
-  and grey-hole detection for custody remain to be strengthened.
+  \item \textbf{Overlay hardening.} The DHT now caps contacts per endpoint per
+  bucket (an eclipse mitigation) and custody attribution now catches grey-hole
+  (selective) droppers via a delivery-ratio rule; proof-of-work node ids and
+  adaptive-adversary resistance remain future work.
   \item \textbf{Live wiring.} Time-sync, reconciliation, and geocast exist and
   are tested as crates but are not yet all driven by the live node.
 \end{itemize}
