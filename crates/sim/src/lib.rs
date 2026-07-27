@@ -13,7 +13,8 @@
 //! (mule carry | gateway bridge) → decrypt → signed receipt → offline
 //! verification.
 
+pub mod bench;
 pub mod scenarios;
 mod world;
 
-pub use world::{DeliveryReport, Mule, World};
+pub use world::{DeliveryReport, Mule, RoutingStrategy, World};
