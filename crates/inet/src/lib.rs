@@ -49,9 +49,12 @@
 //! `turn:` / media schemes.
 //!
 //! This crate is the transport-agnostic, network-free core (testable without any
-//! sockets). The client-side local proxy (an OS HTTP/SOCKS proxy that serialises
-//! app requests into sealed `NetRequest` bundles) and the real HTTP [`Fetcher`]
-//! are the integration layer.
+//! sockets). A real blocking HTTP [`Fetcher`] ships behind the `http` feature
+//! ([`HttpFetcher`]) — it resolves through an SSRF-safe resolver that rejects any
+//! host resolving to a non-public IP (closing the DNS-rebinding gap) and caps the
+//! response body. The client-side local proxy (an OS HTTP/SOCKS proxy that
+//! serialises app requests into sealed `NetRequest` bundles) is the remaining
+//! integration layer.
 
 pub mod capability;
 
@@ -451,6 +454,122 @@ fn reject_private(ip: IpAddr) -> Result<(), &'static str> {
     }
 }
 
+/// Whether a *resolved* IP address is a public internet address — the check the
+/// real fetcher must apply after DNS resolution to defeat DNS-rebinding (a
+/// hostname that passes [`is_safe_url`] can still resolve to a private IP).
+pub fn resolved_ip_is_public(ip: IpAddr) -> bool {
+    reject_private(ip).is_ok()
+}
+
+/// A real, blocking HTTP [`Fetcher`] (feature `http`). It performs the fetch
+/// through a resolver that **rejects any host resolving to a non-public IP**, so
+/// DNS-rebinding cannot smuggle an internal target past [`is_safe_url`], and caps
+/// the response body. Enabled only when a node actually runs an exit.
+#[cfg(feature = "http")]
+pub use http_fetcher::HttpFetcher;
+
+#[cfg(feature = "http")]
+mod http_fetcher {
+    use super::{Fetcher, NetRequest, NetResponse};
+    use std::net::{SocketAddr, ToSocketAddrs};
+    use std::time::Duration;
+
+    /// A blocking HTTP fetcher backed by `ureq`, with an SSRF-safe resolver.
+    pub struct HttpFetcher {
+        agent: ureq::Agent,
+        /// Hard cap on the response body read into memory.
+        max_body_bytes: usize,
+    }
+
+    impl HttpFetcher {
+        /// Build a fetcher with a per-request `timeout` and a response body cap.
+        pub fn new(timeout: Duration, max_body_bytes: usize) -> Self {
+            // The resolver runs at connect time, so a private resolution is
+            // refused at the point of use — closing the DNS-rebinding TOCTOU the
+            // module docs warn about.
+            let agent = ureq::AgentBuilder::new()
+                .timeout(timeout)
+                .resolver(|netloc: &str| -> std::io::Result<Vec<SocketAddr>> {
+                    let addrs: Vec<SocketAddr> = netloc.to_socket_addrs()?.collect();
+                    if addrs.is_empty() {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::NotFound,
+                            "host did not resolve",
+                        ));
+                    }
+                    if let Some(bad) = addrs.iter().find(|a| !super::resolved_ip_is_public(a.ip()))
+                    {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::PermissionDenied,
+                            format!("host resolves to a non-public address: {}", bad.ip()),
+                        ));
+                    }
+                    Ok(addrs)
+                })
+                .build();
+            HttpFetcher {
+                agent,
+                max_body_bytes,
+            }
+        }
+    }
+
+    impl Fetcher for HttpFetcher {
+        fn fetch(&self, req: &NetRequest) -> NetResponse {
+            let mut r = self.agent.request(&req.method, &req.url);
+            for (k, v) in &req.headers {
+                r = r.set(k, v);
+            }
+            let result = if req.body.is_empty() {
+                r.call()
+            } else {
+                r.send_bytes(&req.body)
+            };
+            match result {
+                Ok(resp) => resp_from(req, resp.status(), resp, self.max_body_bytes),
+                // ureq returns Err for non-2xx *and* transport errors; surface an
+                // HTTP status where we have one (so the requester sees the 4xx/5xx),
+                // else a gateway-level error.
+                Err(ureq::Error::Status(code, resp)) => {
+                    resp_from(req, code, resp, self.max_body_bytes)
+                }
+                Err(e) => NetResponse::refused(&req.id, format!("fetch failed: {e}")),
+            }
+        }
+    }
+
+    /// Convert a `ureq::Response` into our `NetResponse`, capping the body.
+    fn resp_from(
+        req: &NetRequest,
+        status: u16,
+        resp: ureq::Response,
+        max_body_bytes: usize,
+    ) -> NetResponse {
+        use std::io::Read;
+        let headers: Vec<(String, String)> = resp
+            .headers_names()
+            .into_iter()
+            .filter_map(|n| resp.header(&n).map(|v| (n.clone(), v.to_string())))
+            .collect();
+        let mut body = Vec::new();
+        // Read at most max_body_bytes + 1 so we can detect truncation.
+        let mut reader = resp.into_reader().take(max_body_bytes as u64 + 1);
+        if let Err(e) = reader.read_to_end(&mut body) {
+            return NetResponse::refused(&req.id, format!("read failed: {e}"));
+        }
+        if body.len() > max_body_bytes {
+            return NetResponse::refused(&req.id, "response exceeds the fetcher body cap");
+        }
+        NetResponse {
+            id: req.id.clone(),
+            status,
+            headers,
+            body,
+            error: None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -581,6 +700,26 @@ mod tests {
         assert!(is_safe_url("https://example.com/path?q=1").is_ok());
         assert!(is_safe_url("http://93.184.216.34/").is_ok()); // a public IP literal
         assert!(is_safe_url("https://api.weather.gov/alerts").is_ok());
+    }
+
+    #[test]
+    fn resolved_ip_guard_matches_the_url_guard() {
+        use std::net::{Ipv4Addr, Ipv6Addr};
+        // Private / loopback / link-local / CGNAT / metadata resolutions rejected.
+        for bad in [
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5)),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)),
+            IpAddr::V4(Ipv4Addr::new(169, 254, 169, 254)),
+            IpAddr::V4(Ipv4Addr::new(100, 64, 0, 1)),
+            IpAddr::V6(Ipv6Addr::LOCALHOST),
+        ] {
+            assert!(!resolved_ip_is_public(bad), "{bad} must be rejected");
+        }
+        // Public resolutions accepted.
+        assert!(resolved_ip_is_public(IpAddr::V4(Ipv4Addr::new(
+            93, 184, 216, 34
+        ))));
     }
 
     #[test]

@@ -7,6 +7,14 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Real HTTP fetcher for the internet gateway (`lifeline-inet`, feature
+  `http`).** `HttpFetcher` (blocking, `ureq`) implements the `Fetcher` trait for a
+  node actually running an exit. It closes the DNS-rebinding gap the design flagged
+  by fetching through a **custom resolver that rejects any host resolving to a
+  non-public IP** (private/loopback/link-local/CGNAT/cloud-metadata) at connect
+  time, and it caps the response body. A new always-compiled `resolved_ip_is_public`
+  helper backs the resolver and is unit-tested against the same address classes as
+  the URL guard. Off by default so the core stays network-free.
 - **Mobility-model & trace-driven evaluation + full DTN metric set
   (`lifeline-sim`).** Extends the comparative harness beyond the cluster/mule
   scenario:
