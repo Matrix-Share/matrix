@@ -7,6 +7,14 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Geocast wired end-to-end into the live node + web app.** Geocast (area-
+  addressed alerts) was fully implemented in the engine (`broadcast_geo` /
+  region-key deliver) but had **no binary or UI surface** — unreachable from the
+  running node. Now wired through: two new `Command`s (`SetPosition`, `Geocast`)
+  handled in the engine thread, two API routes (`POST /api/position`,
+  `POST /api/geocast`), and a "Geocast to an area" panel in the web UI that uses
+  the device GPS as the center, registers the node's own position (so it also
+  *receives* area alerts), and sends within a chosen radius.
 - **Real HTTP fetcher for the internet gateway (`lifeline-inet`, feature
   `http`).** `HttpFetcher` (blocking, `ureq`) implements the `Fetcher` trait for a
   node actually running an exit. It closes the DNS-rebinding gap the design flagged

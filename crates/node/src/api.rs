@@ -57,6 +57,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/group/send", post(post_group_send))
         .route("/api/block", post(post_block))
         .route("/api/unblock", post(post_unblock))
+        .route("/api/position", post(post_position))
+        .route("/api/geocast", post(post_geocast))
         .route("/api/qr.svg", get(get_qr))
         .route("/api/ws", get(ws_handler))
         .layer(middleware::from_fn(guard_host))
@@ -106,6 +108,46 @@ async fn post_location(
         lat: req.lat,
         lon: req.lon,
         acc_m: req.acc_m,
+    });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct PositionReq {
+    lat: f64,
+    lon: f64,
+}
+
+/// Set this node's GPS position (needed to *receive* geocasts for its area).
+async fn post_position(
+    State(st): State<AppState>,
+    Json(req): Json<PositionReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::SetPosition {
+        lat: req.lat,
+        lon: req.lon,
+    });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct GeocastReq {
+    lat: f64,
+    lon: f64,
+    radius_m: f64,
+    body: String,
+}
+
+/// Geocast a message to everyone within `radius_m` of a point (area alert).
+async fn post_geocast(
+    State(st): State<AppState>,
+    Json(req): Json<GeocastReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::Geocast {
+        lat: req.lat,
+        lon: req.lon,
+        radius_m: req.radius_m,
+        body: req.body,
     });
     Json(serde_json::json!({ "ok": true }))
 }

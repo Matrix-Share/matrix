@@ -359,6 +359,37 @@ pub fn run(
                         dirty = true;
                     }
                 }
+                Command::SetPosition { lat, lon } => {
+                    // Required for geocast *receive*: a node only accepts a
+                    // geocast whose region cell matches its own position.
+                    engine.set_position(lat, lon);
+                }
+                Command::Geocast {
+                    lat,
+                    lon,
+                    radius_m,
+                    body,
+                } => {
+                    let payload = Payload {
+                        kind: PayloadKind::Text,
+                        body: Some(body.clone()),
+                        coords: None,
+                        battery_pct: None,
+                        attach: None,
+                        group_id: None,
+                    };
+                    let ids = engine.broadcast_geo(lat, lon, radius_m, payload, now);
+                    messages.push(MsgView {
+                        id: ids.first().map(|b| b.to_b64url()).unwrap_or_default(),
+                        dir: "out".into(),
+                        peer: format!("geocast:{radius_m:.0}m"),
+                        peer_name: name.clone(),
+                        body,
+                        ts: now,
+                        status: "sent".into(),
+                    });
+                    dirty = true;
+                }
                 Command::Shutdown => {
                     shutdown = true;
                 }
