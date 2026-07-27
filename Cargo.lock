@@ -928,6 +928,7 @@ dependencies = [
  "lifeline-proto",
  "lifeline-router",
  "lifeline-sync",
+ "lifeline-timesync",
  "lifeline-transport",
  "serde",
 ]

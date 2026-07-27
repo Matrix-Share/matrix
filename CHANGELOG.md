@@ -7,6 +7,20 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Differential time-sync wired into the live node (`lifeline-engine`).** The
+  `lifeline-timesync` crate existed and was tested but wasn't driven by the node.
+  The engine now owns a `TimeSync`: it piggybacks a `TimeBeacon` on its ordinary
+  presence beacon when it has a fresh fix, and disciplines its own clock from
+  neighbours' beacons on contact — so a node with no RTC acquires an approximate
+  "mesh time." New API: `set_gps_time` (become a stratum-1 reference) and
+  `mesh_time`. **Security:** the clock is disciplined **only by explicitly-paired
+  contacts** (added out-of-band via invite/QR — tracked in a new `paired` set),
+  never by a peer merely auto-discovered from a beacon, so a stranger cannot skew
+  a victim's time; and mesh time is **advisory only** (display/timestamps), never
+  fed into TTL/expiry or any security decision, because beacons are unauthenticated
+  (the crate's bounded slew limits drift regardless). Two integration tests: a
+  paired GPS node disciplines a peer's clock; an unpaired stranger's beacon does
+  not. The `Beacon` gains an optional, wire-back-compatible `ts` field.
 - **Geocast wired end-to-end into the live node + web app.** Geocast (area-
   addressed alerts) was fully implemented in the engine (`broadcast_geo` /
   region-key deliver) but had **no binary or UI surface** — unreachable from the
