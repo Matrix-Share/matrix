@@ -112,6 +112,24 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   measured. Two tests assert the harness runs and the expected ordering holds.
 
 ### Documentation
+- **White paper — critical rewrite for honesty and a real contribution.** The
+  first draft claimed "four contributions" that were all textbook techniques
+  (delta coding, BitTorrent-over-DTN, DTN reputation, macaroons) re-labelled — a
+  survey with our name on it. Rewritten to (a) state plainly that the system is a
+  *composition of known primitives* (with an explicit off-the-shelf-vs-new table),
+  and (b) develop the three ideas that actually emerged from composing them, as
+  propositions: **(1) metering internet egress with offline-verifiable bearer
+  capabilities in a partitioned network is offline double-spending** — a global
+  budget is unenforceable without consensus, the achievable bound is
+  per-component, and the principled design detects/attributes over-spend on merge
+  (Chaum–Fiat–Naor), which turns our egress-quota "TODO" into a result;
+  **(2) sealed-sender delivery forces source-local reputation, which is immune to
+  Sybil badmouthing** — privacy and accountability align rather than trade off;
+  **(3) the open-relay / gated-egress asymmetry** that organizes the design.
+  Also: removed the marketing-style "In Lifeline" colorboxes, added `amsthm`
+  propositions with proofs/justifications, fixed a stray tag in the README, and
+  added the Chaum–Fiat–Naor e-cash citation. All 45 `\cite` keys resolve; theorem
+  and tabular environments balance.
 - **Technical white paper** ([`docs/whitepaper/`](docs/whitepaper/)). An
   academic-style LaTeX paper (`lifeline.tex` + a fully-verified `lifeline.bib`)
   synthesising the architecture and its four named contributions — *residual
