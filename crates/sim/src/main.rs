@@ -48,6 +48,14 @@ fn main() {
     // `cargo run -p lifeline-sim -- bench` prints the comparative evaluation
     // table (spray-and-wait vs. epidemic vs. direct on the same partitioned
     // scenario) instead of the acceptance demo.
+    // `cargo run -p lifeline-sim -- containment` runs the offline over-spend
+    // containment measurement (single-agent vs transferable/chase-escape).
+    if std::env::args().nth(1).as_deref() == Some("containment") {
+        banner("Offline over-spend containment measurement");
+        print!("{}", lifeline_sim::containment::report());
+        return;
+    }
+
     if std::env::args().nth(1).as_deref() == Some("bench") {
         banner("Comparative routing evaluation · 3-cluster partition + mule (seed 42, 700 ticks)");
         print!("{}", bench::format_table(&bench::run_comparison(42, 700)));
