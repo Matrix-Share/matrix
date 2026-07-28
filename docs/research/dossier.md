@@ -289,6 +289,58 @@ Build a **spend-gossip detector** + a **mobile double-spender**, then:
 
 ---
 
+## 12. Independent-review outcome & reframe (current view — supersedes §11's optimism)
+
+A four-lens independent study (hostile re-derivation; statistical-physics; novelty
+audit; directions), each given only this frozen document, materially revised the
+picture. Full detail is in `bearer-token-containment.tex` §"Independent-review
+corrections and reframing". Summary:
+
+- **Model correction (decisive):** the self-seeded process is **chase-escape /
+  predator–prey**, not Häggström–Pemantle two-type FPP. Fork set by *gossip-range ÷
+  verifier-spacing*: local gossip → chase-escape (trail-confined, honest); flood
+  gossip → two-type FPP (what R2/R4 actually modeled). Chase-escape is *much more
+  solved* (trees exact; complete graph = golden-ratio transition, Kortchemski;
+  Poisson–Gilbert proven; ℤ² = 2-D percolation universality). Cite chase-escape lit,
+  **not** HP.
+- **R2** `[EXACT-FLUID→DEMOTED]`: textbook epidemic take-off `(1/d)ln N` × accrual;
+  *and* it is the flood-limit — the honest trail-limit (chase-escape on Kₙ) has a
+  phase transition, so the `ln N` form may be wrong there. Cheapest to test.
+- **R4** `[EXACT-FLUID→MISLABELLED]`: the "critical exponent γ=1" is a deterministic
+  relative-velocity **catch-up pole** (γ=1 by construction, no universality). The
+  genuinely critical (stochastic, planar) version is chase-escape → percolation
+  class, predicting **γ ≈ 43/18**, not 1. Reframe "measure an unknown exponent" →
+  "confirm the percolation prediction (and the interesting outcome is a *departure*
+  under real mobility)."
+- **R5** `[PRE-EMPTED]`: geometry-dependent loser-size Θ(N^α) already in
+  Antunović–Dekel–Mossel–Peres 2011 & Deijfen–van der Hofstad 2016; Garet–Marchand
+  constrains the planar conjecture. Must cite.
+- **R6** `[CORRECTED]`: it is a **provisioning/sufficiency threshold**, *not* an
+  impossibility lower bound (an upper bound on over-spend can't give a bandwidth
+  lower bound). A true lower bound (via a BRW rate function) is open.
+- **Problem (1)** `[ANTICIPATED]`: standard practice — offline transit blocklists +
+  passback, roaming/SIM-clone reconciliation-race, offline-CBDC holding-limits.
+  Survives only as first *formal isolation*.
+
+**Verdict:** no new non-trivial theorem (hostile reviewer: 3/10 research, 7/10
+math). **Reframe:** the value, if any, is not a closed-form theorem but is
+**(a) the systems framing/dictionary + model fork, and (b) an empirical +
+integrative bridge** carrying the (known) chase-escape machinery to (open, applied)
+quantitative fraud-SLA questions — offline-CBDC double-spend bound (loss/wallet vs
+sync frequency), DTN certificate-revocation-latency SLA, misinformation-vs-fact-check
+race (first exponent law, testable on cascade data). Sharpest single deliverable:
+in-sim **confirm-or-refute** the percolation-universality prediction on a real mesh.
+This aligns with a conference/approach-paper bar (empirical + recombination that
+opens an opportunity), not a PhD-thesis "brand-new theorem" bar.
+
+**Open citation-verification** (from the review, not yet in `containment.bib`):
+Kordzakhia 2005; Tang–Kordzakhia–Lalley (arXiv:1807.08387); Kumar–Grassberger–Dhar
+(arXiv:2010.05310); Durrett–Junge–Tang; Kortchemski (complete-graph predator-prey);
+Hinsen–Jahnel–Cali–Wary (chase-escape on Poisson–Gilbert); Antunović et al.
+(arXiv:1109.2575); Deijfen–van der Hofstad (arXiv:1306.6467); Garet–Marchand;
+Bordenave (birth-and-assassination, arXiv:0801.4499); offline-CBDC SoKs. Verify
+before final.
+
 ## For an independent reviewer
 
 Treat every claim above as **suspect**. Specifically worth attacking: (a) is the
