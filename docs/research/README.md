@@ -14,10 +14,22 @@ models, theorems, and open questions. Sources are verified against primary recor
   prediction that over-spend *grows* with network size; a spatial containment
   dichotomy as two-type first-passage percolation (Thm. 2, proven on line/tree;
   Conj. 1 on the plane — a known-hard percolation question); and a
-  conservation–bandwidth lower bound `T·m ≥ (a ln N)/β` (Cor. 1). Includes an
+  conservation–bandwidth sufficiency threshold `T·m ≥ a·ln N` (Cor. 1). Includes an
   honest three-door taxonomy positioning against escrow, offline e-cash, and
   blockchain-under-delay, and a simulation protocol against `sim::bench`.
 - `containment.bib` — verified bibliography (DOI / arXiv / IACR / DBLP).
+
+## Measurements
+- **`gateway-capability-containment.md`** — the theory above, *run* against
+  Lifeline's own use case: over-use of an offline **gateway-egress capability**
+  (`lifeline-inet` / `QuotaLedger`) metered across a partition. Reports four measured
+  regimes from `sim::containment` (single-holder | delegatable) × (trail | flood
+  revocation) × (well-mixed | 2-D mesh). Findings: a single-holder capability is
+  bounded (`E[N_win] ≈ (a/d)·ln N`, confirmed); a delegatable one runs away on a
+  well-mixed overlay but is contained on the mesh at `ρ*≈0.5` (matching the known
+  chase-escape critical point `p_c≈0.49`) or by flood revocation at `ρ*≈1`. Yields a
+  concrete provisioning rule: gossip revocation at ≥ ~2× the delegation rate. The
+  offline-payment/CBDC reading is noted only as an external generalization.
 
 ## Provenance / honesty
 A verified literature sweep established that most of the *framing* (quantitative
