@@ -440,19 +440,99 @@ detection bandwidth grows with $Nv$ --- only the exponent on $v$ is model-depend
 the corrected statement.)
 \end{corollary}
 
-\begin{remark}
-Corollary~\ref{cor:bandwidth} is an uncertainty-principle-shaped tradeoff:
-\emph{over-spend $\times$ detection-bandwidth is bounded below by a network
-constant}. On a battery- and spectrum-limited mesh this is a hard physical
-constraint, and it makes the adversary's dominant strategy explicit --- suppress
-detection bandwidth (jam or prolong the partition) to raise $\Nwin$. It is the
-quantitative statement of ``you cannot get conservation for free.'' To our
-knowledge this bound is new; it is the analogue, on a spatial/dynamical axis, of
-Chaum--Pedersen's result that transferable offline cash must grow in representation
-size per transfer~\cite{ChaumPedersen1992} --- there, transferability inflates
-\emph{metadata}; here, it inflates \emph{spend}, and detection cost scales with the
-partition/mobility structure.
+\begin{remark}[Direction of the bound --- corrected]
+An earlier draft billed Corollary~\ref{cor:bandwidth} as an
+``uncertainty-principle'' \emph{impossibility} (``conservation costs at least this
+bandwidth''). That is not what is proved. Because R2 is an \emph{over}-estimate of
+$\Nwin$ (an upper bound), solving it for $m$ yields a \emph{sufficient} condition
+--- ``$m\ge a\ln N/T$ \emph{guarantees} $\E[\Nwin]\le T$'' --- not a necessary
+lower bound. A genuine impossibility of the advertised form requires a matching
+\emph{lower} bound $\Nwin \ge f(m)$, which we do \textbf{not} prove. So
+Corollary~\ref{cor:bandwidth} is an \emph{achievability / provisioning} statement,
+not a conservation-cost theorem. Proving the lower-bound direction --- e.g.\ via a
+branching-random-walk large-deviation rate function for the containment front --- is
+open, and would be the version that genuinely parallels Chaum--Pedersen's
+transferable-cash size inflation~\cite{ChaumPedersen1992}. Stated honestly, this is
+a provisioning rule of thumb, and the least deep of the results.
 \end{remark}
+
+% ===========================================================================
+\section{Independent-review corrections and reframing}\label{sec:review}
+% ===========================================================================
+
+An independent four-lens review (a hostile re-derivation, a statistical-physics
+lens, a novelty audit, and a directions study), each given only this document,
+substantially revised what is and is not a contribution here. We record the
+findings honestly; they \emph{improve} the work by fixing the model class, even as
+they deflate the novelty.
+
+\paragraph{The process is chase-escape, not Häggström--Pemantle.}\label{par:chaseescape}
+The decisive correction. Because detection is \emph{self-seeded} --- a
+spend-receipt exists only where an over-spend occurred --- the immunization can, in
+the physically honest (local-gossip) limit, advance \emph{only along the
+adversary's spend trail}: a predator riding prey. That is exactly the
+\emph{chase-escape / predator--prey} process (Kordzakhia; Tang--Kordzakhia--Lalley;
+Durrett--Junge--Tang; Kumar--Grassberger--Dhar), \emph{not} the two-type
+first-passage percolation of Häggström--Pemantle that \S\ref{sec:spatial} cites
+(where both types invade \emph{empty} space). Which model applies is set by one
+ratio, \textbf{gossip range $\div$ verifier spacing}: local gossip
+$\Rightarrow$ chase-escape (trail-confined); flood gossip $\Rightarrow$ two-type
+FPP (free-front, what \S\ref{sec:meanfield}--\ref{sec:spatial} actually model).
+Identifying this fork is itself the honest systems statement; and it matters
+because chase-escape is \emph{much more solved} than HP: exact on trees, a
+golden-ratio phase transition on the complete graph (Kortchemski), proven
+transitions on Poisson--Gilbert graphs (the actual mesh; Hinsen--Jahnel--Cali--Wary),
+and 2-D-percolation universality on $\mathbb{Z}^2$.
+
+\paragraph{Consequences for the results.}
+\begin{itemize}[leftmargin=1.4em,itemsep=2pt]
+  \item \textbf{R2 ($(a/d)\ln N$) is textbook, and possibly the wrong form.} It is
+  the classical epidemic/rumor \emph{take-off time} $(1/d)\ln N$ times a linear
+  accrual --- not a new law. Worse, it is the \emph{flood-limit} answer; the honest
+  self-seeded mean-field is chase-escape on $K_n$, which has a genuine phase
+  transition (Kortchemski), not a monotone logistic that always saturates. So the
+  ``always finite $= (a/d)\ln N$'' claim needs the flood assumption named, and the
+  trail-limit may not grow as $\ln N$ at all. \emph{This is the cheapest thing to
+  test} (\S\ref{sec:sim}).
+  \item \textbf{R4's ``critical exponent $\gamma=1$'' is a mislabel.} In the
+  deterministic fluid model it is a \emph{relative-velocity catch-up pole} --- two
+  linear arrival-time functions crossing --- with no fluctuation, correlation
+  length, or universality; $\gamma=1$ holds \emph{by construction}. The genuinely
+  critical object is the \emph{stochastic} planar chase-escape transition, which is
+  studied and (numerically) sits in the \textbf{2-D percolation universality class}
+  ($\nu=4/3$), predicting a containment exponent near the percolation susceptibility
+  $\gamma\approx 43/18$, \emph{not} $1$. So the ``open exponent'' headline should be
+  reframed from \emph{discovery} to a \emph{falsifiable prediction to confirm}
+  (and the interesting outcome is a \emph{departure} from percolation universality
+  under real mobility).
+  \item \textbf{R5's geometry-dependence is pre-empted.} Competing FPP on graphs
+  already gives loser-set size $\Theta(N^{\alpha})$ with $\alpha$ set by the speed
+  ratio (Antunović--Dekel--Mossel--Peres; Deijfen--van der Hofstad, including a
+  time-advantage). And Garet--Marchand's ``positive density for both is
+  impossible'' at unequal speeds directly constrains Conjecture~\ref{conj:planar}.
+  Both must be cited.
+  \item \textbf{R6 is a provisioning threshold, not an impossibility}
+  (Remark after Cor.~\ref{cor:bandwidth}).
+  \item \textbf{Problem~\ref{prob:main} is heavily anticipated in practice.} Offline
+  transit ticketing (bearer token, offline gates, blocklist + passback control),
+  roaming/SIM-clone fraud (the reconciliation-delay race, verbatim), and offline-CBDC
+  design (holding-limits to bound undetected double-spend) all instantiate the
+  regime. It survives only as the \emph{first formal isolation} of the problem, not
+  as a new phenomenon.
+\end{itemize}
+
+\paragraph{What honestly survives, and the reframe.} Not new theorems. What remains
+is (i)~the \emph{systems framing}: the dictionary offline-double-spend-containment
+$\leftrightarrow$ chase-escape, with detection-bandwidth $\leftrightarrow$ front
+speed and the gossip-range/spacing model fork; and (ii)~the \emph{bridge and its
+applications} --- carrying the (known) chase-escape machinery to the (open, applied)
+\emph{quantitative fraud-SLA} questions nobody has closed: an offline-CBDC
+double-spend bound (loss per compromised wallet vs.\ mandated sync frequency), a
+DTN certificate-revocation-latency SLA, and the misinformation-vs-fact-check race
+(chase-escape, with a first exponent law testable on cascade data). The value, if
+any, is empirical and integrative, not a new closed-form theorem --- and the
+sharpest single deliverable is the in-simulation \emph{confirmation-or-refutation}
+of the percolation-universality prediction on a real mesh.
 
 % ===========================================================================
 \section{Positioning: three doors, honestly}\label{sec:doors}
@@ -503,9 +583,11 @@ replayed traces), and a gossip channel. Build a \emph{spend-gossip detector} and
   boundary against $s_D=s_A$, and --- the sharp test --- fit $\Nwin\sim(s_D-s_A)^{-\gamma}$
   as $s_D\downarrow s_A$ to \emph{measure the 2-D exponent} $\gamma$ (predicted $1$
   in mean-field/1-D; unknown, and the point of the experiment, on the mesh).
-  \item \textbf{Bandwidth bound (Cor.~\ref{cor:bandwidth}).} Sweep per-node gossip
-  rate $m$; verify the product floor $T\cdot m \gtrsim (a\ln N)/\beta$ and the
-  $\Omega(v/\beta)$ threshold.
+  \item \textbf{Provisioning threshold (Cor.~\ref{cor:bandwidth}).} Sweep per-node
+  gossip rate $m$; verify the sufficiency threshold $T\cdot m \gtrsim a\ln N$ and the
+  $m=\Omega(v/\ell)$ (pulled) / $\Omega(v^2/D)$ (diffusive) front conditions.
+  (Corrected: earlier drafts printed dimensionally-inconsistent $\beta$-laden
+  forms.)
   \item \textbf{Partition-prolonging adversary.} Give the adversary the option to
   jam detection links; confirm its payoff-maximizing strategy suppresses gossip
   (couples resource abuse to availability attack).
