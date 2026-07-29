@@ -48,6 +48,12 @@ pub const ALERT: &[u8] = b"lifeline/v1/alert";
 /// Rotating rendezvous address for recipient-unlinkable DTN addressing (G2).
 pub const RENDEZVOUS: &[u8] = b"lifeline/v1/rendezvous";
 
+/// Identity key-rotation certificate (old key attests a successor) (G4).
+pub const KEY_ROTATION: &[u8] = b"lifeline/v1/key-rotation";
+
+/// Identity revocation certificate (retire a key with no successor) (G4).
+pub const KEY_REVOCATION: &[u8] = b"lifeline/v1/key-revocation";
+
 pub const GEOCAST_KEY: &[u8] = b"lifeline/v1/geocast-key";
 /// Prefix for deriving a geocast region's network address from its geohash.
 pub const GEOCAST_ADDR: &[u8] = b"lifeline/v1/geocast-addr";

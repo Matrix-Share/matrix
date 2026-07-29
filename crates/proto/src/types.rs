@@ -248,6 +248,11 @@ pub enum PayloadKind {
     ///
     /// [`HaveQuery`]: PayloadKind::HaveQuery
     HaveReply = 13,
+    /// An identity key-rotation or revocation certificate (G4): the body is a
+    /// CBOR `IdentityUpdate`. Lets a contact migrate its directory entry from a
+    /// retired/compromised key to a successor (or drop it), signed by the key
+    /// being retired so only its holder can authorize the change.
+    KeyRotation = 14,
     /// A payload type this build does not understand (a value from a newer peer).
     /// Never constructed locally; the engine drops it. Reserved discriminant so
     /// it round-trips distinctly from any real kind.
@@ -271,6 +276,7 @@ impl From<u8> for PayloadKind {
             11 => PayloadKind::BlockResponse,
             12 => PayloadKind::HaveQuery,
             13 => PayloadKind::HaveReply,
+            14 => PayloadKind::KeyRotation,
             _ => PayloadKind::Unknown,
         }
     }

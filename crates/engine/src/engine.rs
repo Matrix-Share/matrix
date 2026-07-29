@@ -256,6 +256,14 @@ pub struct NodeEngine {
     /// router (G2). `u64::MAX` until the first `tick` computes it; refreshed only
     /// when the epoch advances, so the per-tick cost is a single comparison.
     rendezvous_epoch: u64,
+    /// Applied identity key-rotations for our contacts (G4): retired address →
+    /// (successor address, cert `issued_at`). Enforces monotonicity so an old
+    /// rotation cert can't be replayed to revert a contact to a stale key, and
+    /// lets a lookup on a retired address redirect to the live one.
+    identity_successor: HashMap<Address, (Address, u64)>,
+    /// Identities we've seen a signed *revocation* for (G4): retired with no
+    /// successor. Their beacons are ignored so a revoked key can't resurrect.
+    revoked_identities: HashSet<Address>,
 }
 
 /// How long a time fix stays fresh before a node stops advertising / trusting it.
@@ -396,6 +404,8 @@ impl NodeEngine {
             last_digest_fp: [0u8; 32],
             next_digest: 0,
             rendezvous_epoch: u64::MAX,
+            identity_successor: HashMap::new(),
+            revoked_identities: HashSet::new(),
         }
     }
 
@@ -423,6 +433,139 @@ impl NodeEngine {
     pub fn add_contact(&mut self, who: IdentityPublic) {
         self.paired.insert(who.id.clone());
         self.contacts.insert(who.id.clone(), who);
+    }
+
+    /// The live successor of `addr` if it has rotated its identity key (G4), or
+    /// `addr` itself if not. Follows a chain of rotations to the current key.
+    pub fn resolve_identity<'a>(&'a self, addr: &'a Address) -> &'a Address {
+        let mut cur = addr;
+        // Bounded walk (the map is acyclic — each rotation strictly advances
+        // `issued_at` for a *new* successor address — but cap anyway).
+        for _ in 0..64 {
+            match self.identity_successor.get(cur) {
+                Some((next, _)) => cur = next,
+                None => break,
+            }
+        }
+        cur
+    }
+
+    /// Announce that *we* are rotating our identity key to `new` (G4): sign a
+    /// rotation certificate with our current key and diffuse it to every contact,
+    /// so each migrates its directory entry for us old → new. Returns the bundle
+    /// ids. (Actually swapping this node's live identity is a separate operation;
+    /// this publishes the attestation contacts need to follow us across the roll.)
+    pub fn broadcast_key_rotation(
+        &mut self,
+        new: &IdentityPublic,
+        reason: lifeline_core::rotation::RetireReason,
+        now: u64,
+    ) -> Vec<Bytes> {
+        let cert = lifeline_core::rotation::make_rotation_cert(&self.identity, new, reason, now);
+        let update = lifeline_core::rotation::IdentityUpdate::Rotate(cert);
+        self.broadcast_identity_update(&update, now)
+    }
+
+    /// Announce that we are revoking our identity key with no successor (G4).
+    pub fn broadcast_key_revocation(
+        &mut self,
+        reason: lifeline_core::rotation::RetireReason,
+        now: u64,
+    ) -> Vec<Bytes> {
+        let cert = lifeline_core::rotation::make_revocation_cert(&self.identity, reason, now);
+        let update = lifeline_core::rotation::IdentityUpdate::Revoke(cert);
+        self.broadcast_identity_update(&update, now)
+    }
+
+    fn broadcast_identity_update(
+        &mut self,
+        update: &lifeline_core::rotation::IdentityUpdate,
+        now: u64,
+    ) -> Vec<Bytes> {
+        let Ok(bytes) = to_cbor(update) else {
+            return Vec::new();
+        };
+        let body = Some(b64url_encode(&bytes));
+        let recipients: Vec<IdentityPublic> = self
+            .contacts
+            .values()
+            .filter(|p| p.id != self.public.id)
+            .cloned()
+            .collect();
+        recipients
+            .into_iter()
+            .map(|r| {
+                let payload = Payload {
+                    kind: PayloadKind::KeyRotation,
+                    body: body.clone(),
+                    coords: None,
+                    battery_pct: None,
+                    attach: None,
+                    group_id: None,
+                };
+                self.submit(&r, payload, Priority::Alert, now)
+            })
+            .collect()
+    }
+
+    /// Receive-side (G4): a contact has published a rotation/revocation cert.
+    /// Verify it self-containedly, ensure the *sender* is the identity being
+    /// retired (you can only rotate your own key), enforce monotonicity, then
+    /// migrate our directory: rotation → replace old with the successor; revocation
+    /// → drop the contact.
+    fn handle_identity_update(&mut self, opened: lifeline_core::message::Opened, now: u64) {
+        let Some(body) = opened.payload.body.as_ref() else {
+            return;
+        };
+        let Ok(raw) = b64url_decode(body) else {
+            return;
+        };
+        let Ok(update) = from_cbor::<lifeline_core::rotation::IdentityUpdate>(&raw) else {
+            return;
+        };
+        match update {
+            lifeline_core::rotation::IdentityUpdate::Rotate(cert) => {
+                if lifeline_core::rotation::verify_rotation_cert(&cert).is_err() {
+                    return;
+                }
+                // A key can only retire *itself*: the cert's old key must be the
+                // message sender, so a third party can't rotate someone else away.
+                if cert.old_addr != opened.sender.id {
+                    return;
+                }
+                // Monotonic: ignore a cert no newer than one we've already applied
+                // for this identity (replay / stale-revert protection).
+                if let Some((_, applied_at)) = self.identity_successor.get(&cert.old_addr) {
+                    if cert.issued_at <= *applied_at {
+                        return;
+                    }
+                }
+                // Only migrate identities we actually know — a rotation for a
+                // stranger is noise we don't need to store.
+                if !self.contacts.contains_key(&cert.old_addr) {
+                    return;
+                }
+                let new_id = cert.new.id.clone();
+                self.contacts.remove(&cert.old_addr);
+                self.add_contact(cert.new.clone());
+                self.identity_successor
+                    .insert(cert.old_addr.clone(), (new_id, cert.issued_at));
+                let _ = now;
+            }
+            lifeline_core::rotation::IdentityUpdate::Revoke(cert) => {
+                if lifeline_core::rotation::verify_revocation_cert(&cert).is_err() {
+                    return;
+                }
+                if cert.addr != opened.sender.id {
+                    return;
+                }
+                // Drop the retired contact and remember it as revoked so its
+                // beacons can't re-add it. (A UI may keep a tombstone; the engine
+                // just stops trusting/addressing it.)
+                self.contacts.remove(&cert.addr);
+                self.revoked_identities.insert(cert.addr.clone());
+            }
+        }
     }
 
     /// Seal a payload to `to` and inject it into the mesh (§12.1).
@@ -1714,6 +1857,15 @@ impl NodeEngine {
                             self.time.observe(tb, now as i64, TIME_STALE_S);
                         }
                     }
+                    // A key we've seen a signed rotation/revocation for is retired
+                    // (G4): ignore its beacons so a re-advertised (or attacker-
+                    // replayed) retired identity can't resurrect itself in our
+                    // directory or routing tables.
+                    if self.identity_successor.contains_key(&b.id.id)
+                        || self.revoked_identities.contains(&b.id.id)
+                    {
+                        return;
+                    }
                     if known || self.contacts.len() < MAX_CONTACTS {
                         self.peer_addr.insert((p, peer), b.id.id.clone());
                         self.peer_meta.insert(
@@ -1872,6 +2024,9 @@ impl NodeEngine {
             PayloadKind::BlockResponse => self.handle_block_response(opened),
             PayloadKind::HaveQuery => self.handle_have_query(opened, now),
             PayloadKind::HaveReply => self.handle_have_reply(opened, now),
+            // A contact is rotating/revoking its identity key (G4) — a control
+            // payload handled internally (never surfaced to the app).
+            PayloadKind::KeyRotation => self.handle_identity_update(opened, now),
             // Application payloads delivered to the inbox (+ delivery receipt).
             PayloadKind::Text
             | PayloadKind::Sos
