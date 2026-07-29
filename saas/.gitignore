@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+build/
+next-env.d.ts
+
+# data (local SQLite)
+*.db
+*.db-*
+data/
+
+# env
+.env
+.env*.local
+
+# misc
+.DS_Store
+*.log
+.vercel
+*.tsbuildinfo
