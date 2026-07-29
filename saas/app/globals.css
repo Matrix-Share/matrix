@@ -1,26 +1,28 @@
-/* Lifeline SaaS — shares the project design system (docs/design/design-system.md):
-   the iOS system palette, type ramp, 4pt spacing, fixed radii. */
+/* Lifeline SaaS — premium theme: refined zinc neutrals + an indigo→violet accent.
+   Type ramp, 4pt spacing, and fixed radii stay from the shared design system. */
 :root{
-  --bg:#ffffff; --surface:#ffffff; --surface-2:#f2f2f7; --elevated:#ffffff;
-  --ink:#000000; --ink-2:#3c3c43; --muted:#6c6c70; --faint:#b0b0b6;
-  --line:rgba(60,60,67,.16); --hairline:rgba(60,60,67,.08);
-  --accent:#007aff; --accent-press:#0063cc; --accent-ink:#fff; --accent-weak:rgba(0,122,255,.10);
-  --sos:#ff3b30; --safe:#34c759; --safe-weak:rgba(52,199,89,.14); --warn:#ff9500;
+  --bg:#ffffff; --surface:#ffffff; --surface-2:#f4f4f6; --elevated:#ffffff;
+  --ink:#18181b; --ink-2:#3f3f46; --muted:#71717a; --faint:#a1a1aa;
+  --line:rgba(24,24,27,.10); --hairline:rgba(24,24,27,.055);
+  --accent:#6366f1; --accent-press:#4f46e5; --accent-ink:#fff; --accent-weak:rgba(99,102,241,.10);
+  --sos:#ef4444; --safe:#10b981; --safe-weak:rgba(16,185,129,.12); --warn:#f59e0b;
+  --grad:linear-gradient(135deg,#6366f1,#8b5cf6);
   --r-1:10px; --r-2:12px; --r-3:16px; --r-4:22px; --r-pill:980px;
-  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font:-apple-system,BlinkMacSystemFont,"Inter","SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
-  --e-1:0 .5px 1.5px rgba(0,0,0,.05);
-  --e-2:0 .5px 2px rgba(0,0,0,.06),0 12px 28px rgba(0,0,0,.10);
-  --bar:color-mix(in srgb,var(--bg) 72%,transparent);
+  --e-1:0 1px 2px rgba(24,24,27,.06),0 1px 3px rgba(24,24,27,.04);
+  --e-2:0 4px 14px rgba(24,24,27,.08),0 24px 48px rgba(24,24,27,.10);
+  --bar:color-mix(in srgb,var(--bg) 70%,transparent);
   --maxw:1080px;
 }
 @media (prefers-color-scheme:dark){:root{
-  --bg:#000; --surface:#1c1c1e; --surface-2:#2c2c2e; --elevated:#1c1c1e;
-  --ink:#fff; --ink-2:rgba(235,235,245,.86); --muted:rgba(235,235,245,.6); --faint:rgba(235,235,245,.3);
-  --line:rgba(84,84,88,.6); --hairline:rgba(84,84,88,.34);
-  --accent:#0a84ff; --accent-press:#409cff; --accent-weak:rgba(10,132,255,.22);
-  --sos:#ff453a; --safe:#30d158; --safe-weak:rgba(48,209,88,.18); --warn:#ff9f0a;
-  --e-1:0 .5px 1.5px rgba(0,0,0,.5); --e-2:0 1px 2px rgba(0,0,0,.6),0 16px 40px rgba(0,0,0,.6);
+  --bg:#09090b; --surface:#18181b; --surface-2:#232328; --elevated:#1b1b1f;
+  --ink:#fafafa; --ink-2:#e4e4e7; --muted:#a1a1aa; --faint:#52525b;
+  --line:rgba(255,255,255,.10); --hairline:rgba(255,255,255,.06);
+  --accent:#818cf8; --accent-press:#6366f1; --accent-weak:rgba(129,140,248,.16);
+  --sos:#f87171; --safe:#34d399; --safe-weak:rgba(52,211,153,.16); --warn:#fbbf24;
+  --grad:linear-gradient(135deg,#818cf8,#a78bfa);
+  --e-1:0 1px 2px rgba(0,0,0,.5); --e-2:0 8px 24px rgba(0,0,0,.5),0 24px 56px rgba(0,0,0,.55);
 }}
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -38,15 +40,17 @@ a{color:inherit;text-decoration:none}
 .stack{display:flex;flex-direction:column}
 .row{display:flex;align-items:center;gap:12px}
 .grow{flex:1}
-.mark{width:28px;height:28px;border-radius:7px;background:var(--accent);position:relative;flex:none}
-.mark::after{content:"";position:absolute;inset:0;border-radius:7px;background:radial-gradient(circle at 30% 24%,rgba(255,255,255,.28),transparent 60%)}
+.mark{width:28px;height:28px;border-radius:8px;background:var(--grad);position:relative;flex:none;
+  box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 40%,transparent),inset 0 0 0 .5px rgba(255,255,255,.15)}
+.mark::after{content:"";position:absolute;inset:0;border-radius:8px;background:radial-gradient(circle at 30% 22%,rgba(255,255,255,.35),transparent 60%)}
 .brand{display:flex;align-items:center;gap:10px;font-weight:680;font-size:19px;letter-spacing:-.03em}
 
 /* Buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border-radius:var(--r-2);
   font-weight:590;font-size:15px;cursor:pointer;border:.5px solid transparent;transition:.16s;white-space:nowrap}
 .btn:disabled{opacity:.5;cursor:default}
-.btn-primary{background:var(--accent);color:var(--accent-ink)} .btn-primary:hover{background:var(--accent-press)}
+.btn-primary{background:var(--accent);color:var(--accent-ink);box-shadow:0 1px 2px rgba(24,24,27,.16),0 2px 8px color-mix(in srgb,var(--accent) 30%,transparent)}
+.btn-primary:hover{background:var(--accent-press)}
 .btn-ghost{background:var(--surface-2);color:var(--ink);border-color:var(--hairline)} .btn-ghost:hover{filter:brightness(.97)}
 .btn-plain{background:transparent;color:var(--accent)} .btn-plain:hover{background:var(--accent-weak)}
 .btn-danger{background:transparent;color:var(--sos);border-color:color-mix(in srgb,var(--sos) 34%,var(--line))}
@@ -93,7 +97,7 @@ select.input{appearance:none}
 .app{display:grid;grid-template-columns:248px 1fr;min-height:100dvh}
 .sidebar{border-right:.5px solid var(--line);background:var(--surface-2);padding:18px 14px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100dvh}
 .side-link{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--r-2);color:var(--ink-2);font-size:14.5px;font-weight:500;transition:.14s}
-.side-link:hover{background:var(--surface)} .side-link.on{background:var(--accent);color:#fff}
+.side-link:hover{background:var(--surface)} .side-link.on{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(24,24,27,.14),0 2px 8px color-mix(in srgb,var(--accent) 26%,transparent)}
 .side-link svg{width:18px;height:18px}
 .main{min-width:0;padding:32px 40px 80px;max-width:920px;width:100%;margin:0 auto}
 .page-h{font-size:30px;letter-spacing:-.03em;font-weight:680;margin-bottom:4px}
@@ -109,7 +113,9 @@ select.input{appearance:none}
 
 .side-foot{padding:10px 12px;border-top:.5px solid var(--hairline)}
 
-@media(max-width:860px){
+/* Sidebar stays a real left sidebar on web/tablet; it only collapses to a top
+   bar on true phone widths. */
+@media(max-width:640px){
   .app{grid-template-columns:1fr}
   .sidebar{position:sticky;top:0;z-index:40;height:auto;flex-direction:row;align-items:center;gap:2px;
     overflow-x:auto;padding:8px 12px;border-right:none;border-bottom:.5px solid var(--line);
