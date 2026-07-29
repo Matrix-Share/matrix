@@ -1,42 +1,51 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
-import { orgs } from '@/lib/db';
+import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
+import { constructWebhookEvent, paymentsEnabled } from '@/lib/stripe';
+import { syncOrgSubscription, syncSubscriptionById } from '@/lib/billing';
 
-/** Stripe webhook — keeps each workspace's plan in sync with its subscription.
- *  No-op (200) if Stripe isn't configured, so local dev never errors. */
-export async function POST(req: NextRequest) {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!stripe || !secret) return NextResponse.json({ ok: true, skipped: 'not configured' });
+export const dynamic = 'force-dynamic';
 
-  const sig = req.headers.get('stripe-signature') || '';
-  const body = await req.text();
+/**
+ * Stripe webhook — the source of truth for each workspace's plan. Signature-
+ * verified and idempotent. No-op (200) when Stripe isn't configured so local dev
+ * never errors. Returns 500 on a handler error so Stripe retries.
+ */
+export async function POST(request: Request) {
+  if (!paymentsEnabled) return NextResponse.json({ ok: true });
+
+  const signature = request.headers.get('stripe-signature');
+  if (!signature) return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
+
+  const payload = await request.text();
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, sig, secret);
+    event = constructWebhookEvent(payload, signature);
   } catch (err) {
     return NextResponse.json({ error: `Invalid signature: ${(err as Error).message}` }, { status: 400 });
   }
 
   try {
-    if (event.type === 'checkout.session.completed') {
-      const s = event.data.object as Stripe.Checkout.Session;
-      const orgId = s.client_reference_id || (s.metadata?.orgId ?? '');
-      const planId = (s.metadata?.planId as 'pro' | 'team') || 'pro';
-      if (orgId && orgs.byId(orgId)) {
-        orgs.setPlan(orgId, planId, {
-          stripe_customer_id: (s.customer as string) ?? null,
-          stripe_sub_id: (s.subscription as string) ?? null,
-          sub_status: 'active',
-        });
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.mode === 'subscription' && session.subscription) {
+          await syncSubscriptionById(session.subscription as string);
+        }
+        break;
       }
-    } else if (event.type === 'customer.subscription.deleted') {
-      const sub = event.data.object as Stripe.Subscription;
-      const org = orgs.all().find((o) => o.stripe_sub_id === sub.id);
-      if (org) orgs.setPlan(org.id, 'free', { stripe_customer_id: org.stripe_customer_id, stripe_sub_id: null, sub_status: 'canceled' });
+      // Keep the plan in sync through upgrades, seat changes, payment failures,
+      // and cancellations. This is the plan's source of truth.
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted':
+        syncOrgSubscription(event.data.object as Stripe.Subscription);
+        break;
     }
-  } catch (e) {
-    console.error('webhook handling error', e);
+  } catch (err) {
+    console.error('stripe webhook handler failed', event.type, err);
+    // Ask Stripe to retry — handlers are idempotent (id-keyed subscription sync).
+    return NextResponse.json({ error: 'handler failed' }, { status: 500 });
   }
+
   return NextResponse.json({ received: true });
 }

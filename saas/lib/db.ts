@@ -15,8 +15,9 @@ export type User = {
 };
 export type Org = {
   id: string; name: string; slug: string; owner_id: string;
-  plan: 'free' | 'pro' | 'team'; stripe_customer_id: string | null;
-  stripe_sub_id: string | null; sub_status: string | null; created_at: number;
+  plan: 'free' | 'pro' | 'team'; plan_status: string | null; plan_seats: number;
+  current_period_end: number | null;
+  stripe_customer_id: string | null; stripe_sub_id: string | null; created_at: number;
 };
 export type Membership = {
   id: string; org_id: string; user_id: string;
@@ -32,7 +33,9 @@ const FILE = process.env.DATABASE_FILE || './data/lifeline.db';
 function open(): DatabaseSync {
   mkdirSync(dirname(FILE), { recursive: true });
   const db = new DatabaseSync(FILE);
-  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+  // busy_timeout: wait (don't error) if another process/worker holds the write
+  // lock — Next's parallel build/render workers each open this file.
+  db.exec('PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL,
@@ -46,8 +49,9 @@ function open(): DatabaseSync {
     );
     CREATE TABLE IF NOT EXISTS orgs (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT UNIQUE NOT NULL, owner_id TEXT NOT NULL,
-      plan TEXT NOT NULL DEFAULT 'free', stripe_customer_id TEXT, stripe_sub_id TEXT,
-      sub_status TEXT, created_at INTEGER NOT NULL
+      plan TEXT NOT NULL DEFAULT 'free', plan_status TEXT, plan_seats INTEGER NOT NULL DEFAULT 1,
+      current_period_end INTEGER, stripe_customer_id TEXT, stripe_sub_id TEXT,
+      created_at INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS memberships (
       id TEXT PRIMARY KEY, org_id TEXT NOT NULL, user_id TEXT NOT NULL,
@@ -117,9 +121,13 @@ export const orgs = {
   forUser: (userId: string) =>
     db.prepare(`SELECT o.* FROM orgs o JOIN memberships m ON m.org_id = o.id
                 WHERE m.user_id = ? ORDER BY o.created_at`).all(userId) as Org[],
-  setPlan: (id: string, plan: Org['plan'], sub: Partial<Pick<Org, 'stripe_customer_id' | 'stripe_sub_id' | 'sub_status'>>) =>
-    db.prepare('UPDATE orgs SET plan=?, stripe_customer_id=?, stripe_sub_id=?, sub_status=? WHERE id=?')
-      .run(plan, sub.stripe_customer_id ?? null, sub.stripe_sub_id ?? null, sub.sub_status ?? null, id),
+  /** Mirror the full subscription state onto the org (webhook is the source of truth). */
+  setSubscription: (id: string, s: {
+    plan: Org['plan']; plan_status: string | null; plan_seats: number;
+    current_period_end: number | null; stripe_customer_id: string | null; stripe_sub_id: string | null;
+  }) =>
+    db.prepare('UPDATE orgs SET plan=?, plan_status=?, plan_seats=?, current_period_end=?, stripe_customer_id=?, stripe_sub_id=? WHERE id=?')
+      .run(s.plan, s.plan_status, s.plan_seats, s.current_period_end, s.stripe_customer_id, s.stripe_sub_id, id),
   all: () => db.prepare('SELECT * FROM orgs ORDER BY created_at DESC LIMIT 500').all() as Org[],
   count: () => (db.prepare('SELECT COUNT(*) c FROM orgs').get() as any).c as number,
 };
@@ -133,6 +141,8 @@ export const memberships = {
                 WHERE m.org_id = ? ORDER BY m.created_at`).all(orgId) as (Membership & { name: string; email: string })[],
   get: (orgId: string, userId: string) =>
     db.prepare('SELECT * FROM memberships WHERE org_id = ? AND user_id = ?').get(orgId, userId) as Membership | undefined,
+  countForOrg: (orgId: string) =>
+    (db.prepare('SELECT COUNT(*) c FROM memberships WHERE org_id = ?').get(orgId) as any).c as number,
   remove: (orgId: string, userId: string) =>
     db.prepare('DELETE FROM memberships WHERE org_id = ? AND user_id = ?').run(orgId, userId),
 };
