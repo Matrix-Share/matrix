@@ -14,27 +14,31 @@ tokens so the product reads as one system.
 
 ## Design tokens (verbatim across all surfaces)
 
-### Color — light
+### Color — light (iOS system palette)
 ```
---bg:#fbfbfd; --surface:#ffffff; --surface-2:#f5f5f7; --elevated:#ffffff;
---ink:#1d1d1f; --ink-2:#424245; --muted:#6e6e73; --faint:#86868b;
---line:rgba(0,0,0,.10); --hairline:rgba(0,0,0,.06);
---accent:#0071e3; --accent-press:#0063c6; --accent-ink:#ffffff; --accent-weak:rgba(0,113,227,.10);
+--bg:#ffffff; --surface:#ffffff; --surface-2:#f2f2f7; --elevated:#ffffff;
+--ink:#000000; --ink-2:#3c3c43; --muted:#6c6c70; --faint:#b0b0b6;
+--line:rgba(60,60,67,.16); --hairline:rgba(60,60,67,.08);
+--accent:#007aff; --accent-press:#0063cc; --accent-ink:#ffffff; --accent-weak:rgba(0,122,255,.10);
 --sos:#ff3b30; --sos-weak:rgba(255,59,48,.10);
---safe:#34c759; --safe-weak:rgba(52,199,89,.12);
+--safe:#34c759; --safe-weak:rgba(52,199,89,.14);
 --warn:#ff9500;
 ```
-### Color — dark
+### Color — dark (iOS system palette)
 ```
---bg:#000000; --surface:#1c1c1e; --surface-2:#0c0c0e; --elevated:#1c1c1e;
---ink:#f5f5f7; --ink-2:#d2d2d7; --muted:#98989d; --faint:#6e6e73;
---line:rgba(255,255,255,.14); --hairline:rgba(255,255,255,.08);
---accent:#2997ff; --accent-press:#0a84ff; --accent-ink:#ffffff; --accent-weak:rgba(41,151,255,.18);
---sos:#ff453a; --sos-weak:rgba(255,69,58,.14);
---safe:#30d158; --safe-weak:rgba(48,209,88,.16);
+--bg:#000000; --surface:#1c1c1e; --surface-2:#2c2c2e; --elevated:#1c1c1e;
+--ink:#ffffff; --ink-2:rgba(235,235,245,.86); --muted:rgba(235,235,245,.6); --faint:rgba(235,235,245,.3);
+--line:rgba(84,84,88,.6); --hairline:rgba(84,84,88,.34);
+--accent:#0a84ff; --accent-press:#409cff; --accent-ink:#ffffff; --accent-weak:rgba(10,132,255,.22);
+--sos:#ff453a; --sos-weak:rgba(255,69,58,.16);
+--safe:#30d158; --safe-weak:rgba(48,209,88,.18);
 --warn:#ff9f0a;
 ```
-Semantic colors are the Apple system palette so they read as native on Apple devices.
+Accent is the iOS **system blue**; grays are the iOS label/fill opacities; SOS/safe/warn are
+Apple system colors — so everything reads as native on Apple devices. **No gradients in
+chrome** (logo and avatars are flat solid fills); the only gradient allowed is on the standalone
+app icon. **Avatars** use a fixed, curated 8-color palette keyed by a hash of the seed — never
+random HSL (that "rainbow" look is the tell of an unconsidered system).
 
 ### Typography
 - **Stack:** `-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif`. No web-font download — use the device's system face (SF on Apple), which is the fastest and most native-feeling choice and works fully offline (mesh-critical).
