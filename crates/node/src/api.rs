@@ -57,6 +57,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/group/send", post(post_group_send))
         .route("/api/block", post(post_block))
         .route("/api/unblock", post(post_unblock))
+        .route("/api/panic", post(post_panic))
         .route("/api/position", post(post_position))
         .route("/api/geocast", post(post_geocast))
         .route("/api/qr.svg", get(get_qr))
@@ -77,6 +78,15 @@ async fn post_broadcast(
 ) -> impl IntoResponse {
     let _ = st.cmd.send(Command::Broadcast { body: req.body });
     Json(serde_json::json!({ "ok": true }))
+}
+
+/// Panic / duress wipe (G3): irreversibly destroy the node's on-disk secrets and
+/// stop the engine (which scrubs in-memory secrets on drop). No request body, no
+/// confirmation here — the UI is responsible for confirming intent before POSTing.
+async fn post_panic(State(st): State<AppState>) -> impl IntoResponse {
+    tracing::warn!("api: panic wipe requested");
+    let _ = st.cmd.send(Command::Panic);
+    Json(serde_json::json!({ "ok": true, "wiped": true }))
 }
 
 #[derive(Deserialize)]

@@ -151,6 +151,7 @@ pub fn run(
     let mut last_save_tick = 0u64;
     let mut tick_no = 0u64;
     let mut shutdown = false;
+    let mut panic_wipe = false;
 
     loop {
         let now = unix_now();
@@ -393,7 +394,38 @@ pub fn run(
                 Command::Shutdown => {
                     shutdown = true;
                 }
+                Command::Panic => {
+                    panic_wipe = true;
+                }
             }
+        }
+
+        // Panic / duress wipe (G3): destroy on-disk secrets and stop WITHOUT
+        // flushing. Checked before the shutdown flush so a Panic can never be
+        // overtaken by a state save. Returning drops `engine` (and the identity,
+        // prekey ring, and group sender keys it owns), whose `zeroize`-on-drop
+        // scrubs every in-memory secret — so this one action clears both disk and
+        // memory. Irreversible by design; there is no final persist.
+        if panic_wipe {
+            let data_dir = state_path
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new("."));
+            let report = lifeline_core::wipe::wipe_node_data(data_dir);
+            if report.is_complete() {
+                tracing::warn!(
+                    "engine: PANIC WIPE complete — {} artifact(s), {} bytes destroyed; stopping",
+                    report.erased_count(),
+                    report.bytes_erased
+                );
+            } else {
+                tracing::error!(
+                    "engine: PANIC WIPE partial — {} destroyed, {} FAILED: {:?}",
+                    report.erased_count(),
+                    report.failed.len(),
+                    report.failed
+                );
+            }
+            return;
         }
 
         // Graceful shutdown: force a final flush of persistent state and exit the
