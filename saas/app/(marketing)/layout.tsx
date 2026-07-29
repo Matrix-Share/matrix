@@ -10,8 +10,8 @@ export default async function MarketingLayout({ children }: { children: React.Re
           <Link href="/" className="brand"><span className="mark" />Lifeline</Link>
           <span className="grow" />
           <div className="row" style={{ gap: 6 }}>
-            <Link href="/#features" className="btn btn-plain sm">Features</Link>
-            <Link href="/pricing" className="btn btn-plain sm">Pricing</Link>
+            <Link href="/#features" className="btn btn-plain sm hide-sm">Features</Link>
+            <Link href="/pricing" className="btn btn-plain sm hide-sm">Pricing</Link>
             {user ? (
               <Link href="/dashboard" className="btn btn-primary sm pill">Dashboard</Link>
             ) : (

@@ -11,8 +11,7 @@ import {
   hashPassword, verifyPassword, createSession, destroySession, getCurrentUser, requireUser,
 } from './auth';
 import { sendEmail } from './email';
-import { stripe, stripeConfigured, appUrl } from './stripe';
-import { planById } from './plans';
+import { appUrl } from './stripe';
 
 type State = { error?: string; ok?: string };
 
@@ -180,32 +179,5 @@ export async function removeMember(orgId: string, userId: string): Promise<void>
   revalidatePath('/team');
 }
 
-/* ------------------------- Billing ------------------------- */
-
-export async function startCheckout(orgId: string, planId: 'pro' | 'team'): Promise<void> {
-  await assertOrgAdmin(orgId);
-  if (!stripe || !stripeConfigured) redirect(`/billing?org=${orgId}&notice=stripe`);
-  const plan = planById(planId);
-  const priceId = plan.priceEnv ? process.env[plan.priceEnv] : undefined;
-  if (!priceId) redirect(`/billing?org=${orgId}&notice=price`);
-  const session = await stripe!.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: [{ price: priceId!, quantity: 1 }],
-    success_url: appUrl(`/billing?org=${orgId}&success=1`),
-    cancel_url: appUrl(`/billing?org=${orgId}`),
-    client_reference_id: orgId,
-    metadata: { orgId, planId },
-  });
-  redirect(session.url!);
-}
-
-export async function openBillingPortal(orgId: string): Promise<void> {
-  await assertOrgAdmin(orgId);
-  const org = orgs.byId(orgId);
-  if (!stripe || !org?.stripe_customer_id) redirect(`/billing?org=${orgId}&notice=stripe`);
-  const portal = await stripe!.billingPortal.sessions.create({
-    customer: org!.stripe_customer_id!,
-    return_url: appUrl(`/billing?org=${orgId}`),
-  });
-  redirect(portal.url);
-}
+/* Billing lives in dedicated API routes (app/api/billing/*) + the client
+   BillingActions component, so checkout/portal errors surface inline. */
