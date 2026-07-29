@@ -44,6 +44,7 @@ pub mod onion;
 pub mod prekey;
 pub mod receipt;
 pub mod relay_proof;
+pub mod rendezvous;
 pub mod vault;
 pub mod wipe;
 

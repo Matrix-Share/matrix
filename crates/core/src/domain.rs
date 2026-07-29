@@ -45,6 +45,9 @@ pub const ALERT: &[u8] = b"lifeline/v1/alert";
 
 /// HKDF salt for deriving a geocast region's X25519 key from its geohash
 /// (`geocast`). Anyone who knows the geohash derives the same key.
+/// Rotating rendezvous address for recipient-unlinkable DTN addressing (G2).
+pub const RENDEZVOUS: &[u8] = b"lifeline/v1/rendezvous";
+
 pub const GEOCAST_KEY: &[u8] = b"lifeline/v1/geocast-key";
 /// Prefix for deriving a geocast region's network address from its geohash.
 pub const GEOCAST_ADDR: &[u8] = b"lifeline/v1/geocast-addr";

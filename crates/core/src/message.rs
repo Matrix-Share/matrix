@@ -229,6 +229,21 @@ pub fn open_bundle(recipient: &Identity, bundle: &Bundle) -> Result<Opened> {
     open_bundle_kex(recipient.address(), recipient.kex_secret(), bundle)
 }
 
+/// Open a bundle addressed to us under an **explicit** address rather than our
+/// stable one. This is how a recipient opens a *rendezvous-addressed* private
+/// bundle (G2): the sender signed the header over the rotating rendezvous address
+/// and set `dst` to it, so we verify and open against that same address (which we
+/// have already recognized as ours) rather than our long-term address. The
+/// payload is still sealed to our real key, so decryption uses our long-term
+/// secret; only the address-binding check uses `expected_dst`.
+pub fn open_bundle_as(
+    recipient: &Identity,
+    expected_dst: &Address,
+    bundle: &Bundle,
+) -> Result<Opened> {
+    open_bundle_kex(expected_dst, recipient.kex_secret(), bundle)
+}
+
 /// Open a bundle using an explicit X25519 secret rather than the identity's
 /// long-term key. This is how the recipient opens a message a sender sealed to
 /// one of its **rotating forward-secret prekeys** — the address is unchanged
