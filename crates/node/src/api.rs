@@ -61,6 +61,9 @@ pub fn router(state: AppState) -> Router {
         .route("/api/position", post(post_position))
         .route("/api/geocast", post(post_geocast))
         .route("/api/qr.svg", get(get_qr))
+        .route("/manifest.webmanifest", get(get_manifest))
+        .route("/icon.svg", get(get_icon))
+        .route("/sw.js", get(get_sw))
         .route("/api/ws", get(ws_handler))
         .layer(middleware::from_fn(guard_host))
         .with_state(state)
@@ -292,6 +295,33 @@ fn qr_svg(data: &str) -> Option<String> {
     }
     svg.push_str("</svg>");
     Some(svg)
+}
+
+/// PWA manifest — makes the app installable to a phone home screen ("mobile app").
+async fn get_manifest() -> impl IntoResponse {
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "application/manifest+json",
+        )],
+        include_str!("../web/manifest.webmanifest"),
+    )
+}
+
+/// App icon (SVG, maskable-safe) referenced by the manifest and Apple meta tags.
+async fn get_icon() -> impl IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "image/svg+xml")],
+        include_str!("../web/icon.svg"),
+    )
+}
+
+/// Service worker — installability + an offline app shell (never caches /api/*).
+async fn get_sw() -> impl IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/javascript")],
+        include_str!("../web/sw.js"),
+    )
 }
 
 async fn index() -> Html<&'static str> {
