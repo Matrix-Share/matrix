@@ -12,7 +12,7 @@ use lifeline_core::announce::{make_gateway_announce, verify_gateway_announce};
 use lifeline_core::content::{chunk, cid_of, BlockStore, Manifest, DEFAULT_BLOCK_SIZE};
 use lifeline_core::erasure::{fragment_bundle, FragmentCollector};
 use lifeline_core::group::{GroupEnvelope, GroupMessage, ReceiverKeyState, SenderKeyState};
-use lifeline_core::message::{open_bundle, seal_bundle, SealOptions};
+use lifeline_core::message::{open_bundle_as, seal_bundle, SealOptions};
 use lifeline_core::onion::{build_onion, peel_onion, Peeled};
 use lifeline_core::prekey::{verify_prekey, PrekeyRing};
 use lifeline_core::receipt::{make_delivery_receipt, verify_delivery};
@@ -252,6 +252,10 @@ pub struct NodeEngine {
     last_digest_fp: [u8; 32],
     /// Next tick we may broadcast a held-bundle digest (throttle).
     next_digest: u64,
+    /// Last epoch for which we pushed our rotating rendezvous-address window to the
+    /// router (G2). `u64::MAX` until the first `tick` computes it; refreshed only
+    /// when the epoch advances, so the per-tick cost is a single comparison.
+    rendezvous_epoch: u64,
 }
 
 /// How long a time fix stays fresh before a node stops advertising / trusting it.
@@ -295,6 +299,11 @@ const GEOCAST_PRECISION: usize = 6;
 /// Spray copy budget for a geocast, so it spreads across the whole region rather
 /// than down a single path.
 const GEOCAST_COPIES: u16 = 12;
+/// Spray copy budget for a private (rendezvous-addressed) bundle. Its recipient is
+/// unroutable by design, so delivery is epidemic — this budget bounds the flood
+/// while giving it enough reach to find the recipient (the bandwidth cost of
+/// recipient privacy, G2).
+const PRIVATE_COPIES: u16 = 12;
 /// Hard cap on a geocast's radius (metres) — bounds the covered-cell count so one
 /// call can't flood the mesh.
 const MAX_GEOCAST_RADIUS_M: f64 = 5_000.0;
@@ -386,6 +395,7 @@ impl NodeEngine {
             peer_bundles: HashMap::new(),
             last_digest_fp: [0u8; 32],
             next_digest: 0,
+            rendezvous_epoch: u64::MAX,
         }
     }
 
@@ -434,6 +444,49 @@ impl NodeEngine {
             submitted_at: now,
             retries: 0,
         });
+        self.originate(bundle, now);
+        id
+    }
+
+    /// Send privately over the DTN mesh **without exposing the recipient's address**
+    /// to carriers (G2). Identical sealing to [`submit`], but the bundle's `dst` is
+    /// the recipient's *rotating rendezvous address* — `HKDF(recipient_sign_pub,
+    /// epoch)` — instead of their stable address. Carriers see only an opaque tag
+    /// that rotates hourly and is unlinkable across epochs (and to an identity) by
+    /// anyone who doesn't already hold the recipient's key. The payload is still
+    /// sealed to the recipient's real key, so only they can read it; the recipient
+    /// recognizes the bundle by recomputing its own current rendezvous address.
+    ///
+    /// Receipt-less by design: a delivery receipt would carry the recipient's real
+    /// address (defeating the point) and wouldn't verify against the rendezvous
+    /// `dst` anyway, so the recipient emits none and we don't track one.
+    pub fn submit_private(
+        &mut self,
+        to: &IdentityPublic,
+        payload: Payload,
+        priority: Priority,
+        now: u64,
+    ) -> Bytes {
+        let mut opts = SealOptions::normal(now).with_priority(priority);
+        // A rendezvous address is deliberately unroutable — no node's real address
+        // equals it — so spray-and-wait cannot home in on the recipient and must
+        // instead epidemic-flood until a node recognizes its own tag. Give private
+        // bundles a flood copy budget (as geocast does for its non-unicast dst).
+        opts.copies_left = PRIVATE_COPIES;
+        // Seal to a recipient record whose *id is the rotating rendezvous address*
+        // for this epoch, keeping the real signing/kex keys. seal_bundle then sets
+        // `dst`, signs the header, and seals the payload all against a consistent
+        // record: `dst` and the signature are over the rendezvous address (so it
+        // verifies on the wire), while the ciphertext is still sealed to the real
+        // key (so only the true recipient can read it). No post-seal mutation, so
+        // the header signature stays valid.
+        let mut recipient = self.fs_recipient(to);
+        recipient.id = lifeline_core::rendezvous::rendezvous_addr(
+            to.sign_pub.as_slice(),
+            lifeline_core::rendezvous::epoch_of(opts.created_at),
+        );
+        let bundle = seal_bundle(&self.identity, &recipient, &payload, &opts).expect("seal");
+        let id = bundle.bundle_id.clone();
         self.originate(bundle, now);
         id
     }
@@ -1308,7 +1361,32 @@ impl NodeEngine {
     }
 
     /// One scheduler step: advertise, receive, and offer over every interface.
+    /// Refresh the router's rotating rendezvous-address window if the epoch has
+    /// advanced (G2). We recognize private bundles addressed to any of our
+    /// rendezvous addresses over a sliding window that covers the maximum bundle
+    /// lifetime, so a bundle that sat in a carrier for days is still deliverable
+    /// when it finally reaches us. Recomputed only on an epoch change.
+    fn refresh_rendezvous(&mut self, now: u64) {
+        let e = lifeline_core::rendezvous::epoch_of(now);
+        if e == self.rendezvous_epoch {
+            return;
+        }
+        // Cover the whole max-TTL window (7 days of hourly epochs) plus a small
+        // forward skew, so no non-expired private bundle is missed.
+        const WINDOW: u64 = 24 * 7 + 1;
+        const FWD_SKEW: u64 = 1;
+        let lo = e.saturating_sub(WINDOW);
+        let hi = e.saturating_add(FWD_SKEW);
+        let pk = self.public.sign_pub.as_slice();
+        let addrs: Vec<_> = (lo..=hi)
+            .map(|epoch| lifeline_core::rendezvous::rendezvous_addr(pk, epoch))
+            .collect();
+        self.router.set_rendezvous_addrs(addrs);
+        self.rendezvous_epoch = e;
+    }
+
     pub fn tick(&mut self, now: u64) {
+        self.refresh_rendezvous(now);
         if now >= self.next_prekey_rotate {
             self.prekey_ring.rotate();
             self.next_prekey_rotate = now + self.prekey_rotate_interval;
@@ -1764,11 +1842,20 @@ impl NodeEngine {
             }
             return;
         }
+        // The address the sender bound the header to: our stable address for a
+        // normal bundle, or (for a private send, G2) the rotating rendezvous
+        // address the router just matched as ours. Opening/verification must use
+        // that same address; the payload is sealed to our real key either way.
+        let open_addr = if bundle.dst == self.public.id {
+            self.public.id.clone()
+        } else {
+            bundle.dst.clone()
+        };
         // Open with our long-term key; if that fails, the sender may have sealed
         // to one of our rotating forward-secret prekeys — try the ring (FR-44).
-        let opened = match open_bundle(&self.identity, &bundle) {
+        let opened = match open_bundle_as(&self.identity, &open_addr, &bundle) {
             Ok(o) => o,
-            Err(_) => match self.prekey_ring.open_bundle(&self.public.id, &bundle) {
+            Err(_) => match self.prekey_ring.open_bundle(&open_addr, &bundle) {
                 Some(o) => o,
                 None => return,
             },
@@ -1906,6 +1993,13 @@ impl NodeEngine {
             });
         }
         self.state.mark_delivered(bundle.bundle_id.clone());
+
+        // Private (rendezvous-addressed) bundles are receipt-less by design: the
+        // bundle's `dst` is not our real address, so a receipt would both leak our
+        // real address and fail the sender's `receipt.recipient == dst` check (G2).
+        if bundle.dst != self.public.id {
+            return;
+        }
 
         // Emit a signed delivery receipt back to the (now-known) sender.
         let receipt = make_delivery_receipt(&self.identity, &bundle.bundle_id, now);

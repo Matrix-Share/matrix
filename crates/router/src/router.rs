@@ -116,6 +116,12 @@ pub struct DtnRouter {
     /// Pluggable forwarding strategy (default: binary spray-and-wait).
     policy: Box<dyn crate::policy::RoutingPolicy>,
     stats: RouterStats,
+    /// Our current set of *rotating rendezvous addresses* (recipient-unlinkable
+    /// private delivery, G2). The engine — which owns the crypto — computes these
+    /// from our signing key over a sliding window of epochs and pushes them here;
+    /// the router stays free of any crypto dependency and just matches membership.
+    /// Empty → only our stable `me` address is a delivery terminus.
+    rendezvous_addrs: std::collections::HashSet<Address>,
 }
 
 impl DtnRouter {
@@ -145,11 +151,27 @@ impl DtnRouter {
             attribution: crate::attribution::ForwardLedger::new(),
             policy,
             stats: RouterStats::default(),
+            rendezvous_addrs: std::collections::HashSet::new(),
         }
     }
 
     pub fn address(&self) -> &Address {
         &self.me
+    }
+
+    /// Replace our current set of rotating rendezvous addresses (private-delivery
+    /// recognition, G2). The engine computes these from our signing key over a
+    /// sliding epoch window and refreshes them as epochs advance. After this,
+    /// [`ingest`](Self::ingest) delivers bundles addressed to any of them, not just
+    /// our stable `me`.
+    pub fn set_rendezvous_addrs<I: IntoIterator<Item = Address>>(&mut self, addrs: I) {
+        self.rendezvous_addrs = addrs.into_iter().collect();
+    }
+
+    /// Is this bundle destined for us — either at our stable address or at one of
+    /// our current rotating rendezvous addresses (private delivery, G2)?
+    fn is_terminus(&self, bundle: &Bundle) -> bool {
+        bundle.dst == self.me || self.rendezvous_addrs.contains(&bundle.dst)
     }
 
     /// Toggle this node into gateway mode with the given capabilities (FR-35).
@@ -206,8 +228,9 @@ impl DtnRouter {
             return IngestOutcome::Duplicate;
         }
 
-        // Deliver-to-us takes precedence over every drop rule except dedup.
-        if bundle.dst == self.me {
+        // Deliver-to-us takes precedence over every drop rule except dedup. Matches
+        // our stable address *or* our current rotating rendezvous address (G2).
+        if self.is_terminus(&bundle) {
             self.seen.insert(bundle.bundle_id.clone());
             self.stats.delivered += 1;
             return IngestOutcome::Delivered;
