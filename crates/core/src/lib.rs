@@ -45,6 +45,7 @@ pub mod prekey;
 pub mod receipt;
 pub mod relay_proof;
 pub mod rendezvous;
+pub mod rotation;
 pub mod vault;
 pub mod wipe;
 
