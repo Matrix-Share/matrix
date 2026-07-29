@@ -45,6 +45,7 @@ pub mod prekey;
 pub mod receipt;
 pub mod relay_proof;
 pub mod vault;
+pub mod wipe;
 
 pub use identity::{Identity, KeyBackup};
 pub use log::HashLog;

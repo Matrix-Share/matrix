@@ -352,7 +352,7 @@ mod tests {
         let m_big = mean_single_agent(100_000, 1.0, 1.0, 200, 1);
         assert!(m_big > m_small, "over-spend should increase with N");
         assert!(
-            m_big < 100_000 as f64 * 0.05,
+            m_big < 100_000_f64 * 0.05,
             "single-agent over-spend must stay far below N (got {m_big})"
         );
     }

@@ -57,6 +57,12 @@ pub enum Command {
     /// Flush persistent state and stop the engine loop (graceful shutdown). Sent
     /// by `main` when the process receives SIGTERM/Ctrl-C.
     Shutdown,
+    /// Panic / duress wipe (G3): securely erase the node's on-disk secrets
+    /// (`identity.json`, `state.vault`) and stop the engine **without** flushing,
+    /// so returning drops the live engine + identity and their `zeroize`-on-drop
+    /// scrubs all in-memory secrets. One decisive, irreversible action for a
+    /// coerced or seized device. There is no confirmation and no undo.
+    Panic,
     /// Create a group (sender-keys, FR-12) with a chosen id/name.
     CreateGroup { id: String },
     /// Add a known contact (by address) to a group and distribute our sender key.
