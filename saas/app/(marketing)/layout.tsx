@@ -32,7 +32,7 @@ export default async function MarketingLayout({ children }: { children: React.Re
           <span className="grow" />
           <div className="row muted" style={{ gap: 18, fontSize: 14, flexWrap: 'wrap' }}>
             <Link href="/#security">Security</Link>
-            <a href="https://github.com/nometria/project-lifeline/tree/main/docs/whitepaper">White paper</a>
+            <a href="https://github.com/nometria/project-lifeline/blob/main/WHITEPAPER.md">White paper</a>
             <a href="https://github.com/nometria/project-lifeline/blob/main/ARCHITECTURE.md">Architecture</a>
             <Link href="/pricing">Pricing</Link>
             <a href="https://github.com/nometria/project-lifeline">GitHub</a>
