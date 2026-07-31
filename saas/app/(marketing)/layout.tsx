@@ -11,6 +11,8 @@ export default async function MarketingLayout({ children }: { children: React.Re
           <span className="grow" />
           <div className="row" style={{ gap: 6 }}>
             <Link href="/#features" className="btn btn-plain sm hide-sm">Features</Link>
+            <Link href="/#security" className="btn btn-plain sm hide-sm">Security</Link>
+            <Link href="/#tech" className="btn btn-plain sm hide-sm">Docs</Link>
             <Link href="/pricing" className="btn btn-plain sm hide-sm">Pricing</Link>
             {user ? (
               <Link href="/dashboard" className="btn btn-primary sm pill">Dashboard</Link>
@@ -29,7 +31,9 @@ export default async function MarketingLayout({ children }: { children: React.Re
           <Link href="/" className="brand" style={{ fontSize: 16 }}><span className="mark" style={{ width: 22, height: 22 }} />Lifeline</Link>
           <span className="grow" />
           <div className="row muted" style={{ gap: 18, fontSize: 14, flexWrap: 'wrap' }}>
-            <Link href="/#features">Features</Link>
+            <Link href="/#security">Security</Link>
+            <a href="https://github.com/nometria/project-lifeline/tree/main/docs/whitepaper">White paper</a>
+            <a href="https://github.com/nometria/project-lifeline/blob/main/ARCHITECTURE.md">Architecture</a>
             <Link href="/pricing">Pricing</Link>
             <a href="https://github.com/nometria/project-lifeline">GitHub</a>
           </div>
