@@ -14,44 +14,44 @@ export type Scheme = 'light' | 'dark';
 export const palette = {
   light: {
     bg: '#FFFFFF',
-    grouped: '#F2F2F7', // iOS grouped-background (systemGray6)
+    grouped: '#F4F4F6', // zinc grouped-background
     surface: '#FFFFFF',
-    fill: 'rgba(120,120,128,0.12)', // tertiarySystemFill — subtle control fill
-    fillStrong: 'rgba(120,120,128,0.20)',
-    ink: '#000000',
-    ink2: 'rgba(60,60,67,0.85)', // label
-    muted: 'rgba(60,60,67,0.60)', // secondaryLabel
-    faint: 'rgba(60,60,67,0.30)', // tertiaryLabel
-    separator: 'rgba(60,60,67,0.16)',
-    accent: '#007AFF',
+    fill: 'rgba(24,24,27,0.05)', // subtle control fill
+    fillStrong: 'rgba(24,24,27,0.09)',
+    ink: '#18181B', // zinc-900
+    ink2: '#3F3F46', // zinc-700
+    muted: '#71717A', // zinc-500
+    faint: '#A1A1AA', // zinc-400
+    separator: 'rgba(24,24,27,0.10)',
+    accent: '#6366F1', // indigo-500
     accentInk: '#FFFFFF',
-    accentWeak: 'rgba(0,122,255,0.12)',
-    sos: '#FF3B30',
-    sosWeak: 'rgba(255,59,48,0.12)',
-    safe: '#34C759',
-    safeWeak: 'rgba(52,199,89,0.14)',
-    warn: '#FF9500',
+    accentWeak: 'rgba(99,102,241,0.10)',
+    sos: '#EF4444',
+    sosWeak: 'rgba(239,68,68,0.10)',
+    safe: '#10B981', // emerald-500
+    safeWeak: 'rgba(16,185,129,0.12)',
+    warn: '#F59E0B',
     onColor: '#FFFFFF',
   },
   dark: {
-    bg: '#000000',
-    grouped: '#000000',
-    surface: '#1C1C1E', // secondarySystemGroupedBackground
-    fill: 'rgba(120,120,128,0.24)',
-    fillStrong: 'rgba(120,120,128,0.36)',
-    ink: '#FFFFFF',
-    ink2: 'rgba(235,235,245,0.90)',
-    muted: 'rgba(235,235,245,0.60)',
-    faint: 'rgba(235,235,245,0.30)',
-    separator: 'rgba(84,84,88,0.65)',
-    accent: '#0A84FF',
+    bg: '#09090B', // zinc-950
+    grouped: '#09090B',
+    surface: '#18181B', // zinc-900
+    fill: 'rgba(255,255,255,0.08)',
+    fillStrong: 'rgba(255,255,255,0.14)',
+    ink: '#FAFAFA',
+    ink2: '#E4E4E7',
+    muted: '#A1A1AA',
+    faint: '#52525B',
+    separator: 'rgba(255,255,255,0.10)',
+    accent: '#818CF8', // indigo-400
     accentInk: '#FFFFFF',
-    accentWeak: 'rgba(10,132,255,0.22)',
-    sos: '#FF453A',
-    sosWeak: 'rgba(255,69,58,0.18)',
-    safe: '#30D158',
-    safeWeak: 'rgba(48,209,88,0.18)',
-    warn: '#FF9F0A',
+    accentWeak: 'rgba(129,140,248,0.16)',
+    sos: '#F87171',
+    sosWeak: 'rgba(248,113,113,0.16)',
+    safe: '#34D399', // emerald-400
+    safeWeak: 'rgba(52,211,153,0.16)',
+    warn: '#FBBF24',
     onColor: '#FFFFFF',
   },
 } as const;
