@@ -1,6 +1,6 @@
 # Project Lifeline — decentralized, offline-first emergency mesh
 
-[![CI](https://github.com/OWNER/lifeline/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
+[![CI](https://github.com/nometria/project-lifeline/actions/workflows/ci.yml/badge.svg)](https://github.com/nometria/project-lifeline/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 An open-source, self-hostable, end-to-end-encrypted mesh messenger that keeps
@@ -13,6 +13,17 @@ proof of delivery and no blockchain**. Built from the design docs in
 
 > "Kill the towers, keep one phone on data, and the whole room still messages
 > out — with cryptographic proof of delivery."
+
+> [!IMPORTANT]
+> **Status: alpha, and not yet independently security-audited.** The cryptography
+> and protocol are implemented and unit-tested, but they have not had a
+> third-party review — **don't rely on Lifeline for high-risk or life-safety
+> communication yet.** Also note **what runs today**: nodes mesh over a local
+> WebSocket **relay** (or LAN/UDP), which stands in for the internet transport so
+> browsers and servers can connect. The native phone-to-phone radio bearers
+> (Bluetooth LE / Wi-Fi Aware / ultrasound) are designed but **not shipped** — so
+> "works with no internet at all, phone-to-phone" is the goal, not yet the
+> out-of-the-box reality. Everything below runs and is real.
 
 ## Quickstart — chat with someone in 60 seconds
 
@@ -38,10 +49,25 @@ opaque ciphertext frames. On real devices, nodes mesh directly over
 BLE/Wi-Fi Aware/ultrasound; the relay just stands in for the internet transport
 so browsers can connect.
 
+## Apps in this repo
+
+Lifeline is one product across several surfaces. The **mesh + messenger is the
+core** (Rust, above); the rest are optional layers that share one design system.
+
+| Surface | Path | What it is | Run it |
+|---|---|---|---|
+| **Mesh node + web app** | `crates/`, `crates/node/web/` | The Rust engine + a browser messenger it serves. This is the product. | `docker compose up --build`, or the "From source" steps above |
+| **Mobile app** | [`mobile/`](mobile/) | Native iOS/Android client (Expo + React Native) that talks to a node's API. | `cd mobile && npm install && npx expo start` |
+| **SaaS** | [`saas/`](saas/) | Hosted layer — marketing site, accounts, dashboard, teams, Stripe billing (Next.js). The mesh stays accountless; this sits on top. | `cd saas && npm install && npm run dev` → http://localhost:3000 |
+| **Marketing site** | [`website/`](website/) | Static landing page. | open `website/index.html`, or serve the folder with any static server |
+
+The shared visual language lives in [`docs/design/design-system.md`](docs/design/design-system.md).
+Each app has its own README with details.
+
 ## Testing / the acceptance simulator
 
 ```
-cargo test                            # 127 tests across all crates
+cargo test                            # 280 tests across all crates
 cargo run -p lifeline-sim --release   # runs the PRD acceptance scenarios + report
 ```
 
