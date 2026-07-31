@@ -4,19 +4,19 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="light dark" />
-<meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)" />
 <title>Lifeline — messaging that works when nothing else does</title>
 <meta name="description" content="Encrypted messaging with no towers, no internet, no accounts. Lifeline hops device to device across a mesh, so a message gets through even when the network is gone." />
 <style>
   /* ===== Shared design system — see docs/design/design-system.md ===== */
   :root{
-    --bg:#fbfbfd; --surface:#ffffff; --surface-2:#f5f5f7; --elevated:#ffffff;
-    --ink:#1d1d1f; --ink-2:#424245; --muted:#6e6e73; --faint:#86868b;
-    --line:rgba(0,0,0,.10); --hairline:rgba(0,0,0,.06);
-    --accent:#007aff; --accent-press:#0063cc; --accent-ink:#fff; --accent-weak:rgba(0,122,255,.10);
-    --sos:#ff3b30; --safe:#34c759; --warn:#ff9500;
-    --grad:linear-gradient(140deg,#0a84ff,#5e5ce6);
+    --bg:#ffffff; --surface:#ffffff; --surface-2:#f4f4f6; --elevated:#ffffff;
+    --ink:#18181b; --ink-2:#3f3f46; --muted:#71717a; --faint:#a1a1aa;
+    --line:rgba(24,24,27,.10); --hairline:rgba(24,24,27,.055);
+    --accent:#6366f1; --accent-press:#4f46e5; --accent-ink:#fff; --accent-weak:rgba(99,102,241,.10);
+    --sos:#ef4444; --safe:#10b981; --warn:#f59e0b;
+    --grad:linear-gradient(135deg,#6366f1,#8b5cf6);
     --e-1:0 .5px 1px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.06);
     --e-2:0 .5px 1px rgba(0,0,0,.05),0 20px 50px rgba(0,0,0,.12);
     --r-1:10px; --r-2:14px; --r-3:20px; --r-4:28px; --r-pill:980px;
@@ -26,20 +26,20 @@
     --maxw:1080px;
   }
   @media (prefers-color-scheme:dark){:root:not([data-theme]){
-    --bg:#000; --surface:#1c1c1e; --surface-2:#0c0c0e; --elevated:#1c1c1e;
-    --ink:#f5f5f7; --ink-2:#d2d2d7; --muted:#98989d; --faint:#6e6e73;
-    --line:rgba(255,255,255,.14); --hairline:rgba(255,255,255,.08);
-    --accent:#0a84ff; --accent-press:#409cff; --accent-weak:rgba(10,132,255,.22);
-    --sos:#ff453a; --safe:#30d158;
+    --bg:#09090b; --surface:#18181b; --surface-2:#232328; --elevated:#1b1b1f;
+    --ink:#fafafa; --ink-2:#e4e4e7; --muted:#a1a1aa; --faint:#52525b;
+    --line:rgba(255,255,255,.10); --hairline:rgba(255,255,255,.06);
+    --accent:#818cf8; --accent-press:#6366f1; --accent-weak:rgba(129,140,248,.22);
+    --sos:#f87171; --safe:#34d399;
     --e-1:0 .5px 1px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.5);
     --e-2:0 1px 2px rgba(0,0,0,.6),0 24px 60px rgba(0,0,0,.6);
   }}
   :root[data-theme="dark"]{color-scheme:dark;
-    --bg:#000; --surface:#1c1c1e; --surface-2:#0c0c0e; --elevated:#1c1c1e;
-    --ink:#f5f5f7; --ink-2:#d2d2d7; --muted:#98989d; --faint:#6e6e73;
-    --line:rgba(255,255,255,.14); --hairline:rgba(255,255,255,.08);
-    --accent:#0a84ff; --accent-press:#409cff; --accent-weak:rgba(10,132,255,.22);
-    --sos:#ff453a; --safe:#30d158;
+    --bg:#09090b; --surface:#18181b; --surface-2:#232328; --elevated:#1b1b1f;
+    --ink:#fafafa; --ink-2:#e4e4e7; --muted:#a1a1aa; --faint:#52525b;
+    --line:rgba(255,255,255,.10); --hairline:rgba(255,255,255,.06);
+    --accent:#818cf8; --accent-press:#6366f1; --accent-weak:rgba(129,140,248,.22);
+    --sos:#f87171; --safe:#34d399;
     --e-1:0 .5px 1px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.5);
     --e-2:0 1px 2px rgba(0,0,0,.6),0 24px 60px rgba(0,0,0,.6);}
   :root[data-theme="light"]{color-scheme:light}

@@ -14,31 +14,33 @@ tokens so the product reads as one system.
 
 ## Design tokens (verbatim across all surfaces)
 
-### Color — light (iOS system palette)
+The brand is a refined **zinc neutral + indigo→violet** system (the unified theme across
+every surface — web app, mobile app, marketing site, and SaaS). Premium, not the default
+iOS blue.
+
+### Color — light
 ```
---bg:#ffffff; --surface:#ffffff; --surface-2:#f2f2f7; --elevated:#ffffff;
---ink:#000000; --ink-2:#3c3c43; --muted:#6c6c70; --faint:#b0b0b6;
---line:rgba(60,60,67,.16); --hairline:rgba(60,60,67,.08);
---accent:#007aff; --accent-press:#0063cc; --accent-ink:#ffffff; --accent-weak:rgba(0,122,255,.10);
---sos:#ff3b30; --sos-weak:rgba(255,59,48,.10);
---safe:#34c759; --safe-weak:rgba(52,199,89,.14);
---warn:#ff9500;
+--bg:#ffffff; --surface:#ffffff; --surface-2:#f4f4f6; --elevated:#ffffff;
+--ink:#18181b; --ink-2:#3f3f46; --muted:#71717a; --faint:#a1a1aa;      /* zinc */
+--line:rgba(24,24,27,.10); --hairline:rgba(24,24,27,.055);
+--accent:#6366f1; --accent-press:#4f46e5; --accent-ink:#ffffff; --accent-weak:rgba(99,102,241,.10);
+--sos:#ef4444; --safe:#10b981; --warn:#f59e0b;                          /* red / emerald / amber */
+--grad:linear-gradient(135deg,#6366f1,#8b5cf6);                          /* indigo → violet */
 ```
-### Color — dark (iOS system palette)
+### Color — dark
 ```
---bg:#000000; --surface:#1c1c1e; --surface-2:#2c2c2e; --elevated:#1c1c1e;
---ink:#ffffff; --ink-2:rgba(235,235,245,.86); --muted:rgba(235,235,245,.6); --faint:rgba(235,235,245,.3);
---line:rgba(84,84,88,.6); --hairline:rgba(84,84,88,.34);
---accent:#0a84ff; --accent-press:#409cff; --accent-ink:#ffffff; --accent-weak:rgba(10,132,255,.22);
---sos:#ff453a; --sos-weak:rgba(255,69,58,.16);
---safe:#30d158; --safe-weak:rgba(48,209,88,.18);
---warn:#ff9f0a;
+--bg:#09090b; --surface:#18181b; --surface-2:#232328; --elevated:#1b1b1f;  /* zinc-950 base */
+--ink:#fafafa; --ink-2:#e4e4e7; --muted:#a1a1aa; --faint:#52525b;
+--line:rgba(255,255,255,.10); --hairline:rgba(255,255,255,.06);
+--accent:#818cf8; --accent-press:#6366f1; --accent-ink:#ffffff; --accent-weak:rgba(129,140,248,.16);
+--sos:#f87171; --safe:#34d399; --warn:#fbbf24;
+--grad:linear-gradient(135deg,#818cf8,#a78bfa);
 ```
-Accent is the iOS **system blue**; grays are the iOS label/fill opacities; SOS/safe/warn are
-Apple system colors — so everything reads as native on Apple devices. **No gradients in
-chrome** (logo and avatars are flat solid fills); the only gradient allowed is on the standalone
-app icon. **Avatars** use a fixed, curated 8-color palette keyed by a hash of the seed — never
-random HSL (that "rainbow" look is the tell of an unconsidered system).
+Accent is **indigo** (`#6366F1` / `#818CF8` dark); neutrals are the **zinc** scale; semantic
+colors are red / **emerald** / amber. The **only** gradient is the indigo→violet brand mark
+(the app/logo tile) — chrome otherwise uses flat fills. **Avatars** use a fixed, curated
+8-color palette keyed by a hash of the seed — never random HSL (that "rainbow" look is the
+tell of an unconsidered system).
 
 ### Typography
 - **Stack:** `-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif`. No web-font download — use the device's system face (SF on Apple), which is the fastest and most native-feeling choice and works fully offline (mesh-critical).
