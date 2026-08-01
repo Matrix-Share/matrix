@@ -54,6 +54,14 @@ pub enum Command {
         lon: f64,
         acc_m: Option<u32>,
     },
+    /// Share this node's location with *every* contact at once — the
+    /// "find each other in a crowd" broadcast (FR-43). Also sets this node's own
+    /// position so it can render distances/bearings to contacts who reply.
+    LocationAll {
+        lat: f64,
+        lon: f64,
+        acc_m: Option<u32>,
+    },
     /// Flush persistent state and stop the engine loop (graceful shutdown). Sent
     /// by `main` when the process receives SIGTERM/Ctrl-C.
     Shutdown,
@@ -94,6 +102,44 @@ pub struct Snapshot {
     pub messages: Vec<MsgView>,
     pub groups: Vec<GroupView>,
     pub status: StatusView,
+    /// Contacts who have shared a live location, nearest-first — the data behind
+    /// the "Nearby / find each other" view. Empty until someone shares.
+    #[serde(default)]
+    pub nearby: Vec<NearbyView>,
+    /// This node's own last-known position, if set (from GPS). Present enables
+    /// the Nearby view to show distance + direction to each contact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub my_pos: Option<PosView>,
+}
+
+/// This node's own position (lat/lon + when it was set).
+#[derive(Debug, Clone, Serialize)]
+pub struct PosView {
+    pub lat: f64,
+    pub lon: f64,
+    /// Unix seconds when this fix was recorded.
+    pub at: u64,
+}
+
+/// A contact's last-shared location, with distance + direction from *this* node.
+/// Distance/bearing are `None` until we have our own position to measure from.
+#[derive(Debug, Clone, Serialize)]
+pub struct NearbyView {
+    pub address: String,
+    pub name: String,
+    pub lat: f64,
+    pub lon: f64,
+    /// Unix seconds when this contact's location was last received.
+    pub at: u64,
+    /// Straight-line metres from this node; `None` if our own position is unknown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distance_m: Option<f64>,
+    /// Compass bearing to the contact in degrees (0 = N); `None` if unknown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bearing_deg: Option<f64>,
+    /// 8-point compass label ("N", "NE", …) to the contact; `None` if unknown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compass: Option<String>,
 }
 
 /// A group the node participates in (FR-12), with its current members.

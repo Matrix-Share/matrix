@@ -199,6 +199,7 @@ usable by anyone.
 
 ## Learn more
 
+- **[Use cases](docs/USE-CASES.md)** — the real-world situations Lifeline is built for, each mapped to the feature that answers it.
 - **[Technical white paper](docs/whitepaper/)** — the formal protocol + analysis.
 - **[Architecture](ARCHITECTURE.md)** — how the code fits together.
 - **[Research](docs/research/)** — the deeper theory and simulations.

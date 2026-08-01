@@ -1,7 +1,9 @@
 //! The engine thread: owns the [`NodeEngine`], applies commands from the API,
 //! ticks the mesh, and republishes a [`Snapshot`] for the UI.
 
-use crate::views::{Command, IdentityView, MsgView, PeerView, Snapshot, StatusView};
+use crate::views::{
+    Command, IdentityView, MsgView, NearbyView, PeerView, PosView, Snapshot, StatusView,
+};
 use lifeline_core::Identity;
 use lifeline_engine::{EngineConfig, NodeEngine};
 use lifeline_proto::codec::{b64url_decode, b64url_encode, from_cbor, to_cbor};
@@ -146,8 +148,13 @@ pub fn run(
     let mut groups: Vec<String> = initial.groups;
     // bundle_id (b64) -> index into `messages` for outbound status updates.
     let mut sent_index: HashMap<String, usize> = HashMap::new();
+    // Last-known position per contact (lat, lon, unix_secs), from received
+    // Location payloads — the data behind the "Nearby / find each other" view.
+    let mut peer_pos: HashMap<Address, (f64, f64, u64)> = HashMap::new();
     let state_path = std::path::Path::new(&data_dir).join("state.vault");
     let mut dirty = false;
+    // Unix seconds our own position was last set (for the Nearby view's "you").
+    let mut my_pos_at = 0u64;
     let mut last_save_tick = 0u64;
     let mut tick_no = 0u64;
     let mut shutdown = false;
@@ -301,6 +308,31 @@ pub fn run(
                         }
                     }
                 }
+                Command::LocationAll { lat, lon, acc_m } => {
+                    // "Find each other": share our position with every contact at
+                    // once, and set our own fix so we can measure distances to
+                    // theirs. Recorded as a single mesh-thread bubble.
+                    engine.set_position(lat, lon);
+                    my_pos_at = now;
+                    let mut ids = Vec::new();
+                    for peer in engine.directory() {
+                        if let Some(id) =
+                            engine.submit_location(&peer.id, lat, lon, acc_m.unwrap_or(0), now)
+                        {
+                            ids.push(id);
+                        }
+                    }
+                    record_broadcast(
+                        &mut messages,
+                        &mut sent_index,
+                        &ids,
+                        "out",
+                        &name,
+                        &format!("📍 shared location with everyone ({lat:.4}, {lon:.4})"),
+                        now,
+                    );
+                    dirty = true;
+                }
                 Command::CreateGroup { id } => {
                     let id = id.trim().to_string();
                     if !id.is_empty() {
@@ -362,8 +394,10 @@ pub fn run(
                 }
                 Command::SetPosition { lat, lon } => {
                     // Required for geocast *receive*: a node only accepts a
-                    // geocast whose region cell matches its own position.
+                    // geocast whose region cell matches its own position. Also
+                    // anchors distances/bearings in the Nearby view.
                     engine.set_position(lat, lon);
+                    my_pos_at = now;
                 }
                 Command::Geocast {
                     lat,
@@ -458,6 +492,13 @@ pub fn run(
                 None if inb.payload.kind == PayloadKind::Sos => (inb.from.to_text(), "in-sos"),
                 None => (inb.from.to_text(), "in"),
             };
+            // Record any location (shared position or an SOS with coordinates) so
+            // the Nearby view can show where this contact is (FR-43).
+            if matches!(inb.payload.kind, PayloadKind::Location | PayloadKind::Sos) {
+                if let Some(c) = &inb.payload.coords {
+                    peer_pos.insert(inb.from.clone(), (c.lat, c.lon, now));
+                }
+            }
             messages.push(MsgView {
                 id: String::new(),
                 dir: dir.into(),
@@ -490,6 +531,7 @@ pub fn run(
         }
 
         // 5. Publish snapshot.
+        let (nearby, my_pos) = build_nearby(&engine, &peer_pos, my_pos_at);
         let snap = build_snapshot(
             &engine,
             &identity_view,
@@ -497,6 +539,8 @@ pub fn run(
             &messages,
             &groups,
             connected.load(Ordering::Relaxed),
+            nearby,
+            my_pos,
         );
         if let Ok(mut g) = shared.lock() {
             *g = snap;
@@ -606,6 +650,64 @@ fn name_of(engine: &NodeEngine, addr: &Address) -> String {
         .unwrap_or_else(|| addr.short())
 }
 
+/// Build the "Nearby / find each other" data: each contact's last-shared
+/// position, annotated with distance + compass direction from *this* node when
+/// we have our own fix, sorted nearest-first. Returns the list plus our own
+/// position (present iff we have a fix).
+fn build_nearby(
+    engine: &NodeEngine,
+    peer_pos: &HashMap<Address, (f64, f64, u64)>,
+    my_pos_at: u64,
+) -> (Vec<NearbyView>, Option<PosView>) {
+    use lifeline_geo::{bearing_deg, compass_8, haversine_m, GeoPoint};
+
+    let me = engine.position().map(|(lat, lon)| GeoPoint::new(lat, lon));
+    let my_pos = engine.position().map(|(lat, lon)| PosView {
+        lat,
+        lon,
+        at: my_pos_at,
+    });
+
+    let mut nearby: Vec<NearbyView> = peer_pos
+        .iter()
+        .map(|(addr, &(lat, lon, at))| {
+            let there = GeoPoint::new(lat, lon);
+            let (distance_m, bearing_deg_v, compass) = match me {
+                Some(here) => {
+                    let b = bearing_deg(here, there);
+                    (
+                        Some(haversine_m(here, there)),
+                        Some(b),
+                        Some(compass_8(b).into()),
+                    )
+                }
+                None => (None, None, None),
+            };
+            NearbyView {
+                address: addr.to_text(),
+                name: name_of(engine, addr),
+                lat,
+                lon,
+                at,
+                distance_m,
+                bearing_deg: bearing_deg_v,
+                compass,
+            }
+        })
+        .collect();
+
+    // Nearest first; without our own fix (no distance), fall back to most-recent.
+    nearby.sort_by(|a, b| match (a.distance_m, b.distance_m) {
+        (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => b.at.cmp(&a.at),
+    });
+
+    (nearby, my_pos)
+}
+
+#[allow(clippy::too_many_arguments)]
 fn build_snapshot(
     engine: &NodeEngine,
     identity: &IdentityView,
@@ -613,6 +715,8 @@ fn build_snapshot(
     messages: &[MsgView],
     groups: &[String],
     relay_connected: bool,
+    nearby: Vec<NearbyView>,
+    my_pos: Option<PosView>,
 ) -> Snapshot {
     let directory: Vec<PeerView> = engine
         .directory()
@@ -672,5 +776,7 @@ fn build_snapshot(
             is_gateway: engine.is_gateway(),
             gradient: engine.gradient(unix_now()),
         },
+        nearby,
+        my_pos,
     }
 }

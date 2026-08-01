@@ -198,6 +198,9 @@
   .peer{display:flex;align-items:center;gap:11px;padding:9px 8px}
   .peer .nm{font-weight:590;font-size:13.5px} .peer .ad{color:var(--muted);font-size:11px}
   .rolechip{margin-left:auto;font-size:10.5px;color:var(--muted);border:.5px solid var(--line);border-radius:999px;padding:2px 9px}
+  .nearby .peer{border-bottom:.5px solid var(--line)} .nearby .peer:last-child{border-bottom:none}
+  .distchip{margin-left:auto;font-size:12.5px;font-weight:660;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dirchip{font-size:11px;font-weight:590;color:var(--accent);border:.5px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:999px;padding:2px 8px;white-space:nowrap}
   .testout{margin-top:12px;font-size:12.5px;color:var(--muted);line-height:1.55}
 
   /* ===== Toast / sheet / menu ===== */
@@ -373,6 +376,16 @@
           <button class="btn btn-primary" id="geoBtn">Geocast</button>
         </div>
         <div class="hint" id="geoHint" style="margin-top:11px">Sending and receiving area alerts both need location permission.</div>
+      </div>
+
+      <div class="bccard">
+        <h2>Find each other</h2>
+        <div class="sub">Share your live location with everyone you can reach — then see how far away each person is and which way to walk. Built for crowds and festivals where the towers choke, and the backcountry where there are none: you can't spot each other, but the mesh still carries a position.</div>
+        <div class="row" style="align-items:flex-end">
+          <button class="btn btn-primary" id="shareLocBtn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Share my location with everyone</button>
+        </div>
+        <div class="hint" id="nearbyHint" style="margin-top:11px">Sharing needs location permission. Distances and directions appear once you and your contacts have each shared a position.</div>
+        <div class="nearby" id="nearby" style="margin-top:12px"></div>
       </div>
 
       <div class="grid2">
@@ -601,6 +614,28 @@ function renderNetwork(){
     <span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ad mono">${x.address.slice(0,16)}…</div></span>
     <span class="rolechip">${x.verified?'verified':'leaf'}</span>
     <button class="blockbtn" onclick="${x.blocked?`doUnblock('${esc(x.address)}')`:`doBlock('${esc(x.address)}')`}">${x.blocked?'Unblock':'Block'}</button></div>`).join(''):'<div class="empty">No peers discovered yet.</div>';
+  renderNearby();
+}
+
+/* "Find each other": contacts who've shared a location, nearest-first, with
+   how far and which way. Distances come pre-computed from the node (it knows
+   our own GPS fix); we just format them. */
+function fmtDist(m){if(m<1000)return Math.round(m)+' m';return (m/1000).toFixed(m<10000?1:0)+' km';}
+function dirArrow(deg){const a=['↑','↗','→','↘','↓','↙','←','↖'];return a[Math.round((((deg%360)+360)%360)/45)%8];}
+function renderNearby(){
+  const el=$('nearby');if(!el)return;
+  const list=state.nearby||[];
+  if(!list.length){el.innerHTML='<div class="empty">No one has shared a location yet. Tap “Share my location” above — as your contacts do the same, they appear here nearest-first with distance and direction.</div>';return;}
+  const haveFix=!!state.my_pos;
+  el.innerHTML=list.map(n=>{
+    const dist=n.distance_m!=null?`<span class="distchip">${fmtDist(n.distance_m)}</span>`:'';
+    const dir=(n.compass!=null&&n.bearing_deg!=null)?`<span class="dirchip">${dirArrow(n.bearing_deg)} ${esc(n.compass)}</span>`:'';
+    const map=`<a class="maplink" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${n.lat}&mlon=${n.lon}#map=16/${n.lat}/${n.lon}">map</a>`;
+    const tail=haveFix?(dist+dir):'<span class="rolechip">share yours to measure</span>';
+    return `<div class="peer"><span class="avatar" style="width:32px;height:32px;font-size:12px;background:${avc(n.address)}">${esc(initials(n.name))}</span>
+      <span style="min-width:0"><div class="nm">${esc(n.name)}</div><div class="ad mono">updated ${ago(n.at)} ago · ${map}</div></span>
+      ${tail}</div>`;
+  }).join('');
 }
 
 /* ---- Actions ---- */
@@ -673,6 +708,13 @@ $('geoBtn').onclick=async()=>{const t=$('geoMsg').value.trim();if(!t){toast('Typ
   $('geoMsg').value='';$('geoMsg').style.height='auto';
   $('geoHint').textContent=`Geocast sent to ~${radius_m}m around (${pos.lat.toFixed(4)}, ${pos.lon.toFixed(4)}).`;
   toast('Area alert sent');setTimeout(()=>btn.disabled=false,1500);};
+$('shareLocBtn').onclick=async()=>{const btn=$('shareLocBtn');btn.disabled=true;$('nearbyHint').textContent='Getting your location…';
+  const p=await getPos();
+  if(p){await post('/api/location_all',{lat:p.lat,lon:p.lon,acc_m:p.acc_m});
+    $('nearbyHint').textContent=`Shared your location (±${p.acc_m}m) with every contact. As they share back, they appear below nearest-first with distance and direction.`;
+    toast('Location shared with everyone');}
+  else{$('nearbyHint').textContent='Location unavailable — check permissions and try again.';toast('Location unavailable');}
+  setTimeout(()=>btn.disabled=false,1500);};
 $('sosBtn').onclick=async()=>{const btn=$('sosBtn');btn.disabled=true;$('emHint').textContent='Getting location…';
   const [pos,battery_pct]=await Promise.all([getPos(),getBattery()]);const body={note:'SOS',battery_pct};
   if(pos){body.lat=pos.lat;body.lon=pos.lon;body.acc_m=pos.acc_m;}await post('/api/sos',body);

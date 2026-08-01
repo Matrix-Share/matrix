@@ -52,6 +52,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/broadcast", post(post_broadcast))
         .route("/api/safe", post(post_safe))
         .route("/api/location", post(post_location))
+        .route("/api/location_all", post(post_location_all))
         .route("/api/group/create", post(post_group_create))
         .route("/api/group/add", post(post_group_add))
         .route("/api/group/send", post(post_group_send))
@@ -118,6 +119,27 @@ async fn post_location(
 ) -> impl IntoResponse {
     let _ = st.cmd.send(Command::Location {
         to: req.to,
+        lat: req.lat,
+        lon: req.lon,
+        acc_m: req.acc_m,
+    });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct LocationAllReq {
+    lat: f64,
+    lon: f64,
+    acc_m: Option<u32>,
+}
+
+/// Share this node's location with *every* contact at once — "find each other in
+/// a crowd" (FR-43).
+async fn post_location_all(
+    State(st): State<AppState>,
+    Json(req): Json<LocationAllReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::LocationAll {
         lat: req.lat,
         lon: req.lon,
         acc_m: req.acc_m,

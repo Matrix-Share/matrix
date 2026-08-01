@@ -964,6 +964,7 @@ dependencies = [
  "lifeline-bridge",
  "lifeline-core",
  "lifeline-engine",
+ "lifeline-geo",
  "lifeline-proto",
  "lifeline-relay",
  "lifeline-router",

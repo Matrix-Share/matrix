@@ -79,6 +79,7 @@ The GUI also exposes a **"Run network self-test"** button that executes the
 | Doc | What |
 |---|---|
 | [`WHITEPAPER.md`](WHITEPAPER.md) | **Plain-English white paper** — what Lifeline is, who it's for, and how it works, with no jargon. Start here if you're new. |
+| [`docs/USE-CASES.md`](docs/USE-CASES.md) | **Where Lifeline helps** — the real-world situations it's built for (disasters, shutdowns, crowds, the backcountry, privacy, and more), each mapped to the feature that answers it. |
 | [`docs/whitepaper/`](docs/whitepaper/) | The **technical white paper** — the formal protocol, capability-egress model, and analysis. |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | **How the system fits together** — layers, crates, the extension seams, message flow, threading, and the roadmap. Start here to understand the codebase. |
 | [`docs/`](docs/) | The original PRD + design docs (spectrum, network layer, gateway, OSS/papers). |
