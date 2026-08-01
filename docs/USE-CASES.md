@@ -190,3 +190,4 @@ Lifeline's core does exactly that, and the safety features layer on top:
 - [docs/whitepaper/](whitepaper/) — the technical white paper and analysis.
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — how the system is built.
 - [SECURITY.md](../SECURITY.md) — the honest threat model and how to report issues.
+- [ROADMAP-location.md](ROADMAP-location.md) — what's left to make the location / find-each-other story production-real.
