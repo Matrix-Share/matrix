@@ -21,8 +21,15 @@ what turns the use cases from aspiration into fact.
 
 - [x] Core find-each-other: peer-position tracking, distance + compass bearing,
       share-with-everyone, and the Nearby view (web). *(PR #62)*
-- [ ] **Native BLE transport** (gap G6) behind the finished `Interface` seam —
-      the single load-bearing item for *every* offline use case.
+- [~] **Native BLE transport** (gap G6) — the single load-bearing item for
+      *every* offline use case. **Done + tested:** the platform-independent stack
+      — ATT-MTU segmentation/reassembly, the `BleDriver` engine↔radio bridge, and
+      the `GattPort` seam — verified end-to-end over an in-memory GATT fabric
+      ([`crates/transport/src/ble.rs`](../crates/transport/src/ble.rs),
+      [design](ble-transport.md)). **Remaining (hardware-bound):** a real
+      `GattPort` — `btleplug` on desktop (central), CoreBluetooth/Android in the
+      mobile app (dual-role) — plus MTU negotiation and duty-cycling, verified
+      on-device.
 - [ ] **Wi-Fi Aware** transport for higher-bandwidth phone-to-phone links.
 - [ ] **Mobile app: the Nearby / find-each-other view** (Expo) — currently
       web-only; most real users are on phones.

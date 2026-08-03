@@ -294,6 +294,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(iface) = build_meshtastic(&identity) {
         extra_ifaces.push(iface);
     }
+    // Native BLE bearer (the phone-to-phone offline path). The platform-
+    // independent stack — ATT segmentation + the engine bridge — lives in
+    // `lifeline_transport::ble` and is tested; activating it needs a radio
+    // backend implementing `ble::GattPort` (btleplug on desktop, CoreBluetooth /
+    // Android on phones), which is hardware-bound and not compiled into this
+    // daemon yet. Recognize the flag so the intent is visible rather than silently
+    // ignored. See docs/ble-transport.md.
+    if std::env::var("LIFELINE_BLE").is_ok() {
+        tracing::warn!(
+            "LIFELINE_BLE set, but this build has no BLE radio backend \
+             (ble::GattPort). The BLE transport stack is present and tested; a \
+             hardware backend is required to activate it — see docs/ble-transport.md."
+        );
+    }
 
     // A handle to signal the engine to flush + stop at shutdown.
     let shutdown_tx = cmd_tx.clone();
