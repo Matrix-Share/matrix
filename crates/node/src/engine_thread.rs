@@ -1001,3 +1001,66 @@ fn build_snapshot(
         strobe,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn poi_labels_round_trip_and_categories_canonicalize() {
+        let (cat, name) = parse_poi_label(&poi_label("stage", "Main Stage"));
+        assert_eq!((cat.as_str(), name.as_str()), ("stage", "Main Stage"));
+        // Aliases canonicalize; anything unknown becomes "other".
+        assert_eq!(poi_category("Bathroom"), "toilet");
+        assert_eq!(poi_category("WATER"), "water");
+        assert_eq!(poi_category("banana"), "other");
+        // A label with no separator is treated as a name in "other".
+        let (c, n) = parse_poi_label("lonely");
+        assert_eq!((c.as_str(), n.as_str()), ("other", "lonely"));
+    }
+
+    #[test]
+    fn poi_ids_are_stable_and_distinct() {
+        let a = poi_id("me", "water", "Fountain");
+        // Same inputs → same id, so a re-share updates in place.
+        assert_eq!(a, poi_id("me", "water", "Fountain"));
+        assert_ne!(a, poi_id("me", "water", "Spring"));
+        assert_ne!(a, poi_id("peer", "water", "Fountain"));
+    }
+
+    #[test]
+    fn strobe_labels_round_trip_and_clamp_seizure_safe() {
+        let (s, b, secs) = parse_strobe_label(&strobe_label(100, 120, 30)).unwrap();
+        assert_eq!((s, b, secs), (100, 120, 30));
+        // A peer can't push tempo past the 3 Hz (180 bpm) ceiling or duration cap.
+        let (_, fast, long) = parse_strobe_label(&strobe_label(0, 6000, 9999)).unwrap();
+        assert_eq!(fast, STROBE_MAX_BPM);
+        assert_eq!(long, STROBE_MAX_SECONDS);
+        // Malformed input is rejected, never panics.
+        assert!(parse_strobe_label("nonsense").is_none());
+        assert!(parse_strobe_label("1\u{1f}2").is_none());
+    }
+
+    #[test]
+    fn dist_bearing_needs_a_fix_and_points_the_right_way() {
+        use lifeline_geo::GeoPoint;
+        // With no position of our own there's nothing to measure from.
+        assert_eq!(dist_bearing(None, 1.0, 1.0), (None, None, None));
+        // Due east of the origin → ~90° → "E", with a positive distance.
+        let (d, b, c) = dist_bearing(Some(GeoPoint::new(0.0, 0.0)), 0.0, 1.0);
+        assert!(d.unwrap() > 0.0);
+        assert!((b.unwrap() - 90.0).abs() < 1.0);
+        assert_eq!(c.as_deref(), Some("E"));
+    }
+
+    #[test]
+    fn nearest_first_sorts_by_distance_then_recency() {
+        use std::cmp::Ordering;
+        assert_eq!(nearest_first(Some(10.0), 0, Some(20.0), 0), Ordering::Less);
+        // A known distance sorts ahead of an unknown one...
+        assert_eq!(nearest_first(Some(999.0), 0, None, 0), Ordering::Less);
+        assert_eq!(nearest_first(None, 0, Some(1.0), 0), Ordering::Greater);
+        // ...and two unknowns fall back to most-recent first.
+        assert_eq!(nearest_first(None, 50, None, 10), Ordering::Less);
+    }
+}

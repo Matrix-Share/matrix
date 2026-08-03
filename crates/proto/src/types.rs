@@ -459,9 +459,15 @@ mod tests {
             PayloadKind::BlockResponse,
             PayloadKind::HaveQuery,
             PayloadKind::HaveReply,
+            PayloadKind::KeyRotation,
+            PayloadKind::Poi,
+            PayloadKind::Strobe,
         ] {
             assert_eq!(from_cbor::<PayloadKind>(&to_cbor(&k).unwrap()).unwrap(), k);
         }
+        // The wire discriminants are stable and never reused (appending only).
+        assert_eq!(u8::from(PayloadKind::Poi), 15);
+        assert_eq!(u8::from(PayloadKind::Strobe), 16);
         // A payload type from a newer peer (discriminant 42) decodes to Unknown,
         // which the engine drops — no hard error, so endpoints stay interoperable.
         let future: PayloadKind = from_cbor(&to_cbor(&42u8).unwrap()).unwrap();
