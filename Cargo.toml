@@ -22,7 +22,7 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://example.org/lifeline"
+repository = "https://github.com/nometria/project-lifeline"
 rust-version = "1.75"
 
 # Shared dependency versions so every crate targets the same, real releases.

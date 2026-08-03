@@ -6,7 +6,38 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0-alpha] - 2026-08-03 — first public (developer preview) release
+
+First tagged release. **Alpha / developer preview**: the cryptography, DTN mesh,
+CRDT sync, and apps are implemented and tested (292 tests), but the code has
+**not** had a third-party security audit and the native phone-to-phone radios
+(BLE / Wi-Fi Aware) are designed but not shipped. Do not rely on it for
+high-risk or life-safety communication yet. See [`docs/RELEASE-READINESS.md`](docs/RELEASE-READINESS.md).
+
 ### Added
+- **Location & safety layer — "find each other", wayfinding, and a strobe
+  beacon.** Contacts can share live positions and see each other by **distance +
+  compass bearing, nearest-first** (`lifeline-geo` gains `bearing_deg`/`compass_8`;
+  new `Command::LocationAll` + `POST /api/location_all`; `Snapshot.nearby`).
+  Shareable **points of interest** (water, medical, a stage, your tent) navigable
+  the same way (`PayloadKind::Poi`; `POST /api/poi`). A **synchronized strobe
+  beacon** so a group can spot each other in a crowd — every phone pulses in time
+  from a shared `(start, bpm)`, seizure-safe (≤ 3 Hz, smooth glow) and consensual
+  (`PayloadKind::Strobe`; `POST /api/strobe`). A **live compass arrow** (device
+  heading) for people and places.
+- **Situations hub** — a first-class UI that gives each problem Lifeline solves
+  (disaster, blackout/protest, off-grid/backcountry, crowded event, private) its
+  own tailored screen and plain guidance, so the tools fit the moment.
+- **Native Bluetooth LE transport — the platform-independent core.** ATT-MTU
+  segmentation + bounded reassembly, a `GattPort` radio seam, and the `BleDriver`
+  bridging the engine to a radio (`crates/transport/src/ble.rs`), verified
+  end-to-end over an in-memory GATT fabric. Radio backends (btleplug / mobile) are
+  the remaining, hardware-bound step (see [`docs/ble-transport.md`](docs/ble-transport.md)).
+- **Docs for newcomers** — a plain-English [white paper](WHITEPAPER.md), a
+  real-world [use-cases guide](docs/USE-CASES.md), and roadmap docs, all linked
+  from the README and the marketing sites.
+
+### Added (earlier, pre-release)
 - **Anti-entropy held-bundle digest wired into the live node (retires the inert
   `PeerInfo.known`).** The engine now broadcasts a bounded, sorted list of the
   bundle ids it holds (a new `FrameKind::Digest`), throttled and — the
