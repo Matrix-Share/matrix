@@ -53,7 +53,7 @@ rand = "0.8"
 rand_core = "0.6"
 
 # Encodings / errors / time / logging.
-base64 = "0.22"
+base64 = "0.23"
 hex = "0.4"
 thiserror = "1"
 tracing = "0.1"
