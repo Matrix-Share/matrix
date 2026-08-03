@@ -62,6 +62,16 @@ pub enum Command {
         lon: f64,
         acc_m: Option<u32>,
     },
+    /// Add a **point of interest** (wayfinding) at a location — water, a stage,
+    /// medical, "our tent". Stored locally and, if `share`, broadcast to every
+    /// contact so the whole crew can navigate to it.
+    AddPoi {
+        name: String,
+        category: String,
+        lat: f64,
+        lon: f64,
+        share: bool,
+    },
     /// Flush persistent state and stop the engine loop (graceful shutdown). Sent
     /// by `main` when the process receives SIGTERM/Ctrl-C.
     Shutdown,
@@ -110,6 +120,33 @@ pub struct Snapshot {
     /// the Nearby view to show distance + direction to each contact.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub my_pos: Option<PosView>,
+    /// Shared points of interest (water, stages, medical, "our tent"), each with
+    /// distance + direction from this node — the wayfinding view. Nearest-first.
+    #[serde(default)]
+    pub pois: Vec<PoiView>,
+}
+
+/// A point of interest to navigate to, annotated like [`NearbyView`] with
+/// distance + direction from this node.
+#[derive(Debug, Clone, Serialize)]
+pub struct PoiView {
+    pub id: String,
+    pub name: String,
+    /// Short category slug: `water`, `food`, `medical`, `stage`, `toilet`,
+    /// `tent`, `car`, `other`.
+    pub category: String,
+    pub lat: f64,
+    pub lon: f64,
+    /// Unix seconds this POI was added/received.
+    pub at: u64,
+    /// Who shared it: `"me"` for a POI this node added, else the sharer's name.
+    pub from: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distance_m: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bearing_deg: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compass: Option<String>,
 }
 
 /// This node's own position (lat/lon + when it was set).

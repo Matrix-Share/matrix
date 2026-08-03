@@ -253,6 +253,10 @@ pub enum PayloadKind {
     /// retired/compromised key to a successor (or drop it), signed by the key
     /// being retired so only its holder can authorize the change.
     KeyRotation = 14,
+    /// A **point of interest** shared over the mesh (FR-43, wayfinding): a named
+    /// place (water, a stage, medical, "our tent") others can navigate to. Body
+    /// carries `category\u{1f}name`; `coords` carries the location.
+    Poi = 15,
     /// A payload type this build does not understand (a value from a newer peer).
     /// Never constructed locally; the engine drops it. Reserved discriminant so
     /// it round-trips distinctly from any real kind.
@@ -277,6 +281,7 @@ impl From<u8> for PayloadKind {
             12 => PayloadKind::HaveQuery,
             13 => PayloadKind::HaveReply,
             14 => PayloadKind::KeyRotation,
+            15 => PayloadKind::Poi,
             _ => PayloadKind::Unknown,
         }
     }

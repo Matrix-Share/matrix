@@ -2,7 +2,7 @@
 //! ticks the mesh, and republishes a [`Snapshot`] for the UI.
 
 use crate::views::{
-    Command, IdentityView, MsgView, NearbyView, PeerView, PosView, Snapshot, StatusView,
+    Command, IdentityView, MsgView, NearbyView, PeerView, PoiView, PosView, Snapshot, StatusView,
 };
 use lifeline_core::Identity;
 use lifeline_engine::{EngineConfig, NodeEngine};
@@ -151,6 +151,9 @@ pub fn run(
     // Last-known position per contact (lat, lon, unix_secs), from received
     // Location payloads — the data behind the "Nearby / find each other" view.
     let mut peer_pos: HashMap<Address, (f64, f64, u64)> = HashMap::new();
+    // Shared points of interest (wayfinding), keyed by a stable id so a re-share
+    // updates in place. Holds both POIs we added and ones contacts sent.
+    let mut pois: HashMap<String, PoiRecord> = HashMap::new();
     let state_path = std::path::Path::new(&data_dir).join("state.vault");
     let mut dirty = false;
     // Unix seconds our own position was last set (for the Nearby view's "you").
@@ -333,6 +336,36 @@ pub fn run(
                     );
                     dirty = true;
                 }
+                Command::AddPoi {
+                    name,
+                    category,
+                    lat,
+                    lon,
+                    share,
+                } => {
+                    let name = name.trim().to_string();
+                    let category = poi_category(&category);
+                    if !name.is_empty() {
+                        // Store it locally so it shows on our own wayfinding view.
+                        let id = poi_id("me", &category, &name);
+                        pois.insert(
+                            id,
+                            PoiRecord {
+                                name: name.clone(),
+                                category: category.clone(),
+                                lat,
+                                lon,
+                                at: now,
+                                from: "me".into(),
+                            },
+                        );
+                        // And, if asked, broadcast it to the whole crew.
+                        if share {
+                            engine.broadcast_poi(poi_label(&category, &name), lat, lon, now);
+                        }
+                        dirty = true;
+                    }
+                }
                 Command::CreateGroup { id } => {
                     let id = id.trim().to_string();
                     if !id.is_empty() {
@@ -499,6 +532,30 @@ pub fn run(
                     peer_pos.insert(inb.from.clone(), (c.lat, c.lon, now));
                 }
             }
+            // A shared point of interest goes to the wayfinding view, not the chat
+            // thread: store it and move on without an inbox message.
+            if inb.payload.kind == PayloadKind::Poi {
+                if let (Some(label), Some(c)) = (&inb.payload.body, &inb.payload.coords) {
+                    let (category, name) = parse_poi_label(label);
+                    if !name.is_empty() {
+                        let from_key = inb.from.to_text();
+                        let id = poi_id(&from_key, &category, &name);
+                        pois.insert(
+                            id,
+                            PoiRecord {
+                                name,
+                                category,
+                                lat: c.lat,
+                                lon: c.lon,
+                                at: now,
+                                from: name_of(&engine, &inb.from),
+                            },
+                        );
+                        dirty = true;
+                    }
+                }
+                continue;
+            }
             messages.push(MsgView {
                 id: String::new(),
                 dir: dir.into(),
@@ -532,6 +589,7 @@ pub fn run(
 
         // 5. Publish snapshot.
         let (nearby, my_pos) = build_nearby(&engine, &peer_pos, my_pos_at);
+        let poi_views = build_pois(&engine, &pois);
         let snap = build_snapshot(
             &engine,
             &identity_view,
@@ -541,6 +599,7 @@ pub fn run(
             connected.load(Ordering::Relaxed),
             nearby,
             my_pos,
+            poi_views,
         );
         if let Ok(mut g) = shared.lock() {
             *g = snap;
@@ -650,6 +709,72 @@ fn name_of(engine: &NodeEngine, addr: &Address) -> String {
         .unwrap_or_else(|| addr.short())
 }
 
+/// A shared point of interest held in the node loop (wayfinding).
+struct PoiRecord {
+    name: String,
+    category: String,
+    lat: f64,
+    lon: f64,
+    at: u64,
+    from: String,
+}
+
+/// Canonical POI category slug (defends the wire against arbitrary strings).
+fn poi_category(raw: &str) -> String {
+    match raw.trim().to_lowercase().as_str() {
+        "water" => "water",
+        "food" => "food",
+        "medical" | "med" | "aid" => "medical",
+        "stage" | "music" => "stage",
+        "toilet" | "bathroom" | "restroom" | "wc" => "toilet",
+        "tent" | "camp" => "tent",
+        "car" | "parking" => "car",
+        _ => "other",
+    }
+    .to_string()
+}
+
+/// The opaque `category\u{1f}name` label carried in a POI payload body.
+fn poi_label(category: &str, name: &str) -> String {
+    format!("{category}\u{1f}{name}")
+}
+
+/// Parse a POI label back into `(category, name)`. Tolerant of a missing
+/// separator (treats the whole thing as the name, category `other`).
+fn parse_poi_label(label: &str) -> (String, String) {
+    match label.split_once('\u{1f}') {
+        Some((cat, name)) => (poi_category(cat), name.trim().to_string()),
+        None => ("other".to_string(), label.trim().to_string()),
+    }
+}
+
+/// Stable id for a POI so a re-share updates in place rather than duplicating.
+fn poi_id(from_key: &str, category: &str, name: &str) -> String {
+    format!("{from_key}\u{1f}{category}\u{1f}{name}")
+}
+
+/// Distance (metres) + compass bearing from our position `me` to a point, or all
+/// `None` when we have no fix of our own. Shared by the Nearby and POI views.
+fn dist_bearing(
+    me: Option<lifeline_geo::GeoPoint>,
+    lat: f64,
+    lon: f64,
+) -> (Option<f64>, Option<f64>, Option<String>) {
+    use lifeline_geo::{bearing_deg, compass_8, haversine_m, GeoPoint};
+    match me {
+        Some(here) => {
+            let there = GeoPoint::new(lat, lon);
+            let b = bearing_deg(here, there);
+            (
+                Some(haversine_m(here, there)),
+                Some(b),
+                Some(compass_8(b).into()),
+            )
+        }
+        None => (None, None, None),
+    }
+}
+
 /// Build the "Nearby / find each other" data: each contact's last-shared
 /// position, annotated with distance + compass direction from *this* node when
 /// we have our own fix, sorted nearest-first. Returns the list plus our own
@@ -659,9 +784,9 @@ fn build_nearby(
     peer_pos: &HashMap<Address, (f64, f64, u64)>,
     my_pos_at: u64,
 ) -> (Vec<NearbyView>, Option<PosView>) {
-    use lifeline_geo::{bearing_deg, compass_8, haversine_m, GeoPoint};
-
-    let me = engine.position().map(|(lat, lon)| GeoPoint::new(lat, lon));
+    let me = engine
+        .position()
+        .map(|(lat, lon)| lifeline_geo::GeoPoint::new(lat, lon));
     let my_pos = engine.position().map(|(lat, lon)| PosView {
         lat,
         lon,
@@ -671,18 +796,7 @@ fn build_nearby(
     let mut nearby: Vec<NearbyView> = peer_pos
         .iter()
         .map(|(addr, &(lat, lon, at))| {
-            let there = GeoPoint::new(lat, lon);
-            let (distance_m, bearing_deg_v, compass) = match me {
-                Some(here) => {
-                    let b = bearing_deg(here, there);
-                    (
-                        Some(haversine_m(here, there)),
-                        Some(b),
-                        Some(compass_8(b).into()),
-                    )
-                }
-                None => (None, None, None),
-            };
+            let (distance_m, bearing_deg, compass) = dist_bearing(me, lat, lon);
             NearbyView {
                 address: addr.to_text(),
                 name: name_of(engine, addr),
@@ -690,21 +804,55 @@ fn build_nearby(
                 lon,
                 at,
                 distance_m,
-                bearing_deg: bearing_deg_v,
+                bearing_deg,
                 compass,
             }
         })
         .collect();
 
     // Nearest first; without our own fix (no distance), fall back to most-recent.
-    nearby.sort_by(|a, b| match (a.distance_m, b.distance_m) {
+    nearby.sort_by(|a, b| nearest_first(a.distance_m, a.at, b.distance_m, b.at));
+
+    (nearby, my_pos)
+}
+
+/// Build the wayfinding POI list, annotated with distance + direction and sorted
+/// nearest-first (unknown distance falls back to most-recent).
+fn build_pois(engine: &NodeEngine, pois: &HashMap<String, PoiRecord>) -> Vec<PoiView> {
+    let me = engine
+        .position()
+        .map(|(lat, lon)| lifeline_geo::GeoPoint::new(lat, lon));
+    let mut out: Vec<PoiView> = pois
+        .iter()
+        .map(|(id, p)| {
+            let (distance_m, bearing_deg, compass) = dist_bearing(me, p.lat, p.lon);
+            PoiView {
+                id: id.clone(),
+                name: p.name.clone(),
+                category: p.category.clone(),
+                lat: p.lat,
+                lon: p.lon,
+                at: p.at,
+                from: p.from.clone(),
+                distance_m,
+                bearing_deg,
+                compass,
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| nearest_first(a.distance_m, a.at, b.distance_m, b.at));
+    out
+}
+
+/// Ordering: closest first; entries with no distance (no own fix) sort after
+/// ones with a distance, and among themselves by most-recent.
+fn nearest_first(da: Option<f64>, ta: u64, db: Option<f64>, tb: u64) -> std::cmp::Ordering {
+    match (da, db) {
         (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
         (Some(_), None) => std::cmp::Ordering::Less,
         (None, Some(_)) => std::cmp::Ordering::Greater,
-        (None, None) => b.at.cmp(&a.at),
-    });
-
-    (nearby, my_pos)
+        (None, None) => tb.cmp(&ta),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -717,6 +865,7 @@ fn build_snapshot(
     relay_connected: bool,
     nearby: Vec<NearbyView>,
     my_pos: Option<PosView>,
+    pois: Vec<PoiView>,
 ) -> Snapshot {
     let directory: Vec<PeerView> = engine
         .directory()
@@ -778,5 +927,6 @@ fn build_snapshot(
         },
         nearby,
         my_pos,
+        pois,
     }
 }

@@ -53,6 +53,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/safe", post(post_safe))
         .route("/api/location", post(post_location))
         .route("/api/location_all", post(post_location_all))
+        .route("/api/poi", post(post_poi))
         .route("/api/group/create", post(post_group_create))
         .route("/api/group/add", post(post_group_add))
         .route("/api/group/send", post(post_group_send))
@@ -143,6 +144,33 @@ async fn post_location_all(
         lat: req.lat,
         lon: req.lon,
         acc_m: req.acc_m,
+    });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct PoiReq {
+    name: String,
+    category: String,
+    lat: f64,
+    lon: f64,
+    #[serde(default = "default_true")]
+    share: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Add a point of interest (wayfinding) — stored locally and, unless `share` is
+/// false, broadcast to every contact (FR-43).
+async fn post_poi(State(st): State<AppState>, Json(req): Json<PoiReq>) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::AddPoi {
+        name: req.name,
+        category: req.category,
+        lat: req.lat,
+        lon: req.lon,
+        share: req.share,
     });
     Json(serde_json::json!({ "ok": true }))
 }
