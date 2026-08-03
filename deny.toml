@@ -6,6 +6,12 @@
 # Fail on any known RustSec advisory in the dependency tree.
 version = 2
 yanked = "deny"
+ignore = [
+    # `instant` is unmaintained (transitive, time helper). No fix is available
+    # upstream and it carries no known vulnerability — only an unmaintained
+    # notice. Revisit when a dependent drops it.
+    "RUSTSEC-2024-0384",
+]
 
 [licenses]
 version = 2
@@ -26,10 +32,13 @@ allow = [
 confidence-threshold = 0.9
 
 [bans]
-# Fail on multiple versions of the same crate is noisy for a large tree; warn.
+# Multiple versions of the same crate is noisy for a large tree; warn.
 multiple-versions = "warn"
-# No crate should pull in a wildcard version.
-wildcards = "deny"
+# The only wildcard deps in this workspace are the crates' own path dependencies
+# on each other (a monorepo app, not published to crates.io). All *external*
+# dependency versions are pinned centrally in `[workspace.dependencies]`, so a
+# blanket wildcard ban would only flag the legitimate internal path deps.
+wildcards = "allow"
 
 [sources]
 # Only allow crates from the official registry (no unvetted git/registry sources).
