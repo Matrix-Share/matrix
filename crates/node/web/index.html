@@ -213,6 +213,20 @@
   .strobe-cap{position:absolute;bottom:26px;left:0;right:0;text-align:center;color:rgba(255,255,255,.75);font-size:12px;z-index:2}
   .strobe-prompt{position:fixed;left:50%;transform:translateX(-50%);bottom:80px;z-index:400;display:none;gap:8px;align-items:center;background:var(--bar);border:.5px solid var(--line);border-radius:999px;padding:7px 8px 7px 15px;box-shadow:var(--e-2);backdrop-filter:saturate(1.8) blur(20px)}
   .strobe-prompt.on{display:flex}
+  .sit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px;margin-top:8px}
+  .sit-card{display:flex;align-items:center;gap:14px;text-align:left;padding:17px;border:.5px solid var(--line);border-radius:16px;background:var(--surface);cursor:pointer;transition:.15s;width:100%;font:inherit;color:inherit}
+  .sit-card:hover{border-color:var(--accent);box-shadow:var(--e-1)}
+  .sit-ic{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;font-size:24px;background:var(--surface-2);flex:none}
+  .sit-ic.lg{width:52px;height:52px;font-size:27px}
+  .sit-txt{display:flex;flex-direction:column;min-width:0;gap:3px}
+  .sit-txt b{font-size:15.5px;letter-spacing:-.01em}
+  .sit-txt span{color:var(--muted);font-size:12.5px;line-height:1.4}
+  .sit-go{margin-left:auto;color:var(--accent);font-size:19px;flex:none}
+  .sit-hd{display:flex;align-items:flex-start;gap:13px;margin-bottom:18px}
+  .sit-hd h1{font-size:21px;letter-spacing:-.02em}
+  .sit-hd p{color:var(--muted);font-size:13.5px;line-height:1.5;margin-top:4px}
+  .sit-hd .back{flex:none;margin-top:2px}
+  .sit-tools{display:flex;flex-direction:column;gap:14px}
   .testout{margin-top:12px;font-size:12.5px;color:var(--muted);line-height:1.55}
 
   /* ===== Toast / sheet / menu ===== */
@@ -288,6 +302,7 @@
     <div class="brand"><span class="logo"></span>Lifeline</div>
     <nav class="nav" id="nav">
       <button data-view="messages" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">Messages</span><span class="badge" id="unreadBadge" style="display:none">0</span></button>
+      <button data-view="situations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg><span class="lbl">Situations</span></button>
       <button data-view="network"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="2.4"/><circle cx="19" cy="6" r="2.4"/><circle cx="19" cy="18" r="2.4"/><path d="M7 11l10-4M7 13l10 4"/></svg><span class="lbl">Network</span></button>
     </nav>
     <span class="grow"></span>
@@ -356,6 +371,11 @@
     </div>
   </div>
 
+  <!-- ===== Situations (per-problem toolkits) ===== -->
+  <div class="view" id="v-situations">
+    <div class="net"><div id="sitRoot"></div></div>
+  </div>
+
   <!-- ===== Network ===== -->
   <div class="view" id="v-network">
     <div class="net">
@@ -392,30 +412,30 @@
 
       <div class="bccard">
         <h2>Find each other</h2>
-        <div class="sub">Share your live location with everyone you can reach — then see how far away each person is and which way to walk. Built for crowds and festivals where the towers choke, and the backcountry where there are none: you can't spot each other, but the mesh still carries a position.</div>
+        <div class="sub">Share your live location with everyone you can reach — then see how far away each person is and which way to walk. Works wherever the network is missing or jammed — a disaster, the backcountry, or a packed venue — because the mesh still carries a position.</div>
         <div class="row" style="align-items:flex-end">
           <button class="btn btn-primary" id="shareLocBtn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Share my location with everyone</button>
         </div>
         <div class="hint" id="nearbyHint" style="margin-top:11px">Sharing needs location permission. Distances and directions appear once you and your contacts have each shared a position.</div>
-        <div class="nearby" id="nearby" style="margin-top:12px"></div>
+        <div class="nearby" id="nearby" data-nearby style="margin-top:12px"></div>
       </div>
 
       <div class="bccard">
         <h2>Find your way</h2>
         <div class="sub">Drop a pin on the things that matter — water, food, medical, a stage, your tent — and everyone you're connected to can navigate to it. Distance and a live direction arrow appear once you've shared your position above.</div>
-        <div class="poi-cats" id="poiCats"></div>
+        <div class="poi-cats" id="poiCats" data-poi-cats></div>
         <div class="row" style="align-items:flex-end;margin-top:10px">
           <div style="flex:1"><input id="poiName" type="text" placeholder="Name this place (e.g. Main stage, our tent)…" autocomplete="off"></div>
           <button class="btn btn-primary" id="poiBtn">Add place here</button>
         </div>
         <div class="hint" id="poiHint" style="margin-top:10px">“Add place here” drops a pin at your current location and shares it with your contacts.</div>
-        <div class="nearby" id="pois" style="margin-top:12px"></div>
+        <div class="nearby" id="pois" data-pois style="margin-top:12px"></div>
       </div>
 
       <div class="bccard">
         <h2>Strobe beacon</h2>
-        <div class="sub">Can't spot your crew? Raise a strobe — everyone's phone pulses a glow <b>in sync</b> so you can find each other in the dark or a crowd. Hold your phone up. Gentle by design, and capped at a seizure-safe speed.</div>
-        <div class="poi-cats" id="strobeSpeeds"></div>
+        <div class="sub">Can't spot your group? Raise a strobe — every phone pulses a glow <b>in sync</b> so you can find each other in the dark, a crowd, or the backcountry. Hold your phone up. Gentle by design, and capped at a seizure-safe speed.</div>
+        <div class="poi-cats" id="strobeSpeeds" data-strobe-speeds></div>
         <div class="row" style="align-items:flex-end;margin-top:10px">
           <button class="btn btn-primary" id="strobeBtn">🔦 Raise a strobe</button>
         </div>
@@ -446,6 +466,7 @@
   <!-- ===== Mobile tab bar ===== -->
   <nav class="tabbar" id="tabbar">
     <button data-view="messages" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Messages<span class="badge" id="unreadBadge2" style="display:none">0</span></button>
+    <button data-view="situations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>Situations</button>
     <button data-view="network"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M7 11l10-4M7 13l10 4"/></svg>Network</button>
     <button id="tabSettings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8 2 2 0 1 1-2.8 2.8 1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5 2 2 0 1 1-4 0 1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3 2 2 0 1 1-2.8-2.8 1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1 2 2 0 1 1 0-4 1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8 2 2 0 1 1 2.8-2.8 1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5 2 2 0 1 1 4 0 1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3 2 2 0 1 1 2.8 2.8 1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1 2 2 0 1 1 0 4 1.6 1.6 0 0 0-1.5 1z"/></svg>Settings</button>
   </nav>
@@ -495,6 +516,7 @@ $('themeBtn').onclick=()=>{const cur=theme||(matchMedia('(prefers-color-scheme:d
 function setView(v){view=v;
   document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on',x.dataset.view===v));
   $('v-messages').classList.toggle('on',v==='messages');$('v-network').classList.toggle('on',v==='network');
+  $('v-situations').classList.toggle('on',v==='situations');
   if(v==='messages')$('app').setAttribute('data-mview', sel?'chat':'list');
   render();}
 document.querySelectorAll('#nav [data-view],#tabbar [data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));
@@ -535,6 +557,7 @@ function render(){
   renderConvs(byPeer);
   renderChat();
   if(view==='network')renderNetwork();
+  if(view==='situations')renderSituations();
   updateStrobeUI();
 }
 
@@ -668,31 +691,30 @@ window.addEventListener('deviceorientation',onOrient,true);
 async function enableCompass(){try{if(window.DeviceOrientationEvent&&typeof DeviceOrientationEvent.requestPermission==='function')await DeviceOrientationEvent.requestPermission();}catch(e){}}
 function dirHtml(bearing,compass){if(bearing==null)return '';const rel=Math.round((((bearing-(heading||0))%360)+360)%360);return `<span class="dirchip"><span class="navarrow" style="transform:rotate(${rel}deg)">↑</span>${compass?esc(compass):''}</span>`;}
 function renderNearby(){
-  const el=$('nearby');if(!el)return;
-  const list=state.nearby||[];
-  if(!list.length){el.innerHTML='<div class="empty">No one has shared a location yet. Tap “Share my location” above — as your contacts do the same, they appear here nearest-first with distance and direction.</div>';return;}
-  const haveFix=!!state.my_pos;
-  el.innerHTML=list.map(n=>{
+  const els=document.querySelectorAll('[data-nearby]');if(!els.length)return;
+  const list=state.nearby||[];let html;
+  if(!list.length){html='<div class="empty">No one has shared a location yet. Tap “Share my location” — as your contacts do the same, they appear here nearest-first with distance and direction.</div>';}
+  else{const haveFix=!!state.my_pos;html=list.map(n=>{
     const dist=n.distance_m!=null?`<span class="distchip">${fmtDist(n.distance_m)}</span>`:'';
     const dir=(n.compass!=null&&n.bearing_deg!=null)?dirHtml(n.bearing_deg,n.compass):'';
     const map=`<a class="maplink" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${n.lat}&mlon=${n.lon}#map=16/${n.lat}/${n.lon}">map</a>`;
     const tail=haveFix?(dist+dir):'<span class="rolechip">share yours to measure</span>';
     return `<div class="peer"><span class="avatar" style="width:32px;height:32px;font-size:12px;background:${avc(n.address)}">${esc(initials(n.name))}</span>
       <span style="min-width:0"><div class="nm">${esc(n.name)}</div><div class="ad mono">updated ${ago(n.at)} ago · ${map}</div></span>
-      ${tail}</div>`;
-  }).join('');
+      ${tail}</div>`;}).join('');}
+  els.forEach(el=>el.innerHTML=html);
 }
 
 /* "Find your way": shared points of interest, navigable like people. */
 const POI_CATS=[{k:'water',ic:'💧',label:'Water'},{k:'food',ic:'🍔',label:'Food'},{k:'medical',ic:'⛑️',label:'Medical'},{k:'stage',ic:'🎵',label:'Stage'},{k:'toilet',ic:'🚻',label:'Toilet'},{k:'tent',ic:'⛺',label:'Tent'},{k:'car',ic:'🚗',label:'Car'},{k:'other',ic:'📍',label:'Other'}];
 let poiCat='water';
 function catIcon(k){const c=POI_CATS.find(c=>c.k===k);return c?c.ic:'📍';}
-function renderPoiCats(){const el=$('poiCats');if(!el)return;el.innerHTML=POI_CATS.map(c=>`<span class="poi-cat${c.k===poiCat?' on':''}" data-k="${c.k}">${c.ic} ${c.label}</span>`).join('');el.querySelectorAll('.poi-cat').forEach(n=>n.onclick=()=>{poiCat=n.dataset.k;renderPoiCats();});}
+function renderPoiCats(){const els=document.querySelectorAll('[data-poi-cats]');els.forEach(el=>{el.innerHTML=POI_CATS.map(c=>`<span class="poi-cat${c.k===poiCat?' on':''}" data-k="${c.k}">${c.ic} ${c.label}</span>`).join('');el.querySelectorAll('.poi-cat').forEach(n=>n.onclick=()=>{poiCat=n.dataset.k;renderPoiCats();});});}
 function renderPois(){
-  const el=$('pois');if(!el)return;
-  const list=state.pois||[];const haveFix=!!state.my_pos;
-  if(!list.length){el.innerHTML='<div class="empty">No places pinned yet. Pick a category, name it, and tap “Add place here” — it drops a pin at your location and shares it with your contacts.</div>';return;}
-  el.innerHTML=list.map(p=>{
+  const els=document.querySelectorAll('[data-pois]');if(!els.length)return;
+  const list=state.pois||[];const haveFix=!!state.my_pos;let html;
+  if(!list.length){html='<div class="empty">No places pinned yet. Pick a category, name it, and tap “Add” — it drops a pin at your location and shares it with your contacts.</div>';}
+  else{html=list.map(p=>{
     const dist=p.distance_m!=null?`<span class="distchip">${fmtDist(p.distance_m)}</span>`:'';
     const dir=(p.compass!=null&&p.bearing_deg!=null)?dirHtml(p.bearing_deg,p.compass):'';
     const map=`<a class="maplink" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=17/${p.lat}/${p.lon}">map</a>`;
@@ -700,8 +722,8 @@ function renderPois(){
     const tail=haveFix?(dist+dir):'';
     return `<div class="peer"><span class="poi-ic">${catIcon(p.category)}</span>
       <span style="min-width:0"><div class="nm">${esc(p.name)}</div><div class="ad mono">${who} · ${ago(p.at)} ago · ${map}</div></span>
-      ${tail}</div>`;
-  }).join('');
+      ${tail}</div>`;}).join('');}
+  els.forEach(el=>el.innerHTML=html);
 }
 
 /* ---- Actions ---- */
@@ -796,7 +818,7 @@ $('poiBtn').onclick=async()=>{await enableCompass();const btn=$('poiBtn');
    Consensual (receivers tap to flash) and seizure-safe (smooth glow, ≤3/s). */
 let strobeFps=2;
 const STROBE_SPEEDS=[{fps:1,label:'Gentle'},{fps:2,label:'Medium'},{fps:3,label:'Fast'}];
-function renderStrobeSpeeds(){const el=$('strobeSpeeds');if(!el)return;el.innerHTML=STROBE_SPEEDS.map(s=>`<span class="poi-cat${s.fps===strobeFps?' on':''}" data-f="${s.fps}">${s.label} · ${s.fps}/s</span>`).join('');el.querySelectorAll('.poi-cat').forEach(n=>n.onclick=()=>{strobeFps=+n.dataset.f;renderStrobeSpeeds();});}
+function renderStrobeSpeeds(){document.querySelectorAll('[data-strobe-speeds]').forEach(el=>{el.innerHTML=STROBE_SPEEDS.map(s=>`<span class="poi-cat${s.fps===strobeFps?' on':''}" data-f="${s.fps}">${s.label} · ${s.fps}/s</span>`).join('');el.querySelectorAll('.poi-cat').forEach(n=>n.onclick=()=>{strobeFps=+n.dataset.f;renderStrobeSpeeds();});});}
 renderStrobeSpeeds();
 let strobeJoined=false, strobeDismissed=0, strobeRAF=null;
 function currentStrobe(){const s=state&&state.strobe;if(!s)return null;return (now()<s.start+s.seconds)?s:null;}
@@ -831,6 +853,57 @@ $('sosBtn').onclick=async()=>{const btn=$('sosBtn');btn.disabled=true;$('emHint'
   toast('SOS sent to all contacts');setTimeout(()=>btn.disabled=false,2000);};
 $('testBtn').onclick=async()=>{$('testOut').textContent='Running acceptance simulator…';const r=await(await fetch('/api/selftest')).json();
   $('testOut').innerHTML=`${esc(r.scenario)}<br>delivered <b style="color:var(--safe)">${r.delivered}/${r.sent}</b> (${r.pct_delivered.toFixed(0)}%) · verified ${r.pct_verified.toFixed(0)}% · logs ${r.logs_valid?'valid':'INVALID'}`;};
+
+/* ===== Situations: one detailed, tailored toolkit per kind of problem, so no
+   one has to figure out which "festival" feature maps to their emergency. Every
+   scenario reuses the same underlying mesh actions, reframed for the moment. */
+let scenario=null;
+const SCN=[
+  {k:'emergency',ic:'🆘',t:'Disaster or emergency',b:'Flood, quake, fire, storm, or a blackout — reach help and loved ones.',
+   intro:'The towers may be down or jammed. These send device to device over the mesh and keep spreading until they get through — even with no signal.',tools:['sos','safe','shareloc','geocast']},
+  {k:'blackout',ic:'✊',t:'Blackout or protest',b:'The internet is cut or watched. Stay connected, stay private.',
+   intro:"There's no central service to block. Messages hop phone to phone, and your identity is a key on your device — not an account anyone can seize.",tools:['broadcast','privateinfo','gateway','panic']},
+  {k:'offgrid',ic:'🏔️',t:'Off-grid & backcountry',b:'Hiking, sailing, remote — no coverage at all.',
+   intro:'Stay in touch with your party across dead zones, mark the places that matter, and call for help with your exact coordinates.',tools:['nearby','places','sos']},
+  {k:'event',ic:'🎪',t:'Crowded event',b:'Concerts, festivals, stadiums — the signal is jammed.',
+   intro:'Too many phones, not enough tower. Find your group by distance and direction, mark meeting points, or light up to be seen.',tools:['nearby','places','strobe']},
+  {k:'private',ic:'🔒',t:'Private & secure',b:"You just don't want anyone reading your messages.",
+   intro:'Every message is end-to-end encrypted and forward-secret. No account, no phone number, no server holding your history.',tools:['privateinfo','encryption','panic']},
+];
+function tcard(title,desc,body){return `<div class="bccard"><h2>${title}</h2><div class="sub">${desc}</div>${body?`<div style="margin-top:12px">${body}</div>`:''}</div>`;}
+function toolHtml(k){switch(k){
+  case 'sos': return tcard('🆘 Send an SOS','A distress call to everyone in range at the highest priority, with your GPS and battery attached.',`<button class="btn btn-sos wide" data-act="sos">🆘 Send SOS</button>`);
+  case 'safe': return tcard("Say you're safe",'Let every contact know you\'re OK with one tap — often the first thing people need to hear.',`<button class="btn btn-safe wide" data-act="safe">✓ I'm safe</button>`);
+  case 'shareloc': return tcard('Share your location','Send your live position to everyone you\'re connected to, so they can come to you.',`<button class="btn btn-primary wide" data-act="shareloc">📍 Share my location</button>`);
+  case 'nearby': return tcard('Find your group','Share your position, then see how far away each person is and which way to walk.',`<button class="btn btn-primary wide" data-act="shareloc">📍 Share my location</button><div class="nearby" data-nearby style="margin-top:12px"></div>`);
+  case 'places': return tcard('Places & waypoints','Pin water, medical, a meeting point, your camp — everyone connected can navigate to it.',`<div class="poi-cats" data-poi-cats></div><div class="row" style="align-items:flex-end;margin-top:10px"><div style="flex:1"><input id="sitPoiName" type="text" placeholder="Name this place…" autocomplete="off"></div><button class="btn btn-primary" data-act="addplace">Add here</button></div><div class="nearby" data-pois style="margin-top:12px"></div>`);
+  case 'geocast': return tcard('Alert an area','Warn everyone within a radius of a point — "evacuate the riverbank" — addressed by place, not by contact.',`<div class="row" style="align-items:flex-end"><div style="flex:1"><textarea id="sitGeoMsg" rows="1" placeholder="Area alert…"></textarea></div><div style="flex:none;width:92px"><label class="sub">Radius m</label><input id="sitGeoRad" type="number" value="1000" min="100" max="5000" step="100"></div><button class="btn btn-primary" data-act="geocast">Alert</button></div>`);
+  case 'broadcast': return tcard('Broadcast to the mesh','Send a message to every contact and ask the network to carry it across every hop.',`<div class="row" style="align-items:flex-end"><div style="flex:1"><textarea id="sitBcMsg" rows="1" placeholder="Announcement for everyone…"></textarea></div><button class="btn btn-primary" data-act="broadcast">Broadcast</button></div>`);
+  case 'strobe': return tcard('Strobe beacon','Every phone pulses a synchronized glow so you can spot each other in the dark or a crowd. Gentle, seizure-safe.',`<div class="poi-cats" data-strobe-speeds></div><button class="btn btn-primary wide" data-act="strobe" style="margin-top:10px">🔦 Raise a strobe</button>`);
+  case 'privateinfo': return tcard('Private messages',"A private send routes over the mesh so no carrier learns who you're talking to — and it's end-to-end encrypted, so only the recipient can read it.",`<button class="btn btn-ghost wide" data-act="gomsg">Open Messages →</button>`);
+  case 'gateway': return tcard('One phone lights the mesh',"You don't all need signal. The moment a single person anywhere touches the internet, everyone's queued messages drain out through them — and replies flow back in.",'');
+  case 'encryption': return tcard('How your privacy holds','End-to-end encryption (only the recipient can read it), forward secrecy (a key stolen later can\'t unlock old messages), sealed sender, and no account tied to your identity.','');
+  case 'panic': return tcard('Panic wipe','One action irreversibly destroys the keys, contacts, and history on this device — for a phone about to be seized. There is no undo.',`<button class="btn wide" data-act="panic" style="color:var(--sos);border-color:color-mix(in srgb,var(--sos) 40%,var(--line))">Wipe this device…</button>`);
+}return '';}
+const TOOL_ACT={sos:actSos,safe:actSafe,shareloc:actShareLoc,geocast:actGeocast,broadcast:actBroadcast,addplace:addPlace,strobe:raiseStrobe,panic:confirmWipe,gomsg:()=>setView('messages')};
+async function actSos(){const [pos,batt]=await Promise.all([getPos(),getBattery()]);const body={note:'SOS',battery_pct:batt};if(pos){body.lat=pos.lat;body.lon=pos.lon;body.acc_m=pos.acc_m;}await post('/api/sos',body);toast(pos?`SOS sent with GPS (±${pos.acc_m}m)`:'SOS sent to all contacts');}
+async function actSafe(){await post('/api/safe',{note:"I'm safe"});toast("Sent 'I'm safe' to all contacts");}
+async function actShareLoc(){const p=await getPos();if(p){await post('/api/location_all',{lat:p.lat,lon:p.lon,acc_m:p.acc_m});toast('Location shared with everyone');}else toast('Location unavailable');}
+async function actGeocast(){const m=$('sitGeoMsg'),t=m&&m.value.trim();if(!t){toast('Type an alert first');return;}const pos=await getPos();if(!pos){toast('Location needed for an area alert');return;}const r=Math.max(100,Math.min(5000,parseFloat($('sitGeoRad').value)||1000));await post('/api/position',{lat:pos.lat,lon:pos.lon});await post('/api/geocast',{lat:pos.lat,lon:pos.lon,radius_m:r,body:t});m.value='';toast('Area alert sent');}
+async function actBroadcast(){const m=$('sitBcMsg'),t=m&&m.value.trim();if(!t){toast('Type a message first');return;}await post('/api/broadcast',{body:t});m.value='';toast('Broadcasting to the mesh…');}
+async function addPlace(){await enableCompass();const nm=$('sitPoiName');const name=(nm&&nm.value.trim())||(POI_CATS.find(c=>c.k===poiCat)||{}).label||'Place';const p=await getPos();if(p){await post('/api/poi',{name,category:poiCat,lat:p.lat,lon:p.lon});if(nm)nm.value='';toast('Place added & shared');}else toast('Location unavailable');}
+async function raiseStrobe(){await post('/api/strobe',{bpm:strobeFps*60,seconds:30});strobeJoined=true;toast('Strobe raised — hold your phone up');}
+function sitCard(s){return `<button class="sit-card" data-scn="${s.k}"><span class="sit-ic">${s.ic}</span><span class="sit-txt"><b>${esc(s.t)}</b><span>${esc(s.b)}</span></span><span class="sit-go">→</span></button>`;}
+function renderSituations(){
+  const el=$('sitRoot');if(!el)return;
+  const s=SCN.find(x=>x.k===scenario);
+  if(!s){el.innerHTML=`<div class="net-hero"><div><h1>What's your situation?</h1><p>Pick what's happening — Lifeline gives you the right tools for it. Every one works with no towers and no internet.</p></div></div><div class="sit-grid">${SCN.map(sitCard).join('')}</div>`;
+    el.querySelectorAll('[data-scn]').forEach(b=>b.onclick=()=>{scenario=b.dataset.scn;renderSituations();});return;}
+  el.innerHTML=`<div class="sit-hd"><button class="icon-btn back" id="sitBack" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button><span class="sit-ic lg">${s.ic}</span><div style="min-width:0"><h1>${esc(s.t)}</h1><p>${esc(s.intro)}</p></div></div><div class="sit-tools">${s.tools.map(toolHtml).join('')}</div>`;
+  $('sitBack').onclick=()=>{scenario=null;renderSituations();};
+  el.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{const f=TOOL_ACT[b.dataset.act];if(f)f();});
+  renderPoiCats();renderStrobeSpeeds();renderNearby();renderPois();
+}
 
 /* ---- Settings sheet (identity, appearance, security) ---- */
 function openSettings(){
