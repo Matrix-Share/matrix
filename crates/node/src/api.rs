@@ -54,6 +54,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/location", post(post_location))
         .route("/api/location_all", post(post_location_all))
         .route("/api/poi", post(post_poi))
+        .route("/api/strobe", post(post_strobe))
         .route("/api/group/create", post(post_group_create))
         .route("/api/group/add", post(post_group_add))
         .route("/api/group/send", post(post_group_send))
@@ -171,6 +172,22 @@ async fn post_poi(State(st): State<AppState>, Json(req): Json<PoiReq>) -> impl I
         lat: req.lat,
         lon: req.lon,
         share: req.share,
+    });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct StrobeReq {
+    bpm: u16,
+    seconds: u16,
+}
+
+/// Raise a strobe beacon — the crew's phones pulse a synchronized glow so people
+/// can spot each other in a crowd. Tempo is clamped seizure-safe by the engine.
+async fn post_strobe(State(st): State<AppState>, Json(req): Json<StrobeReq>) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::Strobe {
+        bpm: req.bpm,
+        seconds: req.seconds,
     });
     Json(serde_json::json!({ "ok": true }))
 }

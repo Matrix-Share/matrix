@@ -3,6 +3,7 @@
 
 use crate::views::{
     Command, IdentityView, MsgView, NearbyView, PeerView, PoiView, PosView, Snapshot, StatusView,
+    StrobeView,
 };
 use lifeline_core::Identity;
 use lifeline_engine::{EngineConfig, NodeEngine};
@@ -154,6 +155,9 @@ pub fn run(
     // Shared points of interest (wayfinding), keyed by a stable id so a re-share
     // updates in place. Holds both POIs we added and ones contacts sent.
     let mut pois: HashMap<String, PoiRecord> = HashMap::new();
+    // The currently-armed strobe beacon `(start, bpm, seconds, from)`, if any;
+    // cleared once it elapses.
+    let mut active_strobe: Option<(u64, u16, u16, String)> = None;
     let state_path = std::path::Path::new(&data_dir).join("state.vault");
     let mut dirty = false;
     // Unix seconds our own position was last set (for the Nearby view's "you").
@@ -366,6 +370,15 @@ pub fn run(
                         dirty = true;
                     }
                 }
+                Command::Strobe { bpm, seconds } => {
+                    // Clamp seizure-safe (≤ 3 Hz) and to a sane duration, then
+                    // arm it locally and broadcast the same phase to the crew.
+                    let bpm = bpm.clamp(STROBE_MIN_BPM, STROBE_MAX_BPM);
+                    let seconds = seconds.clamp(1, STROBE_MAX_SECONDS);
+                    active_strobe = Some((now, bpm, seconds, "you".into()));
+                    engine.broadcast_strobe(strobe_label(now, bpm, seconds), now);
+                    dirty = true;
+                }
                 Command::CreateGroup { id } => {
                     let id = id.trim().to_string();
                     if !id.is_empty() {
@@ -556,6 +569,22 @@ pub fn run(
                 }
                 continue;
             }
+            // A strobe beacon arms the synchronized glow, not a chat message.
+            if inb.payload.kind == PayloadKind::Strobe {
+                if let Some(label) = &inb.payload.body {
+                    if let Some((start, bpm, seconds)) = parse_strobe_label(label) {
+                        // Ignore a stale one, or an older one than we already show.
+                        let live = start.saturating_add(seconds as u64) > now;
+                        let newer = active_strobe.as_ref().map_or(true, |(s, ..)| start >= *s);
+                        if live && newer {
+                            active_strobe =
+                                Some((start, bpm, seconds, name_of(&engine, &inb.from)));
+                            dirty = true;
+                        }
+                    }
+                }
+                continue;
+            }
             messages.push(MsgView {
                 id: String::new(),
                 dir: dir.into(),
@@ -590,6 +619,20 @@ pub fn run(
         // 5. Publish snapshot.
         let (nearby, my_pos) = build_nearby(&engine, &peer_pos, my_pos_at);
         let poi_views = build_pois(&engine, &pois);
+        // Drop a strobe once it has run its course; otherwise surface it.
+        if let Some((start, _, seconds, _)) = &active_strobe {
+            if start.saturating_add(*seconds as u64) <= now {
+                active_strobe = None;
+            }
+        }
+        let strobe_view = active_strobe
+            .as_ref()
+            .map(|(start, bpm, seconds, from)| StrobeView {
+                start: *start,
+                bpm: *bpm,
+                seconds: *seconds,
+                from: from.clone(),
+            });
         let snap = build_snapshot(
             &engine,
             &identity_view,
@@ -600,6 +643,7 @@ pub fn run(
             nearby,
             my_pos,
             poi_views,
+            strobe_view,
         );
         if let Ok(mut g) = shared.lock() {
             *g = snap;
@@ -707,6 +751,31 @@ fn name_of(engine: &NodeEngine, addr: &Address) -> String {
         .find(|p| &p.id == addr)
         .and_then(|p| p.display_name)
         .unwrap_or_else(|| addr.short())
+}
+
+/// Seizure-safe tempo bounds for a strobe. The ceiling is 3 Hz (180/min) per
+/// photosensitive-epilepsy guidance; the floor keeps it a visible pulse.
+const STROBE_MIN_BPM: u16 = 20;
+const STROBE_MAX_BPM: u16 = 180;
+const STROBE_MAX_SECONDS: u16 = 120;
+
+/// Encode a strobe's shared parameters into a payload body.
+fn strobe_label(start: u64, bpm: u16, seconds: u16) -> String {
+    format!("{start}\u{1f}{bpm}\u{1f}{seconds}")
+}
+
+/// Parse a strobe body back to `(start, bpm, seconds)`, re-clamping the tempo so
+/// a peer can never push us past the seizure-safe ceiling.
+fn parse_strobe_label(label: &str) -> Option<(u64, u16, u16)> {
+    let mut it = label.split('\u{1f}');
+    let start: u64 = it.next()?.parse().ok()?;
+    let bpm: u16 = it.next()?.parse().ok()?;
+    let seconds: u16 = it.next()?.parse().ok()?;
+    Some((
+        start,
+        bpm.clamp(STROBE_MIN_BPM, STROBE_MAX_BPM),
+        seconds.clamp(1, STROBE_MAX_SECONDS),
+    ))
 }
 
 /// A shared point of interest held in the node loop (wayfinding).
@@ -866,6 +935,7 @@ fn build_snapshot(
     nearby: Vec<NearbyView>,
     my_pos: Option<PosView>,
     pois: Vec<PoiView>,
+    strobe: Option<StrobeView>,
 ) -> Snapshot {
     let directory: Vec<PeerView> = engine
         .directory()
@@ -928,5 +998,6 @@ fn build_snapshot(
         nearby,
         my_pos,
         pois,
+        strobe,
     }
 }

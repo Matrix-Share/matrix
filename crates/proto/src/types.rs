@@ -257,6 +257,11 @@ pub enum PayloadKind {
     /// place (water, a stage, medical, "our tent") others can navigate to. Body
     /// carries `category\u{1f}name`; `coords` carries the location.
     Poi = 15,
+    /// A **strobe beacon**: a request for the crew's phones to pulse a
+    /// synchronized glow so people can spot each other in a crowd. Body carries
+    /// `start_unix\u{1f}bpm\u{1f}seconds`; no location. Purely a coordination
+    /// signal (tempo is capped seizure-safe by the endpoints).
+    Strobe = 16,
     /// A payload type this build does not understand (a value from a newer peer).
     /// Never constructed locally; the engine drops it. Reserved discriminant so
     /// it round-trips distinctly from any real kind.
@@ -282,6 +287,7 @@ impl From<u8> for PayloadKind {
             13 => PayloadKind::HaveReply,
             14 => PayloadKind::KeyRotation,
             15 => PayloadKind::Poi,
+            16 => PayloadKind::Strobe,
             _ => PayloadKind::Unknown,
         }
     }

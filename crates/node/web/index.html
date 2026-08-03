@@ -206,6 +206,13 @@
   .poi-cat{font-size:12.5px;padding:5px 11px;border:.5px solid var(--line);border-radius:999px;cursor:pointer;color:var(--ink-2);background:var(--surface);user-select:none}
   .poi-cat.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
   .poi-ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-size:15px;background:var(--surface-2);flex:none}
+  .strobe-overlay{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:#000}
+  .strobe-overlay.on{display:flex}
+  .strobe-glow{position:absolute;inset:0;background:radial-gradient(circle at 50% 42%, #fff, var(--accent) 58%, #000);opacity:0;will-change:opacity}
+  .strobe-overlay .btn{position:relative;z-index:2;background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.45);backdrop-filter:blur(6px)}
+  .strobe-cap{position:absolute;bottom:26px;left:0;right:0;text-align:center;color:rgba(255,255,255,.75);font-size:12px;z-index:2}
+  .strobe-prompt{position:fixed;left:50%;transform:translateX(-50%);bottom:80px;z-index:400;display:none;gap:8px;align-items:center;background:var(--bar);border:.5px solid var(--line);border-radius:999px;padding:7px 8px 7px 15px;box-shadow:var(--e-2);backdrop-filter:saturate(1.8) blur(20px)}
+  .strobe-prompt.on{display:flex}
   .testout{margin-top:12px;font-size:12.5px;color:var(--muted);line-height:1.55}
 
   /* ===== Toast / sheet / menu ===== */
@@ -405,6 +412,16 @@
         <div class="nearby" id="pois" style="margin-top:12px"></div>
       </div>
 
+      <div class="bccard">
+        <h2>Strobe beacon</h2>
+        <div class="sub">Can't spot your crew? Raise a strobe — everyone's phone pulses a glow <b>in sync</b> so you can find each other in the dark or a crowd. Hold your phone up. Gentle by design, and capped at a seizure-safe speed.</div>
+        <div class="poi-cats" id="strobeSpeeds"></div>
+        <div class="row" style="align-items:flex-end;margin-top:10px">
+          <button class="btn btn-primary" id="strobeBtn">🔦 Raise a strobe</button>
+        </div>
+        <div class="hint" style="margin-top:10px">Runs for 30 seconds on every connected phone. Anyone can stop their own at any time.</div>
+      </div>
+
       <div class="grid2">
         <div class="card">
           <h2>Live activity</h2>
@@ -435,6 +452,9 @@
 </div>
 <div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
+<!-- Strobe: synchronized full-screen pulse + a consent prompt for receivers -->
+<div id="strobeOverlay" class="strobe-overlay"><div class="strobe-glow" id="strobeGlow"></div><button class="btn" id="strobeStop">Stop</button><div class="strobe-cap" id="strobeCap"></div></div>
+<div id="strobePrompt" class="strobe-prompt"><span id="strobePromptText">🔦 Strobe active</span><button class="btn btn-primary sm" id="strobeJoin">Flash</button><button class="btn sm" id="strobeDismiss">Dismiss</button></div>
 
 <script>
 let state=null, view='messages', sel=null, pri=false, priv=false;
@@ -515,6 +535,7 @@ function render(){
   renderConvs(byPeer);
   renderChat();
   if(view==='network')renderNetwork();
+  updateStrobeUI();
 }
 
 function renderConvs(byPeer){
@@ -769,6 +790,40 @@ $('poiBtn').onclick=async()=>{await enableCompass();const btn=$('poiBtn');
     $('poiHint').textContent=`Pinned “${name}” here (±${p.acc_m}m) and shared it with your contacts.`;toast('Place added & shared');}
   else{$('poiHint').textContent='Location unavailable — check permissions and try again.';toast('Location unavailable');}
   setTimeout(()=>btn.disabled=false,1200);};
+
+/* Strobe beacon: every phone pulses a synchronized glow computed from a shared
+   (start,bpm) against its wall clock, so the flashes line up with no server.
+   Consensual (receivers tap to flash) and seizure-safe (smooth glow, ≤3/s). */
+let strobeFps=2;
+const STROBE_SPEEDS=[{fps:1,label:'Gentle'},{fps:2,label:'Medium'},{fps:3,label:'Fast'}];
+function renderStrobeSpeeds(){const el=$('strobeSpeeds');if(!el)return;el.innerHTML=STROBE_SPEEDS.map(s=>`<span class="poi-cat${s.fps===strobeFps?' on':''}" data-f="${s.fps}">${s.label} · ${s.fps}/s</span>`).join('');el.querySelectorAll('.poi-cat').forEach(n=>n.onclick=()=>{strobeFps=+n.dataset.f;renderStrobeSpeeds();});}
+renderStrobeSpeeds();
+let strobeJoined=false, strobeDismissed=0, strobeRAF=null;
+function currentStrobe(){const s=state&&state.strobe;if(!s)return null;return (now()<s.start+s.seconds)?s:null;}
+$('strobeBtn').onclick=async()=>{const bpm=strobeFps*60;await post('/api/strobe',{bpm,seconds:30});strobeJoined=true;toast('Strobe raised — hold your phone up');};
+$('strobeJoin').onclick=()=>{strobeJoined=true;updateStrobeUI();};
+$('strobeDismiss').onclick=()=>{const s=currentStrobe();strobeDismissed=s?s.start:now();updateStrobeUI();};
+$('strobeStop').onclick=()=>{strobeJoined=false;const s=currentStrobe();strobeDismissed=s?s.start:now();updateStrobeUI();};
+function updateStrobeUI(){
+  const s=currentStrobe(),ov=$('strobeOverlay'),pr=$('strobePrompt');if(!ov)return;
+  if(!s){strobeJoined=false;ov.classList.remove('on');pr.classList.remove('on');if(strobeRAF){cancelAnimationFrame(strobeRAF);strobeRAF=null;}return;}
+  if(strobeJoined){pr.classList.remove('on');ov.classList.add('on');startStrobeAnim();}
+  else if(strobeDismissed>=s.start){pr.classList.remove('on');ov.classList.remove('on');}
+  else{ov.classList.remove('on');pr.classList.add('on');$('strobePromptText').textContent=`🔦 Strobe from ${s.from==='you'?'you':esc(s.from)}`;}
+}
+function startStrobeAnim(){
+  if(strobeRAF)return;
+  const glow=$('strobeGlow'),cap=$('strobeCap');
+  const tick=()=>{
+    const s=currentStrobe();
+    if(!s||!strobeJoined){glow.style.opacity=0;$('strobeOverlay').classList.remove('on');strobeRAF=null;return;}
+    const t=Date.now()/1000 - s.start, phase=(t*s.bpm/60)%1;
+    glow.style.opacity=(0.5-0.5*Math.cos(2*Math.PI*phase)).toFixed(3);
+    cap.textContent=`in sync with your crew · ${(s.bpm/60)}/sec · ${Math.max(0,Math.ceil(s.start+s.seconds-now()))}s left`;
+    strobeRAF=requestAnimationFrame(tick);
+  };
+  strobeRAF=requestAnimationFrame(tick);
+}
 $('sosBtn').onclick=async()=>{const btn=$('sosBtn');btn.disabled=true;$('emHint').textContent='Getting location…';
   const [pos,battery_pct]=await Promise.all([getPos(),getBattery()]);const body={note:'SOS',battery_pct};
   if(pos){body.lat=pos.lat;body.lon=pos.lon;body.acc_m=pos.acc_m;}await post('/api/sos',body);

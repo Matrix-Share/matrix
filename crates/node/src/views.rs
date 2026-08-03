@@ -72,6 +72,10 @@ pub enum Command {
         lon: f64,
         share: bool,
     },
+    /// Raise a **strobe beacon**: ask the crew's phones to pulse a synchronized
+    /// glow for `seconds` at `bpm` (clamped seizure-safe), so people can spot
+    /// each other in a crowd. Broadcast to every contact; also armed locally.
+    Strobe { bpm: u16, seconds: u16 },
     /// Flush persistent state and stop the engine loop (graceful shutdown). Sent
     /// by `main` when the process receives SIGTERM/Ctrl-C.
     Shutdown,
@@ -124,6 +128,25 @@ pub struct Snapshot {
     /// distance + direction from this node — the wayfinding view. Nearest-first.
     #[serde(default)]
     pub pois: Vec<PoiView>,
+    /// An active strobe beacon, if one is running — the crew's phones pulse a
+    /// synchronized glow. Present only while `start .. start+seconds` is current.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strobe: Option<StrobeView>,
+}
+
+/// An active strobe beacon: a synchronized crowd-finding glow. Every phone
+/// computes the same brightness from `(now - start) * bpm` against its wall
+/// clock, so the pulses line up without a server.
+#[derive(Debug, Clone, Serialize)]
+pub struct StrobeView {
+    /// Unix seconds the strobe started (the shared phase origin).
+    pub start: u64,
+    /// Pulses per minute (clamped seizure-safe, ≤ 180 = 3 Hz).
+    pub bpm: u16,
+    /// How long the strobe runs, in seconds.
+    pub seconds: u16,
+    /// Display name of who raised it (`"you"` if this node did).
+    pub from: String,
 }
 
 /// A point of interest to navigate to, annotated like [`NearbyView`] with
