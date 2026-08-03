@@ -6,6 +6,20 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+- **SSDLC + SAST/DAST pipeline (open-source tooling).** Added automated security
+  gates: `security.yml` (cargo-audit, cargo-deny with `deny.toml`, Semgrep,
+  `npm audit`, gitleaks), `codeql.yml` (CodeQL SAST → Security tab),
+  `scorecard.yml` (OpenSSF Scorecard + README badge), `dast-zap.yml` (OWASP ZAP
+  baseline), and `dependabot.yml`. Documented in [`docs/SSDLC.md`](docs/SSDLC.md).
+- **Fixed all high-severity dependency advisories found by the new scanners:**
+  - Rust: dropped the optional Meshtastic MQTT bridge's bundled TLS
+    (`rumqttc default-features = false`), removing a vulnerable transitive
+    `rustls-webpki` (RUSTSEC-2026-0049/0098/0099/0104 — cert-validation panics
+    and name-constraint bypasses). `cargo audit` is now clean.
+  - SaaS: pinned patched `sharp` and `postcss` via `overrides` (libvips + PostCSS
+    XSS / path-traversal CVEs). `npm audit` now reports 0 vulnerabilities.
+
 ## [0.1.0-alpha] - 2026-08-03 — first public (developer preview) release
 
 First tagged release. **Alpha / developer preview**: the cryptography, DTN mesh,

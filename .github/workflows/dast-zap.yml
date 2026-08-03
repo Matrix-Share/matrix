@@ -1,0 +1,46 @@
+name: dast-zap
+
+# Dynamic Application Security Testing (DAST): build and run the node, then
+# scan its live web app + HTTP API with the OWASP ZAP baseline scanner (passive
+# checks — headers, cookies, info leaks, common misconfigurations). Run on a
+# schedule and on demand rather than on every PR, since it stands up the app.
+# See docs/SSDLC.md.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "9 3 * * 1"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  zap-baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the node
+        run: cargo build --release -p lifeline-node
+
+      - name: Run the node
+        run: |
+          LIFELINE_NODE_ADDR=127.0.0.1:8080 \
+          LIFELINE_DATA_DIR=./data-dast \
+          LIFELINE_RELAY_ADDR=127.0.0.1:59999 \
+          ./target/release/lifeline-node &
+          echo "Waiting for the node to serve..."
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/ >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/ >/dev/null
+
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: "http://127.0.0.1:8080"
+          # -I: don't fail the job on warnings (report-only baseline). Findings
+          # are attached as an artifact and (optionally) an issue.
+          cmd_options: "-I"
+          allow_issue_writing: true

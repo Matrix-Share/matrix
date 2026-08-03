@@ -1,0 +1,88 @@
+name: security
+
+# Static analysis, supply-chain, and secret scanning — the automated gates of
+# our SSDLC (see docs/SSDLC.md). Runs on every push/PR and on a weekly schedule
+# so newly-disclosed advisories are caught even without a code change.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "27 6 * * 1" # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # --- Rust supply chain: known-vulnerable / yanked crates (RustSec) ---
+  cargo-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # --- Rust supply chain: advisories + licenses + bans + sources ---
+  cargo-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories licenses bans sources
+
+  # --- Multi-language SAST (Rust + JS/TS), results to the Security tab ---
+  semgrep:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Semgrep
+        run: >
+          semgrep scan --sarif --output semgrep.sarif
+          --config p/security-audit
+          --config p/secrets
+          --config p/rust
+          --config p/javascript
+          --config p/typescript
+          --config p/nextjs
+        continue-on-error: true
+      - name: Upload findings
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  # --- Dependency vulnerabilities in the JS projects ---
+  npm-audit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [saas, mobile]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: npm audit (fail on high or critical)
+        working-directory: ${{ matrix.project }}
+        run: npm audit --audit-level=high
+
+  # --- Secret scanning (defence in depth alongside GitHub's native scanner) ---
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

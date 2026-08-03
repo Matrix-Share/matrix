@@ -71,6 +71,12 @@ the honest cross-check behind that verdict.
 - [x] Repository description + topics
 - [x] Label taxonomy (area / type / priority / effort / status)
 - [x] Seeded issues (roadmap + good-first-issues) and GitHub Discussions
+- [x] SSDLC documented ([docs/SSDLC.md](SSDLC.md))
+- [x] SAST in CI (Semgrep + CodeQL)
+- [x] Supply-chain scanning (cargo-audit, cargo-deny, npm audit, Dependabot) — **0 high/critical advisories**
+- [x] Secret scanning (gitleaks + GitHub native)
+- [x] DAST (OWASP ZAP baseline, scheduled)
+- [x] OpenSSF Scorecard + badge
 - [ ] Third-party security audit *(pre-1.0 blocker)*
-- [ ] Fuzzing in CI for wire parsers
+- [ ] Fuzzing in CI for wire parsers *(tracked)*
 - [ ] Native BLE radio backend on real hardware
