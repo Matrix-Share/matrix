@@ -1,6 +1,8 @@
 # Project Lifeline — decentralized, offline-first emergency mesh
 
 [![CI](https://github.com/nometria/project-lifeline/actions/workflows/ci.yml/badge.svg)](https://github.com/nometria/project-lifeline/actions/workflows/ci.yml)
+[![Security](https://github.com/nometria/project-lifeline/actions/workflows/security.yml/badge.svg)](https://github.com/nometria/project-lifeline/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/nometria/project-lifeline/badge)](https://scorecard.dev/viewer/?uri=github.com/nometria/project-lifeline)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 An open-source, self-hostable, end-to-end-encrypted mesh messenger that keeps
@@ -90,6 +92,7 @@ The GUI also exposes a **"Run network self-test"** button that executes the
 | [`INTEROP.md`](INTEROP.md) | How each listed OSS project migrates onto our seams (Reticulum, ggwave, BP7, Automerge, …). |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`SECURITY.md`](SECURITY.md) · [`MAINTAINERS.md`](MAINTAINERS.md) | How to contribute; how to report vulnerabilities; who maintains the project. |
 | [`docs/RELEASE-READINESS.md`](docs/RELEASE-READINESS.md) | **Is it ready to use?** An honest cross-check of what works, what doesn't, and what "alpha" means here. Read before relying on it. |
+| [`docs/SSDLC.md`](docs/SSDLC.md) | **Secure development lifecycle** — how security is built into the process: SAST (Semgrep/CodeQL), supply-chain (cargo-audit/deny, npm audit, Dependabot), secret scanning, DAST (OWASP ZAP), and OpenSSF Scorecard, all with open-source tools. |
 
 **Modular across networks:** every physical channel (BLE, Wi-Fi Aware,
 ultrasound, optical, LoRa, internet) is a plug-in implementing one [`Interface`](crates/transport)

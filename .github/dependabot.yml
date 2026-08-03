@@ -1,0 +1,43 @@
+# Automated dependency updates + security alerts (part of the SSDLC — see
+# docs/SSDLC.md). Dependabot opens PRs for out-of-date and vulnerable deps.
+version: 2
+updates:
+  # Rust workspace
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels: ["area:core", "type:security"]
+    groups:
+      rust-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Hosted SaaS (Next.js)
+  - package-ecosystem: npm
+    directory: "/saas"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels: ["area:saas", "type:security"]
+    groups:
+      saas-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Mobile app (Expo / React Native)
+  - package-ecosystem: npm
+    directory: "/mobile"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels: ["area:mobile", "type:security"]
+    groups:
+      mobile-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # The GitHub Actions we pin in CI/security workflows
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels: ["area:ci"]

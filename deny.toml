@@ -1,0 +1,38 @@
+# cargo-deny configuration — supply-chain policy for the Rust workspace.
+# Run locally with `cargo deny check`; enforced in CI (.github/workflows/security.yml).
+# See docs/SSDLC.md.
+
+[advisories]
+# Fail on any known RustSec advisory in the dependency tree.
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+# Allow only OSI-approved, permissive licenses compatible with Apache-2.0.
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "CC0-1.0",
+    "MPL-2.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+# Fail on multiple versions of the same crate is noisy for a large tree; warn.
+multiple-versions = "warn"
+# No crate should pull in a wildcard version.
+wildcards = "deny"
+
+[sources]
+# Only allow crates from the official registry (no unvetted git/registry sources).
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
