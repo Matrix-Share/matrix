@@ -57,6 +57,29 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Use cases */}
+      <section id="use-cases" className="container" style={{ padding: '48px 24px' }}>
+        <div className="center">
+          <div style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 14 }}>Where it helps</div>
+          <h2 style={{ fontSize: 'clamp(28px,4vw,42px)', letterSpacing: '-.03em', fontWeight: 680, marginTop: 12 }}>For every time the network isn’t there.</h2>
+          <p className="muted" style={{ fontSize: 16, maxWidth: '54ch', margin: '16px auto 0', lineHeight: 1.5 }}>
+            Missing, broken, blocked, or overwhelmed — the towers fail in a lot of ways. Lifeline is built for all of them.
+          </p>
+        </div>
+        <div className="tiles" style={{ marginTop: 40 }}>
+          {USE_CASES.map((u) => (
+            <div className="card" key={u.title}>
+              <div style={{ fontSize: 26, marginBottom: 12, lineHeight: 1 }}>{u.icon}</div>
+              <h3 style={{ fontSize: 18, letterSpacing: '-.02em', marginBottom: 6 }}>{u.title}</h3>
+              <p className="muted" style={{ fontSize: 14.5, lineHeight: 1.5 }}>{u.body}</p>
+            </div>
+          ))}
+        </div>
+        <div className="center" style={{ marginTop: 32 }}>
+          <a href={`${REPO}/blob/main/docs/USE-CASES.md`} className="btn btn-ghost pill" style={{ height: 44, padding: '0 22px' }}>See all use cases →</a>
+        </div>
+      </section>
+
       {/* Security */}
       <section id="security" className="container" style={{ padding: '48px 24px' }}>
         <div className="center">
@@ -160,6 +183,15 @@ const FEATURES = [
   { icon: '🖥️', title: 'Managed relays', body: 'Spin up hosted relays and gateways from a dashboard, and see your mesh at a glance.' },
 ];
 
+const USE_CASES = [
+  { icon: '🌊', title: 'Disasters', body: 'Floods, tsunamis, earthquakes, wildfires, blizzards — when towers lose power or jam, a one-tap SOS with your GPS still spreads phone to phone.' },
+  { icon: '✊', title: 'Internet shutdowns', body: 'Protests and censorship where the state pulls the plug. There’s no central service to block, and no account tied to your real identity.' },
+  { icon: '🎪', title: 'Crowds & festivals', body: 'Concerts and stadiums where the towers choke. Find each other — see how far away your group is and which way to walk — no signal needed.' },
+  { icon: '⛰️', title: 'The backcountry & the sea', body: 'Hiking, climbing, skiing, sailing — places with no coverage at all. Stay in touch across ridgelines and send an SOS with coordinates.' },
+  { icon: '🔒', title: 'Private conversations', body: 'When you simply don’t want anyone reading your messages — end-to-end encrypted, forward-secret, with no server holding your history.' },
+  { icon: '🏘️', title: 'Everyday resilience', body: 'Neighbourhood mutual-aid meshes, power outages, travel with no roaming. A network that doesn’t depend on anyone else staying online.' },
+];
+
 const SECURITY = [
   { title: 'End-to-end encryption', body: 'Every message is sealed to its recipient (X25519 + XChaCha20-Poly1305). Relays and carriers only ever move ciphertext they cannot read.' },
   { title: 'Forward secrecy', body: 'Recipients rotate short-lived prekeys, so a key stolen tomorrow can’t decrypt the messages you send today.' },
@@ -173,6 +205,7 @@ const SECURITY = [
 
 const DOCS = [
   { title: 'White paper (plain English)', body: 'What Lifeline is, who it’s for, and how it works — no jargon. Start here if you’re new.', href: `${REPO}/blob/main/WHITEPAPER.md` },
+  { title: 'Use cases', body: 'The real-world situations Lifeline is built for — disasters, shutdowns, crowds, the backcountry, privacy — each mapped to the feature that answers it.', href: `${REPO}/blob/main/docs/USE-CASES.md` },
   { title: 'Technical white paper', body: 'The formal protocol, the capability-egress model, and the offline over-spend containment analysis.', href: `${REPO}/tree/main/docs/whitepaper` },
   { title: 'Architecture', body: 'How the system fits together — layers, crates, message flow, and the extension seams. Start here to read the code.', href: `${REPO}/blob/main/ARCHITECTURE.md` },
   { title: 'Research', body: 'The bearer-token containment paper + a measured simulation of when offline fraud is containable (chase-escape dynamics).', href: `${REPO}/tree/main/docs/research` },

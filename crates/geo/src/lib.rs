@@ -285,6 +285,31 @@ pub fn haversine_m(a: GeoPoint, b: GeoPoint) -> f64 {
     2.0 * R * x.sqrt().atan2((1.0 - x).sqrt())
 }
 
+/// Initial great-circle **bearing** from `a` to `b`, in degrees clockwise from
+/// true north (0 = N, 90 = E, 180 = S, 270 = W). This is the "which way do I
+/// walk to reach my contact" heading behind the *find-each-other* view: distance
+/// (`haversine_m`) says how far, bearing says which way. Returns 0 when the two
+/// points coincide.
+pub fn bearing_deg(a: GeoPoint, b: GeoPoint) -> f64 {
+    let lat1 = a.lat.to_radians();
+    let lat2 = b.lat.to_radians();
+    let dlon = (b.lon - a.lon).to_radians();
+    let y = dlon.sin() * lat2.cos();
+    let x = lat1.cos() * lat2.sin() - lat1.sin() * lat2.cos() * dlon.cos();
+    let deg = y.atan2(x).to_degrees();
+    (deg + 360.0) % 360.0
+}
+
+/// The nearest 8-point compass label (`"N"`, `"NE"`, `"E"`, …) to a bearing in
+/// degrees. Human-readable direction for the UI: "Maya · 120 m · NE". Accepts
+/// any real bearing (normalizes out-of-range and negative values).
+pub fn compass_8(bearing_deg: f64) -> &'static str {
+    const POINTS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    let norm = (bearing_deg % 360.0 + 360.0) % 360.0;
+    let idx = (norm / 45.0).round() as usize % 8;
+    POINTS[idx]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -346,6 +371,29 @@ mod tests {
             haversine_m(GeoPoint::new(12.0, 34.0), GeoPoint::new(12.0, 34.0)),
             0.0
         );
+    }
+
+    #[test]
+    fn bearing_points_the_right_way() {
+        let here = GeoPoint::new(0.0, 0.0);
+        // Due north, east, south, west from the origin (small steps).
+        assert!((bearing_deg(here, GeoPoint::new(1.0, 0.0)) - 0.0).abs() < 1.0);
+        assert!((bearing_deg(here, GeoPoint::new(0.0, 1.0)) - 90.0).abs() < 1.0);
+        assert!((bearing_deg(here, GeoPoint::new(-1.0, 0.0)) - 180.0).abs() < 1.0);
+        assert!((bearing_deg(here, GeoPoint::new(0.0, -1.0)) - 270.0).abs() < 1.0);
+        // Coincident points are well-defined (no NaN).
+        assert_eq!(bearing_deg(here, here), 0.0);
+    }
+
+    #[test]
+    fn compass_labels_the_eight_points() {
+        assert_eq!(compass_8(0.0), "N");
+        assert_eq!(compass_8(45.0), "NE");
+        assert_eq!(compass_8(90.0), "E");
+        assert_eq!(compass_8(225.0), "SW");
+        // Wrap-around: 359° rounds back to N, and negatives normalize.
+        assert_eq!(compass_8(359.0), "N");
+        assert_eq!(compass_8(-90.0), "W");
     }
 
     #[test]

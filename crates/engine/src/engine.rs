@@ -1263,6 +1263,56 @@ impl NodeEngine {
             .collect()
     }
 
+    /// Share a **point of interest** with every contact (FR-43, wayfinding): a
+    /// named place — water, a stage, medical, "our tent" — others can navigate
+    /// to. `label` is the opaque `category\u{1f}name` string the app owns; the
+    /// coordinates travel in `coords`. Returns the ids of the bundles submitted.
+    pub fn broadcast_poi(&mut self, label: String, lat: f64, lon: f64, now: u64) -> Vec<Bytes> {
+        let recipients: Vec<IdentityPublic> = self
+            .contacts
+            .values()
+            .filter(|p| p.id != self.public.id)
+            .cloned()
+            .collect();
+        let payload = Payload {
+            kind: PayloadKind::Poi,
+            body: Some(label),
+            coords: Some(Coords { lat, lon, acc_m: 0 }),
+            battery_pct: None,
+            attach: None,
+            group_id: None,
+        };
+        recipients
+            .into_iter()
+            .map(|r| self.submit(&r, payload.clone(), Priority::Normal, now))
+            .collect()
+    }
+
+    /// Raise a **strobe beacon**: ask every contact's phone to pulse a
+    /// synchronized glow so the crew can spot each other in a crowd. `label` is
+    /// the app-owned `start\u{1f}bpm\u{1f}seconds` string; no location travels.
+    /// Sent at `Alert` priority so it propagates promptly. Returns the bundle ids.
+    pub fn broadcast_strobe(&mut self, label: String, now: u64) -> Vec<Bytes> {
+        let recipients: Vec<IdentityPublic> = self
+            .contacts
+            .values()
+            .filter(|p| p.id != self.public.id)
+            .cloned()
+            .collect();
+        let payload = Payload {
+            kind: PayloadKind::Strobe,
+            body: Some(label),
+            coords: None,
+            battery_pct: None,
+            attach: None,
+            group_id: None,
+        };
+        recipients
+            .into_iter()
+            .map(|r| self.submit(&r, payload.clone(), Priority::Alert, now))
+            .collect()
+    }
+
     /// Share the sender's location with a known address (FR-43). Returns the
     /// bundle id, or `None` if the recipient's key is unknown.
     pub fn submit_location(
@@ -2032,6 +2082,8 @@ impl NodeEngine {
             | PayloadKind::Sos
             | PayloadKind::Safe
             | PayloadKind::Location
+            | PayloadKind::Poi
+            | PayloadKind::Strobe
             | PayloadKind::Alert
             | PayloadKind::GroupOp
             | PayloadKind::AttachChunk => self.deliver_message(&bundle, opened, now),

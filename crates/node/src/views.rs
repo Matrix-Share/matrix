@@ -54,6 +54,28 @@ pub enum Command {
         lon: f64,
         acc_m: Option<u32>,
     },
+    /// Share this node's location with *every* contact at once — the
+    /// "find each other in a crowd" broadcast (FR-43). Also sets this node's own
+    /// position so it can render distances/bearings to contacts who reply.
+    LocationAll {
+        lat: f64,
+        lon: f64,
+        acc_m: Option<u32>,
+    },
+    /// Add a **point of interest** (wayfinding) at a location — water, a stage,
+    /// medical, "our tent". Stored locally and, if `share`, broadcast to every
+    /// contact so the whole crew can navigate to it.
+    AddPoi {
+        name: String,
+        category: String,
+        lat: f64,
+        lon: f64,
+        share: bool,
+    },
+    /// Raise a **strobe beacon**: ask the crew's phones to pulse a synchronized
+    /// glow for `seconds` at `bpm` (clamped seizure-safe), so people can spot
+    /// each other in a crowd. Broadcast to every contact; also armed locally.
+    Strobe { bpm: u16, seconds: u16 },
     /// Flush persistent state and stop the engine loop (graceful shutdown). Sent
     /// by `main` when the process receives SIGTERM/Ctrl-C.
     Shutdown,
@@ -94,6 +116,90 @@ pub struct Snapshot {
     pub messages: Vec<MsgView>,
     pub groups: Vec<GroupView>,
     pub status: StatusView,
+    /// Contacts who have shared a live location, nearest-first — the data behind
+    /// the "Nearby / find each other" view. Empty until someone shares.
+    #[serde(default)]
+    pub nearby: Vec<NearbyView>,
+    /// This node's own last-known position, if set (from GPS). Present enables
+    /// the Nearby view to show distance + direction to each contact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub my_pos: Option<PosView>,
+    /// Shared points of interest (water, stages, medical, "our tent"), each with
+    /// distance + direction from this node — the wayfinding view. Nearest-first.
+    #[serde(default)]
+    pub pois: Vec<PoiView>,
+    /// An active strobe beacon, if one is running — the crew's phones pulse a
+    /// synchronized glow. Present only while `start .. start+seconds` is current.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strobe: Option<StrobeView>,
+}
+
+/// An active strobe beacon: a synchronized crowd-finding glow. Every phone
+/// computes the same brightness from `(now - start) * bpm` against its wall
+/// clock, so the pulses line up without a server.
+#[derive(Debug, Clone, Serialize)]
+pub struct StrobeView {
+    /// Unix seconds the strobe started (the shared phase origin).
+    pub start: u64,
+    /// Pulses per minute (clamped seizure-safe, ≤ 180 = 3 Hz).
+    pub bpm: u16,
+    /// How long the strobe runs, in seconds.
+    pub seconds: u16,
+    /// Display name of who raised it (`"you"` if this node did).
+    pub from: String,
+}
+
+/// A point of interest to navigate to, annotated like [`NearbyView`] with
+/// distance + direction from this node.
+#[derive(Debug, Clone, Serialize)]
+pub struct PoiView {
+    pub id: String,
+    pub name: String,
+    /// Short category slug: `water`, `food`, `medical`, `stage`, `toilet`,
+    /// `tent`, `car`, `other`.
+    pub category: String,
+    pub lat: f64,
+    pub lon: f64,
+    /// Unix seconds this POI was added/received.
+    pub at: u64,
+    /// Who shared it: `"me"` for a POI this node added, else the sharer's name.
+    pub from: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distance_m: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bearing_deg: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compass: Option<String>,
+}
+
+/// This node's own position (lat/lon + when it was set).
+#[derive(Debug, Clone, Serialize)]
+pub struct PosView {
+    pub lat: f64,
+    pub lon: f64,
+    /// Unix seconds when this fix was recorded.
+    pub at: u64,
+}
+
+/// A contact's last-shared location, with distance + direction from *this* node.
+/// Distance/bearing are `None` until we have our own position to measure from.
+#[derive(Debug, Clone, Serialize)]
+pub struct NearbyView {
+    pub address: String,
+    pub name: String,
+    pub lat: f64,
+    pub lon: f64,
+    /// Unix seconds when this contact's location was last received.
+    pub at: u64,
+    /// Straight-line metres from this node; `None` if our own position is unknown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distance_m: Option<f64>,
+    /// Compass bearing to the contact in degrees (0 = N); `None` if unknown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bearing_deg: Option<f64>,
+    /// 8-point compass label ("N", "NE", …) to the contact; `None` if unknown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compass: Option<String>,
 }
 
 /// A group the node participates in (FR-12), with its current members.

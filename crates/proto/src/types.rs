@@ -253,6 +253,15 @@ pub enum PayloadKind {
     /// retired/compromised key to a successor (or drop it), signed by the key
     /// being retired so only its holder can authorize the change.
     KeyRotation = 14,
+    /// A **point of interest** shared over the mesh (FR-43, wayfinding): a named
+    /// place (water, a stage, medical, "our tent") others can navigate to. Body
+    /// carries `category\u{1f}name`; `coords` carries the location.
+    Poi = 15,
+    /// A **strobe beacon**: a request for the crew's phones to pulse a
+    /// synchronized glow so people can spot each other in a crowd. Body carries
+    /// `start_unix\u{1f}bpm\u{1f}seconds`; no location. Purely a coordination
+    /// signal (tempo is capped seizure-safe by the endpoints).
+    Strobe = 16,
     /// A payload type this build does not understand (a value from a newer peer).
     /// Never constructed locally; the engine drops it. Reserved discriminant so
     /// it round-trips distinctly from any real kind.
@@ -277,6 +286,8 @@ impl From<u8> for PayloadKind {
             12 => PayloadKind::HaveQuery,
             13 => PayloadKind::HaveReply,
             14 => PayloadKind::KeyRotation,
+            15 => PayloadKind::Poi,
+            16 => PayloadKind::Strobe,
             _ => PayloadKind::Unknown,
         }
     }
@@ -448,9 +459,15 @@ mod tests {
             PayloadKind::BlockResponse,
             PayloadKind::HaveQuery,
             PayloadKind::HaveReply,
+            PayloadKind::KeyRotation,
+            PayloadKind::Poi,
+            PayloadKind::Strobe,
         ] {
             assert_eq!(from_cbor::<PayloadKind>(&to_cbor(&k).unwrap()).unwrap(), k);
         }
+        // The wire discriminants are stable and never reused (appending only).
+        assert_eq!(u8::from(PayloadKind::Poi), 15);
+        assert_eq!(u8::from(PayloadKind::Strobe), 16);
         // A payload type from a newer peer (discriminant 42) decodes to Unknown,
         // which the engine drops — no hard error, so endpoints stay interoperable.
         let future: PayloadKind = from_cbor(&to_cbor(&42u8).unwrap()).unwrap();

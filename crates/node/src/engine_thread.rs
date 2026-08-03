@@ -1,7 +1,10 @@
 //! The engine thread: owns the [`NodeEngine`], applies commands from the API,
 //! ticks the mesh, and republishes a [`Snapshot`] for the UI.
 
-use crate::views::{Command, IdentityView, MsgView, PeerView, Snapshot, StatusView};
+use crate::views::{
+    Command, IdentityView, MsgView, NearbyView, PeerView, PoiView, PosView, Snapshot, StatusView,
+    StrobeView,
+};
 use lifeline_core::Identity;
 use lifeline_engine::{EngineConfig, NodeEngine};
 use lifeline_proto::codec::{b64url_decode, b64url_encode, from_cbor, to_cbor};
@@ -146,8 +149,19 @@ pub fn run(
     let mut groups: Vec<String> = initial.groups;
     // bundle_id (b64) -> index into `messages` for outbound status updates.
     let mut sent_index: HashMap<String, usize> = HashMap::new();
+    // Last-known position per contact (lat, lon, unix_secs), from received
+    // Location payloads — the data behind the "Nearby / find each other" view.
+    let mut peer_pos: HashMap<Address, (f64, f64, u64)> = HashMap::new();
+    // Shared points of interest (wayfinding), keyed by a stable id so a re-share
+    // updates in place. Holds both POIs we added and ones contacts sent.
+    let mut pois: HashMap<String, PoiRecord> = HashMap::new();
+    // The currently-armed strobe beacon `(start, bpm, seconds, from)`, if any;
+    // cleared once it elapses.
+    let mut active_strobe: Option<(u64, u16, u16, String)> = None;
     let state_path = std::path::Path::new(&data_dir).join("state.vault");
     let mut dirty = false;
+    // Unix seconds our own position was last set (for the Nearby view's "you").
+    let mut my_pos_at = 0u64;
     let mut last_save_tick = 0u64;
     let mut tick_no = 0u64;
     let mut shutdown = false;
@@ -301,6 +315,70 @@ pub fn run(
                         }
                     }
                 }
+                Command::LocationAll { lat, lon, acc_m } => {
+                    // "Find each other": share our position with every contact at
+                    // once, and set our own fix so we can measure distances to
+                    // theirs. Recorded as a single mesh-thread bubble.
+                    engine.set_position(lat, lon);
+                    my_pos_at = now;
+                    let mut ids = Vec::new();
+                    for peer in engine.directory() {
+                        if let Some(id) =
+                            engine.submit_location(&peer.id, lat, lon, acc_m.unwrap_or(0), now)
+                        {
+                            ids.push(id);
+                        }
+                    }
+                    record_broadcast(
+                        &mut messages,
+                        &mut sent_index,
+                        &ids,
+                        "out",
+                        &name,
+                        &format!("📍 shared location with everyone ({lat:.4}, {lon:.4})"),
+                        now,
+                    );
+                    dirty = true;
+                }
+                Command::AddPoi {
+                    name,
+                    category,
+                    lat,
+                    lon,
+                    share,
+                } => {
+                    let name = name.trim().to_string();
+                    let category = poi_category(&category);
+                    if !name.is_empty() {
+                        // Store it locally so it shows on our own wayfinding view.
+                        let id = poi_id("me", &category, &name);
+                        pois.insert(
+                            id,
+                            PoiRecord {
+                                name: name.clone(),
+                                category: category.clone(),
+                                lat,
+                                lon,
+                                at: now,
+                                from: "me".into(),
+                            },
+                        );
+                        // And, if asked, broadcast it to the whole crew.
+                        if share {
+                            engine.broadcast_poi(poi_label(&category, &name), lat, lon, now);
+                        }
+                        dirty = true;
+                    }
+                }
+                Command::Strobe { bpm, seconds } => {
+                    // Clamp seizure-safe (≤ 3 Hz) and to a sane duration, then
+                    // arm it locally and broadcast the same phase to the crew.
+                    let bpm = bpm.clamp(STROBE_MIN_BPM, STROBE_MAX_BPM);
+                    let seconds = seconds.clamp(1, STROBE_MAX_SECONDS);
+                    active_strobe = Some((now, bpm, seconds, "you".into()));
+                    engine.broadcast_strobe(strobe_label(now, bpm, seconds), now);
+                    dirty = true;
+                }
                 Command::CreateGroup { id } => {
                     let id = id.trim().to_string();
                     if !id.is_empty() {
@@ -362,8 +440,10 @@ pub fn run(
                 }
                 Command::SetPosition { lat, lon } => {
                     // Required for geocast *receive*: a node only accepts a
-                    // geocast whose region cell matches its own position.
+                    // geocast whose region cell matches its own position. Also
+                    // anchors distances/bearings in the Nearby view.
                     engine.set_position(lat, lon);
+                    my_pos_at = now;
                 }
                 Command::Geocast {
                     lat,
@@ -458,6 +538,53 @@ pub fn run(
                 None if inb.payload.kind == PayloadKind::Sos => (inb.from.to_text(), "in-sos"),
                 None => (inb.from.to_text(), "in"),
             };
+            // Record any location (shared position or an SOS with coordinates) so
+            // the Nearby view can show where this contact is (FR-43).
+            if matches!(inb.payload.kind, PayloadKind::Location | PayloadKind::Sos) {
+                if let Some(c) = &inb.payload.coords {
+                    peer_pos.insert(inb.from.clone(), (c.lat, c.lon, now));
+                }
+            }
+            // A shared point of interest goes to the wayfinding view, not the chat
+            // thread: store it and move on without an inbox message.
+            if inb.payload.kind == PayloadKind::Poi {
+                if let (Some(label), Some(c)) = (&inb.payload.body, &inb.payload.coords) {
+                    let (category, name) = parse_poi_label(label);
+                    if !name.is_empty() {
+                        let from_key = inb.from.to_text();
+                        let id = poi_id(&from_key, &category, &name);
+                        pois.insert(
+                            id,
+                            PoiRecord {
+                                name,
+                                category,
+                                lat: c.lat,
+                                lon: c.lon,
+                                at: now,
+                                from: name_of(&engine, &inb.from),
+                            },
+                        );
+                        dirty = true;
+                    }
+                }
+                continue;
+            }
+            // A strobe beacon arms the synchronized glow, not a chat message.
+            if inb.payload.kind == PayloadKind::Strobe {
+                if let Some(label) = &inb.payload.body {
+                    if let Some((start, bpm, seconds)) = parse_strobe_label(label) {
+                        // Ignore a stale one, or an older one than we already show.
+                        let live = start.saturating_add(seconds as u64) > now;
+                        let newer = active_strobe.as_ref().map_or(true, |(s, ..)| start >= *s);
+                        if live && newer {
+                            active_strobe =
+                                Some((start, bpm, seconds, name_of(&engine, &inb.from)));
+                            dirty = true;
+                        }
+                    }
+                }
+                continue;
+            }
             messages.push(MsgView {
                 id: String::new(),
                 dir: dir.into(),
@@ -490,6 +617,22 @@ pub fn run(
         }
 
         // 5. Publish snapshot.
+        let (nearby, my_pos) = build_nearby(&engine, &peer_pos, my_pos_at);
+        let poi_views = build_pois(&engine, &pois);
+        // Drop a strobe once it has run its course; otherwise surface it.
+        if let Some((start, _, seconds, _)) = &active_strobe {
+            if start.saturating_add(*seconds as u64) <= now {
+                active_strobe = None;
+            }
+        }
+        let strobe_view = active_strobe
+            .as_ref()
+            .map(|(start, bpm, seconds, from)| StrobeView {
+                start: *start,
+                bpm: *bpm,
+                seconds: *seconds,
+                from: from.clone(),
+            });
         let snap = build_snapshot(
             &engine,
             &identity_view,
@@ -497,6 +640,10 @@ pub fn run(
             &messages,
             &groups,
             connected.load(Ordering::Relaxed),
+            nearby,
+            my_pos,
+            poi_views,
+            strobe_view,
         );
         if let Ok(mut g) = shared.lock() {
             *g = snap;
@@ -606,6 +753,178 @@ fn name_of(engine: &NodeEngine, addr: &Address) -> String {
         .unwrap_or_else(|| addr.short())
 }
 
+/// Seizure-safe tempo bounds for a strobe. The ceiling is 3 Hz (180/min) per
+/// photosensitive-epilepsy guidance; the floor keeps it a visible pulse.
+const STROBE_MIN_BPM: u16 = 20;
+const STROBE_MAX_BPM: u16 = 180;
+const STROBE_MAX_SECONDS: u16 = 120;
+
+/// Encode a strobe's shared parameters into a payload body.
+fn strobe_label(start: u64, bpm: u16, seconds: u16) -> String {
+    format!("{start}\u{1f}{bpm}\u{1f}{seconds}")
+}
+
+/// Parse a strobe body back to `(start, bpm, seconds)`, re-clamping the tempo so
+/// a peer can never push us past the seizure-safe ceiling.
+fn parse_strobe_label(label: &str) -> Option<(u64, u16, u16)> {
+    let mut it = label.split('\u{1f}');
+    let start: u64 = it.next()?.parse().ok()?;
+    let bpm: u16 = it.next()?.parse().ok()?;
+    let seconds: u16 = it.next()?.parse().ok()?;
+    Some((
+        start,
+        bpm.clamp(STROBE_MIN_BPM, STROBE_MAX_BPM),
+        seconds.clamp(1, STROBE_MAX_SECONDS),
+    ))
+}
+
+/// A shared point of interest held in the node loop (wayfinding).
+struct PoiRecord {
+    name: String,
+    category: String,
+    lat: f64,
+    lon: f64,
+    at: u64,
+    from: String,
+}
+
+/// Canonical POI category slug (defends the wire against arbitrary strings).
+fn poi_category(raw: &str) -> String {
+    match raw.trim().to_lowercase().as_str() {
+        "water" => "water",
+        "food" => "food",
+        "medical" | "med" | "aid" => "medical",
+        "stage" | "music" => "stage",
+        "toilet" | "bathroom" | "restroom" | "wc" => "toilet",
+        "tent" | "camp" => "tent",
+        "car" | "parking" => "car",
+        _ => "other",
+    }
+    .to_string()
+}
+
+/// The opaque `category\u{1f}name` label carried in a POI payload body.
+fn poi_label(category: &str, name: &str) -> String {
+    format!("{category}\u{1f}{name}")
+}
+
+/// Parse a POI label back into `(category, name)`. Tolerant of a missing
+/// separator (treats the whole thing as the name, category `other`).
+fn parse_poi_label(label: &str) -> (String, String) {
+    match label.split_once('\u{1f}') {
+        Some((cat, name)) => (poi_category(cat), name.trim().to_string()),
+        None => ("other".to_string(), label.trim().to_string()),
+    }
+}
+
+/// Stable id for a POI so a re-share updates in place rather than duplicating.
+fn poi_id(from_key: &str, category: &str, name: &str) -> String {
+    format!("{from_key}\u{1f}{category}\u{1f}{name}")
+}
+
+/// Distance (metres) + compass bearing from our position `me` to a point, or all
+/// `None` when we have no fix of our own. Shared by the Nearby and POI views.
+fn dist_bearing(
+    me: Option<lifeline_geo::GeoPoint>,
+    lat: f64,
+    lon: f64,
+) -> (Option<f64>, Option<f64>, Option<String>) {
+    use lifeline_geo::{bearing_deg, compass_8, haversine_m, GeoPoint};
+    match me {
+        Some(here) => {
+            let there = GeoPoint::new(lat, lon);
+            let b = bearing_deg(here, there);
+            (
+                Some(haversine_m(here, there)),
+                Some(b),
+                Some(compass_8(b).into()),
+            )
+        }
+        None => (None, None, None),
+    }
+}
+
+/// Build the "Nearby / find each other" data: each contact's last-shared
+/// position, annotated with distance + compass direction from *this* node when
+/// we have our own fix, sorted nearest-first. Returns the list plus our own
+/// position (present iff we have a fix).
+fn build_nearby(
+    engine: &NodeEngine,
+    peer_pos: &HashMap<Address, (f64, f64, u64)>,
+    my_pos_at: u64,
+) -> (Vec<NearbyView>, Option<PosView>) {
+    let me = engine
+        .position()
+        .map(|(lat, lon)| lifeline_geo::GeoPoint::new(lat, lon));
+    let my_pos = engine.position().map(|(lat, lon)| PosView {
+        lat,
+        lon,
+        at: my_pos_at,
+    });
+
+    let mut nearby: Vec<NearbyView> = peer_pos
+        .iter()
+        .map(|(addr, &(lat, lon, at))| {
+            let (distance_m, bearing_deg, compass) = dist_bearing(me, lat, lon);
+            NearbyView {
+                address: addr.to_text(),
+                name: name_of(engine, addr),
+                lat,
+                lon,
+                at,
+                distance_m,
+                bearing_deg,
+                compass,
+            }
+        })
+        .collect();
+
+    // Nearest first; without our own fix (no distance), fall back to most-recent.
+    nearby.sort_by(|a, b| nearest_first(a.distance_m, a.at, b.distance_m, b.at));
+
+    (nearby, my_pos)
+}
+
+/// Build the wayfinding POI list, annotated with distance + direction and sorted
+/// nearest-first (unknown distance falls back to most-recent).
+fn build_pois(engine: &NodeEngine, pois: &HashMap<String, PoiRecord>) -> Vec<PoiView> {
+    let me = engine
+        .position()
+        .map(|(lat, lon)| lifeline_geo::GeoPoint::new(lat, lon));
+    let mut out: Vec<PoiView> = pois
+        .iter()
+        .map(|(id, p)| {
+            let (distance_m, bearing_deg, compass) = dist_bearing(me, p.lat, p.lon);
+            PoiView {
+                id: id.clone(),
+                name: p.name.clone(),
+                category: p.category.clone(),
+                lat: p.lat,
+                lon: p.lon,
+                at: p.at,
+                from: p.from.clone(),
+                distance_m,
+                bearing_deg,
+                compass,
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| nearest_first(a.distance_m, a.at, b.distance_m, b.at));
+    out
+}
+
+/// Ordering: closest first; entries with no distance (no own fix) sort after
+/// ones with a distance, and among themselves by most-recent.
+fn nearest_first(da: Option<f64>, ta: u64, db: Option<f64>, tb: u64) -> std::cmp::Ordering {
+    match (da, db) {
+        (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => tb.cmp(&ta),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn build_snapshot(
     engine: &NodeEngine,
     identity: &IdentityView,
@@ -613,6 +932,10 @@ fn build_snapshot(
     messages: &[MsgView],
     groups: &[String],
     relay_connected: bool,
+    nearby: Vec<NearbyView>,
+    my_pos: Option<PosView>,
+    pois: Vec<PoiView>,
+    strobe: Option<StrobeView>,
 ) -> Snapshot {
     let directory: Vec<PeerView> = engine
         .directory()
@@ -672,5 +995,72 @@ fn build_snapshot(
             is_gateway: engine.is_gateway(),
             gradient: engine.gradient(unix_now()),
         },
+        nearby,
+        my_pos,
+        pois,
+        strobe,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn poi_labels_round_trip_and_categories_canonicalize() {
+        let (cat, name) = parse_poi_label(&poi_label("stage", "Main Stage"));
+        assert_eq!((cat.as_str(), name.as_str()), ("stage", "Main Stage"));
+        // Aliases canonicalize; anything unknown becomes "other".
+        assert_eq!(poi_category("Bathroom"), "toilet");
+        assert_eq!(poi_category("WATER"), "water");
+        assert_eq!(poi_category("banana"), "other");
+        // A label with no separator is treated as a name in "other".
+        let (c, n) = parse_poi_label("lonely");
+        assert_eq!((c.as_str(), n.as_str()), ("other", "lonely"));
+    }
+
+    #[test]
+    fn poi_ids_are_stable_and_distinct() {
+        let a = poi_id("me", "water", "Fountain");
+        // Same inputs → same id, so a re-share updates in place.
+        assert_eq!(a, poi_id("me", "water", "Fountain"));
+        assert_ne!(a, poi_id("me", "water", "Spring"));
+        assert_ne!(a, poi_id("peer", "water", "Fountain"));
+    }
+
+    #[test]
+    fn strobe_labels_round_trip_and_clamp_seizure_safe() {
+        let (s, b, secs) = parse_strobe_label(&strobe_label(100, 120, 30)).unwrap();
+        assert_eq!((s, b, secs), (100, 120, 30));
+        // A peer can't push tempo past the 3 Hz (180 bpm) ceiling or duration cap.
+        let (_, fast, long) = parse_strobe_label(&strobe_label(0, 6000, 9999)).unwrap();
+        assert_eq!(fast, STROBE_MAX_BPM);
+        assert_eq!(long, STROBE_MAX_SECONDS);
+        // Malformed input is rejected, never panics.
+        assert!(parse_strobe_label("nonsense").is_none());
+        assert!(parse_strobe_label("1\u{1f}2").is_none());
+    }
+
+    #[test]
+    fn dist_bearing_needs_a_fix_and_points_the_right_way() {
+        use lifeline_geo::GeoPoint;
+        // With no position of our own there's nothing to measure from.
+        assert_eq!(dist_bearing(None, 1.0, 1.0), (None, None, None));
+        // Due east of the origin → ~90° → "E", with a positive distance.
+        let (d, b, c) = dist_bearing(Some(GeoPoint::new(0.0, 0.0)), 0.0, 1.0);
+        assert!(d.unwrap() > 0.0);
+        assert!((b.unwrap() - 90.0).abs() < 1.0);
+        assert_eq!(c.as_deref(), Some("E"));
+    }
+
+    #[test]
+    fn nearest_first_sorts_by_distance_then_recency() {
+        use std::cmp::Ordering;
+        assert_eq!(nearest_first(Some(10.0), 0, Some(20.0), 0), Ordering::Less);
+        // A known distance sorts ahead of an unknown one...
+        assert_eq!(nearest_first(Some(999.0), 0, None, 0), Ordering::Less);
+        assert_eq!(nearest_first(None, 0, Some(1.0), 0), Ordering::Greater);
+        // ...and two unknowns fall back to most-recent first.
+        assert_eq!(nearest_first(None, 50, None, 10), Ordering::Less);
     }
 }

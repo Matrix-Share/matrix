@@ -25,6 +25,7 @@
 //! a drop-in that implements [`Interface`] with the same [`InterfaceCaps`].
 
 pub mod arq;
+pub mod ble;
 pub mod bridge;
 pub mod caps;
 pub mod channel;
