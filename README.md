@@ -88,7 +88,8 @@ The GUI also exposes a **"Run network self-test"** button that executes the
 | [`STATUS.md`](STATUS.md) | Requirement-by-requirement (`FR-*`) implementation status. |
 | [`GAPS.md`](GAPS.md) | Design-doc gap analysis + research-paper "what-to-improve" agenda. |
 | [`INTEROP.md`](INTEROP.md) | How each listed OSS project migrates onto our seams (Reticulum, ggwave, BP7, Automerge, …). |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`SECURITY.md`](SECURITY.md) | How to contribute; how to report vulnerabilities. |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`SECURITY.md`](SECURITY.md) · [`MAINTAINERS.md`](MAINTAINERS.md) | How to contribute; how to report vulnerabilities; who maintains the project. |
+| [`docs/RELEASE-READINESS.md`](docs/RELEASE-READINESS.md) | **Is it ready to use?** An honest cross-check of what works, what doesn't, and what "alpha" means here. Read before relying on it. |
 
 **Modular across networks:** every physical channel (BLE, Wi-Fi Aware,
 ultrasound, optical, LoRa, internet) is a plug-in implementing one [`Interface`](crates/transport)

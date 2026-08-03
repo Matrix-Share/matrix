@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Questions & ideas (Discussions)
+    url: https://github.com/nometria/project-lifeline/discussions
+    about: Ask a question, share an idea, or discuss the roadmap. Not a bug? Start here.
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/nometria/project-lifeline/security/advisories/new
+    about: Do NOT open a public issue for security problems. Use private reporting (see SECURITY.md).
