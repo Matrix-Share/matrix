@@ -1,0 +1,47 @@
+[package]
+name = "lifeline-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+lifeline-proto = { path = "../crates/proto" }
+lifeline-transport = { path = "../crates/transport" }
+
+# Prevent this from being pulled into the parent workspace.
+[workspace]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "frame_decode"
+path = "fuzz_targets/frame_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bundle_cbor"
+path = "fuzz_targets/bundle_cbor.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "payload_cbor"
+path = "fuzz_targets/payload_cbor.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ble_reassemble"
+path = "fuzz_targets/ble_reassemble.rs"
+test = false
+doc = false
+bench = false
