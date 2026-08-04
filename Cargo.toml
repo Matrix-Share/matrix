@@ -17,6 +17,9 @@ members = [
     "crates/reconcile",
     "crates/inet",
 ]
+# The fuzz crate is built only with nightly + cargo-fuzz (libFuzzer), so it is
+# excluded from the normal workspace build/test. See `fuzz/` and docs/SSDLC.md.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.1.0"

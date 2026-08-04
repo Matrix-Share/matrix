@@ -77,6 +77,6 @@ the honest cross-check behind that verdict.
 - [x] Secret scanning (gitleaks + GitHub native)
 - [x] DAST (OWASP ZAP baseline, scheduled)
 - [x] OpenSSF Scorecard + badge
+- [x] Fuzzing of the wire parsers (cargo-fuzz; build on PRs, run nightly)
 - [ ] Third-party security audit *(pre-1.0 blocker)*
-- [ ] Fuzzing in CI for wire parsers *(tracked)*
 - [ ] Native BLE radio backend on real hardware

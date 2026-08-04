@@ -1,0 +1,52 @@
+name: fuzz
+
+# Coverage-guided fuzzing of the untrusted-byte parsers (see fuzz/ and
+# docs/SSDLC.md). PRs that touch the parsers build the targets (fast smoke);
+# a nightly schedule runs each target for a few minutes to find regressions.
+on:
+  pull_request:
+    paths:
+      - "crates/proto/**"
+      - "crates/transport/**"
+      - "fuzz/**"
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # On PRs: just prove every target still compiles under libFuzzer.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - run: cargo +nightly fuzz build
+
+  run:
+    # On schedule/dispatch: actually fuzz each target for a few minutes.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [frame_decode, bundle_cbor, payload_cbor, ble_reassemble]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=300
+      - name: Upload crash reproducer (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: fuzz/artifacts

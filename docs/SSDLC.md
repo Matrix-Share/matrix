@@ -27,7 +27,7 @@ report a vulnerability) and [`docs/RELEASE-READINESS.md`](RELEASE-READINESS.md)
 | **Supply chain** | No known-vulnerable, yanked, unmaintained, or wrongly-licensed dependencies; only the official registry. | **cargo-audit** (RustSec), **cargo-deny** (`deny.toml`), **npm audit** (`--audit-level=high`), **Dependabot** |
 | **Secrets** | No credentials in the repo or history. | **gitleaks** + GitHub native secret scanning + push protection |
 | **Dynamic analysis (DAST)** | Scan the running app for header/cookie/info-leak/misconfig issues. | **OWASP ZAP** baseline (`dast-zap.yml`, scheduled + on demand) |
-| **Fuzzing** | Fuzz the wire parsers (planned). | `cargo fuzz` (tracked in the issue tracker) |
+| **Fuzzing** | Coverage-guided fuzzing of every untrusted-byte parser (frame decode, CBOR bundle/payload, BLE reassembly). | **cargo-fuzz** / libFuzzer — [`fuzz/`](../fuzz), [`fuzz.yml`](../.github/workflows/fuzz.yml) |
 | **Posture** | Continuously score the repo's OSS security posture. | **OpenSSF Scorecard** (`scorecard.yml` → Security tab + badge) |
 | **Release** | Verify build + full test suite + a clean security run; tag; publish honest notes. | CI (`ci.yml`, `security.yml`), `CHANGELOG.md`, `RELEASE-READINESS.md` |
 | **Respond** | Private vulnerability intake, triage, fix, disclose. | GitHub private advisories, `SECURITY.md` |
@@ -38,6 +38,7 @@ report a vulnerability) and [`docs/RELEASE-READINESS.md`](RELEASE-READINESS.md)
 - [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml) — CodeQL SAST for JS/TS.
 - [`.github/workflows/scorecard.yml`](../.github/workflows/scorecard.yml) — OpenSSF Scorecard.
 - [`.github/workflows/dast-zap.yml`](../.github/workflows/dast-zap.yml) — OWASP ZAP DAST (scheduled/manual).
+- [`.github/workflows/fuzz.yml`](../.github/workflows/fuzz.yml) — cargo-fuzz targets (`fuzz/`); build on PRs, run nightly.
 - [`.github/dependabot.yml`](../.github/dependabot.yml) — automated dependency + action updates.
 - [`deny.toml`](../deny.toml) — the supply-chain policy.
 
@@ -74,5 +75,6 @@ semgrep scan --config p/security-audit --config p/rust --config p/javascript
 
 At the last run: `cargo audit` reports **no vulnerabilities** (one transitive
 *unmaintained* warning), and the `saas` and hardened `mobile` trees have **no
-high/critical** npm advisories. The remaining pre-1.0 security work — a
-**third-party audit** and **fuzzing in CI** — is tracked as issues.
+high/critical** npm advisories. The wire parsers are fuzzed (~8M executions/run,
+no crashes). The remaining pre-1.0 security work — a **third-party audit** — is
+tracked as an issue.

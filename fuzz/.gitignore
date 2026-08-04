@@ -1,0 +1,6 @@
+# cargo-fuzz working data — regenerable, not committed.
+/target
+/corpus
+/artifacts
+/coverage
+Cargo.lock
