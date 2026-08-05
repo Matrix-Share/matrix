@@ -5,6 +5,8 @@ import { PLANS, planById } from '@/lib/plans';
 import { subscriptionsEnabled } from '@/lib/stripe';
 import { BillingActions } from '@/components/BillingActions';
 
+export const metadata = { title: 'Billing' };
+
 export default async function Billing({ searchParams }: { searchParams: Promise<{ org?: string; success?: string }> }) {
   const user = await requireUser();
   const myOrgs = orgs.forUser(user.id);
@@ -58,12 +60,14 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
               <p className="muted" style={{ fontSize: 13.5, minHeight: 40 }}>{p.tagline}</p>
               {isCurrent ? (
                 <div className="muted center" style={{ fontSize: 13, padding: '8px 0' }}>Your current plan</div>
-              ) : p.id !== 'free' && canManage ? (
-                <BillingActions orgId={current.id} plan={p.id} target="checkout" label={`Upgrade to ${p.name}`} variant={p.featured ? 'primary' : 'ghost'} />
               ) : p.id === 'free' ? (
                 <div className="muted center" style={{ fontSize: 13, padding: '8px 0' }}>—</div>
-              ) : (
+              ) : !canManage ? (
                 <div className="muted center" style={{ fontSize: 12.5, padding: '8px 0' }}>Owners/admins only</div>
+              ) : !subscriptionsEnabled ? (
+                <button className="btn btn-ghost wide sm" disabled title="Add your Stripe keys to enable checkout">Unavailable in test mode</button>
+              ) : (
+                <BillingActions orgId={current.id} plan={p.id} target="checkout" label={`Upgrade to ${p.name}`} variant={p.featured ? 'primary' : 'ghost'} />
               )}
             </div>
           );

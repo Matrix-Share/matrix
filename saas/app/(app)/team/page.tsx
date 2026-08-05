@@ -7,6 +7,8 @@ const COLORS = ['#FF9500', '#FF3B30', '#34C759', '#007AFF', '#5856D6', '#AF52DE'
 const color = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; };
 const initials = (s: string) => (s || '?').trim().slice(0, 2).toUpperCase();
 
+export const metadata = { title: 'Team' };
+
 export default async function Team({ searchParams }: { searchParams: Promise<{ org?: string }> }) {
   const user = await requireUser();
   const myOrgs = orgs.forUser(user.id);

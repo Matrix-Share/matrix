@@ -4,6 +4,8 @@ import { getCurrentUser } from '@/lib/auth';
 import { signup } from '@/lib/actions';
 import { StatefulForm } from '@/components/forms';
 
+export const metadata = { title: 'Sign up' };
+
 export default async function SignupPage() {
   if (await getCurrentUser()) redirect('/dashboard');
   return (

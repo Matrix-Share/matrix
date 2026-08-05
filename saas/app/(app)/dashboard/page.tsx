@@ -3,12 +3,17 @@ import { requireUser } from '@/lib/auth';
 import { orgs, memberships } from '@/lib/db';
 import { planById } from '@/lib/plans';
 
+export const metadata = { title: 'Dashboard' };
+
 export default async function Dashboard() {
   const user = await requireUser();
   const myOrgs = orgs.forUser(user.id);
   const primary = myOrgs[0];
   const members = primary ? memberships.forOrg(primary.id).length : 0;
   const plan = planById(primary?.plan ?? 'free');
+  // The messenger runs on the user's own node. Default to a local node; a
+  // deployment can point this at a hosted address via NEXT_PUBLIC_NODE_URL.
+  const nodeUrl = process.env.NEXT_PUBLIC_NODE_URL || 'http://localhost:8080';
 
   return (
     <>
@@ -27,21 +32,19 @@ export default async function Dashboard() {
         <div className="card">
           <h2>Open the messenger</h2>
           <p className="muted" style={{ fontSize: 14.5, margin: '4px 0 16px' }}>
-            The Lifeline app runs on your node — right in the browser, or installed to your phone. It works online and completely offline.
+            The Lifeline app runs on <b>your own node</b> — in the browser or installed to your phone — and works fully offline. Open it below (defaults to a node on this machine).
           </p>
           <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
-            <a className="btn btn-primary sm" href="http://localhost:8080" target="_blank" rel="noopener">Open web app</a>
-            <a className="btn btn-ghost sm" href="https://github.com/nometria/project-lifeline#mobile" target="_blank" rel="noopener">Get the mobile app</a>
+            <a className="btn btn-primary sm" href={nodeUrl} target="_blank" rel="noopener">Open web app</a>
+            <a className="btn btn-ghost sm" href="https://github.com/nometria/project-lifeline#apps-in-this-repo" target="_blank" rel="noopener">Get the mobile app</a>
           </div>
         </div>
         <div className="card">
-          <h2>Managed relay</h2>
+          <div className="row" style={{ gap: 8 }}><h2>Managed relay</h2><span className="badge" style={{ fontSize: 11 }}>Coming soon</span></div>
           <p className="muted" style={{ fontSize: 14.5, margin: '4px 0 16px' }}>
-            {plan.id === 'free'
-              ? 'Upgrade to Pro to spin up a hosted relay that keeps your mesh reachable from anywhere.'
-              : 'Your hosted relay is provisioning. Point your nodes at it from the app’s settings.'}
+            A hosted relay that keeps your mesh reachable from anywhere is on the way. Until then, you can <b>run your own relay in one command</b> and point your nodes at it — it’s zero-knowledge (it only forwards ciphertext).
           </p>
-          <Link className="btn btn-ghost sm" href="/billing">{plan.id === 'free' ? 'Upgrade to Pro' : 'Relay settings'}</Link>
+          <a className="btn btn-ghost sm" href="https://github.com/nometria/project-lifeline#quickstart--chat-with-someone-in-60-seconds" target="_blank" rel="noopener">How to self-host a relay</a>
         </div>
       </div>
     </>

@@ -3,6 +3,8 @@ import { updateProfile, changePassword, deleteAccount } from '@/lib/actions';
 import { StatefulForm } from '@/components/forms';
 import { DangerButton } from '@/components/DangerButton';
 
+export const metadata = { title: 'Settings' };
+
 export default async function Settings() {
   const user = await requireUser();
   return (

@@ -154,8 +154,20 @@ export async function inviteMember(_: State, form: FormData): Promise<State> {
   const parsed = z.object({ email: emailZ, role: z.enum(['admin', 'member']) })
     .safeParse({ email: form.get('email'), role: form.get('role') || 'member' });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const email = parsed.data.email.toLowerCase();
+
+  // Don't invite someone who's already in the workspace, or send a second
+  // invite to an address that already has one pending.
+  const existing = users.byEmail(email);
+  if (existing && memberships.get(orgId, existing.id)) {
+    return { error: 'That person is already a member of this workspace.' };
+  }
+  if (invites.forOrg(orgId).some((i) => i.email.toLowerCase() === email)) {
+    return { error: 'An invite is already pending for that email.' };
+  }
+
   const token = randomBytes(20).toString('hex');
-  invites.create({ token, org_id: orgId, email: parsed.data.email, role: parsed.data.role, expires_at: now() + 7 * 864e5, created_at: now() });
+  invites.create({ token, org_id: orgId, email, role: parsed.data.role, expires_at: now() + 7 * 864e5, created_at: now() });
   await sendEmail(parsed.data.email, 'You’re invited to a Lifeline workspace',
     `Join the workspace: ${appUrl(`/invite/${token}`)}\n\nThis invite expires in 7 days.`);
   revalidatePath('/team');

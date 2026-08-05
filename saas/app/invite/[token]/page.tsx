@@ -23,7 +23,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
         ) : (
           <>
             <h1>Join {org?.name}</h1>
-            <p className="sub">You’ve been invited to collaborate as a <b>{inv!.role}</b>.</p>
+            <p className="sub">You’ve been invited to collaborate as {/^[aeiou]/i.test(inv!.role) ? 'an' : 'a'} <b>{inv!.role}</b>.</p>
             {user ? (
               <form action={acceptInvite.bind(null, token)}>
                 <button className="btn btn-primary wide">Accept invite</button>
