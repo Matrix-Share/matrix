@@ -4,6 +4,8 @@ import { getCurrentUser } from '@/lib/auth';
 import { login } from '@/lib/actions';
 import { StatefulForm } from '@/components/forms';
 
+export const metadata = { title: 'Log in' };
+
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ reset?: string }> }) {
   if (await getCurrentUser()) redirect('/dashboard');
   const { reset } = await searchParams;

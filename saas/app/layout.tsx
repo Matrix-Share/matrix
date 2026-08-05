@@ -2,7 +2,10 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Lifeline — messaging that works when nothing else does',
+  title: {
+    default: 'Lifeline — messaging that works when nothing else does',
+    template: '%s · Lifeline',
+  },
   description:
     'Encrypted mesh messaging with no towers, no internet, no accounts. Plus a hosted dashboard, managed relays, and team billing.',
 };

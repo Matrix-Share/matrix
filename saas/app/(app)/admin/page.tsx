@@ -3,6 +3,8 @@ import { users, orgs } from '@/lib/db';
 
 const fmt = (ts: number) => new Date(ts).toLocaleDateString();
 
+export const metadata = { title: 'Admin' };
+
 export default async function Admin() {
   await requireAdmin();
   const allUsers = users.all();
