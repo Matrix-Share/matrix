@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy Policy — Lifeline</title>
+<meta name="description" content="How Lifeline handles data: it doesn't. There are no accounts, no servers, and no central collection of your messages or metadata.">
+<meta name="theme-color" content="#6366f1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='1' stop-color='%23a855f7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="in">
+    <a class="logo" href="/"><span class="mk"></span>Lifeline</a>
+    <nav class="links">
+      <a class="hidesm" href="index.html#capabilities">Capabilities</a>
+      <a class="hidesm" href="index.html#security">Security</a>
+      <a class="hidesm" href="contact.html">Contact</a>
+      <button class="iconbtn" aria-label="Toggle theme" onclick="toggleTheme()" title="Toggle light / dark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v2m0 14v2m9-9h-2M5 12H3m14.5 6.5-1.4-1.4M7 7 5.6 5.6m12.8 0L17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg>
+      </button>
+      <a class="btn btn-primary sm cta" href="https://github.com/matrix-share/matrix">GitHub</a>
+    </nav>
+    <button class="iconbtn navtoggle" aria-label="Menu" onclick="location.href='/'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="doc">
+  <a class="backlink" href="/">← Back to home</a>
+  <h1>Privacy Policy</h1>
+  <div class="updated">Last updated: 6 August 2026 · Applies to the Lifeline application and this website</div>
+  <p class="lead">Lifeline is built so that there is almost nothing to have a privacy policy <em>about</em>. It has no accounts, no central servers, and no company sitting between you and the people you message. This page explains, plainly, what that means for your data.</p>
+
+  <div class="card-note">
+    <b>The short version.</b> Your messages are end-to-end encrypted and travel directly between devices. We do not operate a server that receives, stores, or can read them. We do not require an account, an email, or a phone number. We cannot sell data we never collect.
+  </div>
+
+  <div class="toc">
+    <a href="#scope">1. Scope</a>
+    <a href="#noaccount">2. No accounts</a>
+    <a href="#messages">3. Your messages</a>
+    <a href="#ondevice">4. On-device data</a>
+    <a href="#location">5. Location</a>
+    <a href="#relaying">6. Relaying for others</a>
+    <a href="#website">7. This website</a>
+    <a href="#gateways">8. Optional gateways</a>
+    <a href="#children">9. Children</a>
+    <a href="#changes">10. Changes</a>
+    <a href="#contact">11. Contact</a>
+  </div>
+
+  <h2 id="scope">1. Scope</h2>
+  <p>This policy covers the Lifeline mobile and desktop applications ("the app"), the underlying open-source protocol, and this marketing website. Because Lifeline is open source, the ultimate authority on how it behaves is the source code itself, which you can inspect at any time.</p>
+
+  <h2 id="noaccount">2. No accounts, no identifiers we hold</h2>
+  <p>Using Lifeline does not require you to create an account or provide a name, email address, or phone number. Your identity in the network is a cryptographic key pair generated on your device and stored only on your device. We never receive it.</p>
+
+  <h2 id="messages">3. Your messages</h2>
+  <ul>
+    <li>Messages are encrypted end-to-end on your device before they are sent. Only the intended recipient's device holds the key needed to decrypt them.</li>
+    <li>Messages travel directly between devices over Bluetooth and Wi-Fi, hopping from phone to phone. They do not pass through, and are not copied to, any server we operate.</li>
+    <li>Devices that relay a message on its way to the recipient carry it as an opaque, encrypted envelope. A relay cannot read the contents and cannot determine the sender or recipient from the message itself.</li>
+    <li>We have no ability to access, read, log, or produce the contents of your messages, because they never reach us.</li>
+  </ul>
+
+  <h2 id="ondevice">4. Data stored on your device</h2>
+  <p>To function, the app stores certain information locally on your own device, such as your cryptographic keys, your message history, your contacts, and queued messages waiting to be delivered. This data stays on your device under your control. You can erase it at any time, including instantly with the app's panic-wipe feature.</p>
+
+  <h2 id="location">5. Location data</h2>
+  <p>Some features — such as SOS beacons, "find each other," and geocast — use your device's location. When you use them:</p>
+  <ul>
+    <li>Location is read from your device only when you invoke a feature that needs it, and only to the extent that feature requires.</li>
+    <li>Location shared in an SOS or with your group is end-to-end encrypted the same way messages are, and is sent only to the recipients you intend.</li>
+    <li>We do not collect, aggregate, or retain any location data on a server. There is no server.</li>
+  </ul>
+
+  <h2 id="relaying">6. Relaying for others</h2>
+  <p>As part of the mesh, your device may carry and forward other people's encrypted messages toward their destinations. You cannot read this traffic, and it is not retained beyond what is needed to attempt delivery. This is how the network stays alive without infrastructure — and it is designed so that relaying never exposes you to the contents of what you relay.</p>
+
+  <h2 id="website">7. This website</h2>
+  <p>This site is a static informational website. It does not use advertising cookies or third-party trackers. If you submit the contact form, the information you provide is used solely to respond to your inquiry. Our hosting provider may process standard server logs (such as IP addresses and request times) for security and reliability, as is typical for any website; we do not use these to build profiles of visitors.</p>
+
+  <h2 id="gateways">8. Optional internet gateways</h2>
+  <p>Lifeline can opportunistically bridge messages to the internet through a device that has connectivity. Where a message you send is routed over the public internet via such a gateway, it remains end-to-end encrypted in transit. Any optional hosted services offered separately (for example, a team or organization product) are governed by their own terms and notices presented at sign-up; the core mesh described here does not depend on them.</p>
+
+  <h2 id="children">9. Children</h2>
+  <p>Lifeline is not directed to children and does not knowingly collect personal information from children. Because the app does not collect personal information centrally at all, there is no such data for us to hold.</p>
+
+  <h2 id="changes">10. Changes to this policy</h2>
+  <p>We may update this policy as the project evolves. Material changes will be reflected here with a new "last updated" date and, where appropriate, noted in the project's release notes.</p>
+
+  <h2 id="contact">11. Contact</h2>
+  <p>Questions about privacy? Reach us through the <a class="link" href="contact.html">contact page</a> or open a discussion on <a class="link" href="https://github.com/matrix-share/matrix/discussions">GitHub</a>.</p>
+
+  <p style="margin-top:36px"><a class="backlink" href="/">← Back to home</a></p>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-bottom" style="margin-top:0;border-top:none">
+      <span>© 2026 Lifeline. Released under an open-source license.</span>
+      <span><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="security.html">Security</a> · <a href="contact.html">Contact</a></span>
+    </div>
+  </div>
+</footer>
+
+<script src="app.js" defer></script>
+</body>
+</html>

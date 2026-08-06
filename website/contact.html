@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contact — Lifeline</title>
+<meta name="description" content="Get in touch with the Lifeline team — questions, partnerships, press, and security reports.">
+<meta name="theme-color" content="#6366f1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='1' stop-color='%23a855f7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="in">
+    <a class="logo" href="/"><span class="mk"></span>Lifeline</a>
+    <nav class="links">
+      <a class="hidesm" href="index.html#capabilities">Capabilities</a>
+      <a class="hidesm" href="index.html#security">Security</a>
+      <a class="hidesm" href="index.html#open">Open source</a>
+      <button class="iconbtn" aria-label="Toggle theme" onclick="toggleTheme()" title="Toggle light / dark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v2m0 14v2m9-9h-2M5 12H3m14.5 6.5-1.4-1.4M7 7 5.6 5.6m12.8 0L17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg>
+      </button>
+      <a class="btn btn-primary sm cta" href="https://github.com/matrix-share/matrix">GitHub</a>
+    </nav>
+    <button class="iconbtn navtoggle" aria-label="Menu" onclick="location.href='/'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="wrap" style="padding-top:56px;padding-bottom:80px;max-width:960px">
+  <a class="backlink" href="/" style="color:var(--accent);font-size:14px;font-weight:560">← Back to home</a>
+  <h1 style="font-size:clamp(32px,5vw,48px);letter-spacing:-.035em;font-weight:720;margin:18px 0 6px">Get in touch</h1>
+  <p style="color:var(--muted);font-size:18px;line-height:1.6;max-width:56ch">
+    Lifeline is an open project, and the fastest way to reach us — and the whole community — is on GitHub.
+    For everything else, drop us a note below.
+  </p>
+
+  <!-- Quick channels -->
+  <div style="margin-top:24px">
+    <a class="chip" href="https://github.com/matrix-share/matrix/discussions">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/></svg>
+      Ask in Discussions
+    </a>
+    <a class="chip" href="https://github.com/matrix-share/matrix/issues">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>
+      Report an issue
+    </a>
+    <a class="chip" href="https://github.com/matrix-share/matrix">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.7c-2.78.62-3.37-1.37-3.37-1.37-.46-1.18-1.11-1.49-1.11-1.49-.9-.63.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.56 2.35 1.11 2.92.85.09-.66.35-1.11.63-1.37-2.22-.26-4.55-1.14-4.55-5.05 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.35 9.35 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.92-2.34 4.79-4.57 5.04.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.6.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
+      Browse the code
+    </a>
+  </div>
+
+  <div class="contact-grid">
+    <!-- Form (composes an email via the visitor's own mail app) -->
+    <form id="contactForm" onsubmit="return sendContact(event)">
+      <div class="field">
+        <label for="name">Your name</label>
+        <input id="name" name="name" type="text" autocomplete="name" placeholder="Jane Rivera" required>
+      </div>
+      <div class="field">
+        <label for="email">Your email</label>
+        <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+      </div>
+      <div class="field">
+        <label for="topic">Topic</label>
+        <select id="topic" name="topic">
+          <option>General question</option>
+          <option>Partnership or deployment</option>
+          <option>Press &amp; media</option>
+          <option>Contributing</option>
+          <option>Security report</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="message">Message</label>
+        <textarea id="message" name="message" placeholder="How can we help?" required></textarea>
+      </div>
+      <button class="btn btn-primary lg" type="submit" style="width:100%">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>
+        Compose message
+      </button>
+      <p id="formNote" style="color:var(--faint);font-size:12.5px;line-height:1.5;margin-top:12px">
+        This opens a pre-filled email in your own mail app — nothing is sent to any server from this page.
+      </p>
+    </form>
+
+    <!-- Side cards -->
+    <div>
+      <div class="contact-card" style="margin-bottom:16px">
+        <h3>Community &amp; support</h3>
+        <p>The best place for questions, ideas and help is GitHub Discussions, where the whole community can chime in.</p>
+        <p style="margin-top:10px"><a class="chip" href="https://github.com/matrix-share/matrix/discussions">Open Discussions →</a></p>
+      </div>
+      <div class="contact-card" style="margin-bottom:16px">
+        <h3>Security reports</h3>
+        <p>Found a vulnerability? Please disclose it privately. See our <a href="security.html" style="color:var(--accent)">security &amp; disclosure</a> page for how.</p>
+      </div>
+      <div class="contact-card">
+        <h3>Partnerships &amp; press</h3>
+        <p>Deploying Lifeline for a community, an event or a response effort — or writing about it? Use the form and pick the matching topic.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-bottom" style="margin-top:0;border-top:none">
+      <span>© 2026 Lifeline. Released under an open-source license.</span>
+      <span><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="security.html">Security</a> · <a href="contact.html">Contact</a></span>
+    </div>
+  </div>
+</footer>
+
+<script src="app.js" defer></script>
+<script>
+  function sendContact(e){
+    e.preventDefault();
+    var name = document.getElementById('name').value.trim();
+    var email = document.getElementById('email').value.trim();
+    var topic = document.getElementById('topic').value;
+    var message = document.getElementById('message').value.trim();
+    var subject = '[Lifeline] ' + topic + ' — ' + name;
+    var body = message + '\n\n— ' + name + ' (' + email + ')';
+    window.location.href = 'mailto:hello@lifeline.mesh'
+      + '?subject=' + encodeURIComponent(subject)
+      + '&body=' + encodeURIComponent(body);
+    var note = document.getElementById('formNote');
+    note.textContent = 'Your mail app should now be opening with the message pre-filled.';
+    note.style.color = 'var(--safe)';
+    return false;
+  }
+</script>
+</body>
+</html>
