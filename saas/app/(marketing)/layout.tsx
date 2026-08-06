@@ -34,10 +34,10 @@ export default async function MarketingLayout({ children }: { children: React.Re
           <div className="row muted" style={{ gap: 18, fontSize: 14, flexWrap: 'wrap' }}>
             <Link href="/#use-cases">Use cases</Link>
             <Link href="/#security">Security</Link>
-            <a href="https://github.com/nometria/project-lifeline/blob/main/WHITEPAPER.md">White paper</a>
-            <a href="https://github.com/nometria/project-lifeline/blob/main/ARCHITECTURE.md">Architecture</a>
+            <a href="https://github.com/matrix-share/matrix/blob/main/WHITEPAPER.md">White paper</a>
+            <a href="https://github.com/matrix-share/matrix/blob/main/ARCHITECTURE.md">Architecture</a>
             <Link href="/pricing">Pricing</Link>
-            <a href="https://github.com/nometria/project-lifeline">GitHub</a>
+            <a href="https://github.com/matrix-share/matrix">GitHub</a>
           </div>
         </div>
         <div className="container muted" style={{ fontSize: 13, marginTop: 12 }}>Messaging that works when nothing else does.</div>

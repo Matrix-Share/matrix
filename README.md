@@ -1,8 +1,8 @@
 # Project Lifeline — decentralized, offline-first emergency mesh
 
-[![CI](https://github.com/nometria/project-lifeline/actions/workflows/ci.yml/badge.svg)](https://github.com/nometria/project-lifeline/actions/workflows/ci.yml)
-[![Security](https://github.com/nometria/project-lifeline/actions/workflows/security.yml/badge.svg)](https://github.com/nometria/project-lifeline/actions/workflows/security.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/nometria/project-lifeline/badge)](https://scorecard.dev/viewer/?uri=github.com/nometria/project-lifeline)
+[![CI](https://github.com/matrix-share/matrix/actions/workflows/ci.yml/badge.svg)](https://github.com/matrix-share/matrix/actions/workflows/ci.yml)
+[![Security](https://github.com/matrix-share/matrix/actions/workflows/security.yml/badge.svg)](https://github.com/matrix-share/matrix/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/matrix-share/matrix/badge)](https://scorecard.dev/viewer/?uri=github.com/matrix-share/matrix)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 An open-source, self-hostable, end-to-end-encrypted mesh messenger that keeps

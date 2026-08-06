@@ -36,7 +36,7 @@ export default async function Dashboard() {
           </p>
           <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
             <a className="btn btn-primary sm" href={nodeUrl} target="_blank" rel="noopener">Open web app</a>
-            <a className="btn btn-ghost sm" href="https://github.com/nometria/project-lifeline#apps-in-this-repo" target="_blank" rel="noopener">Get the mobile app</a>
+            <a className="btn btn-ghost sm" href="https://github.com/matrix-share/matrix#apps-in-this-repo" target="_blank" rel="noopener">Get the mobile app</a>
           </div>
         </div>
         <div className="card">
@@ -44,7 +44,7 @@ export default async function Dashboard() {
           <p className="muted" style={{ fontSize: 14.5, margin: '4px 0 16px' }}>
             A hosted relay that keeps your mesh reachable from anywhere is on the way. Until then, you can <b>run your own relay in one command</b> and point your nodes at it — it’s zero-knowledge (it only forwards ciphertext).
           </p>
-          <a className="btn btn-ghost sm" href="https://github.com/nometria/project-lifeline#quickstart--chat-with-someone-in-60-seconds" target="_blank" rel="noopener">How to self-host a relay</a>
+          <a className="btn btn-ghost sm" href="https://github.com/matrix-share/matrix#quickstart--chat-with-someone-in-60-seconds" target="_blank" rel="noopener">How to self-host a relay</a>
         </div>
       </div>
     </>

@@ -204,4 +204,4 @@ usable by anyone.
 - **[Architecture](ARCHITECTURE.md)** — how the code fits together.
 - **[Research](docs/research/)** — the deeper theory and simulations.
 - **[Security policy](SECURITY.md)** — threat model + how to report a vulnerability.
-- **[Source code](https://github.com/nometria/project-lifeline)** — read every line.
+- **[Source code](https://github.com/matrix-share/matrix)** — read every line.

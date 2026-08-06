@@ -25,7 +25,7 @@ exclude = ["fuzz"]
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/nometria/project-lifeline"
+repository = "https://github.com/matrix-share/matrix"
 rust-version = "1.75"
 
 # Shared dependency versions so every crate targets the same, real releases.

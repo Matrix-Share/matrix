@@ -31,7 +31,7 @@
 //! caps the ranges/ids it will process per message, but the caller must still
 //! bound the number of rounds per session.
 //!
-//! [`docs/differential-transfer.md`]: https://github.com/nometria/project-lifeline/blob/main/docs/differential-transfer.md
+//! [`docs/differential-transfer.md`]: https://github.com/matrix-share/matrix/blob/main/docs/differential-transfer.md
 
 use serde::{Deserialize, Serialize};
 
