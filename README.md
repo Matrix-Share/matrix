@@ -1,9 +1,26 @@
-# Project Lifeline — decentralized, offline-first emergency mesh
+<p align="center">
+  <img src="website/logo-wordmark.svg" alt="Lifeline" width="340">
+</p>
 
-[![CI](https://github.com/matrix-share/matrix/actions/workflows/ci.yml/badge.svg)](https://github.com/matrix-share/matrix/actions/workflows/ci.yml)
-[![Security](https://github.com/matrix-share/matrix/actions/workflows/security.yml/badge.svg)](https://github.com/matrix-share/matrix/actions/workflows/security.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/matrix-share/matrix/badge)](https://scorecard.dev/viewer/?uri=github.com/matrix-share/matrix)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+<p align="center"><b>Messaging that works when the network doesn't.</b></p>
+
+<p align="center">
+  <a href="https://matrix-alpha-ashen.vercel.app">Website</a> ·
+  <a href="WHITEPAPER.md">Whitepaper</a> ·
+  <a href="#how-lifeline-compares">How it compares</a> ·
+  <a href="docs/USE-CASES.md">Use cases</a> ·
+  <a href="https://github.com/matrix-share/matrix/discussions">Discussions</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/matrix-share/matrix/actions/workflows/ci.yml"><img src="https://github.com/matrix-share/matrix/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/matrix-share/matrix/actions/workflows/security.yml"><img src="https://github.com/matrix-share/matrix/actions/workflows/security.yml/badge.svg" alt="Security"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/matrix-share/matrix"><img src="https://api.securityscorecards.dev/projects/github.com/matrix-share/matrix/badge" alt="OpenSSF Scorecard"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License: Apache-2.0"></a>
+</p>
+
+<!-- 🎬 Demo GIF goes here once recorded — see docs/launch/demo-script.md (#109) -->
+<p align="center"><sub>🎬 A short phone-to-phone demo is coming — track it in <a href="https://github.com/matrix-share/matrix/issues/109">#109</a>.</sub></p>
 
 An open-source, self-hostable, end-to-end-encrypted mesh messenger that keeps
 people connected when the internet and cellular networks fail — and "comes
@@ -50,6 +67,29 @@ The **relay is optional infrastructure and zero-knowledge** — it only forwards
 opaque ciphertext frames. On real devices, nodes mesh directly over
 BLE/Wi-Fi Aware/ultrasound; the relay just stands in for the internet transport
 so browsers can connect.
+
+## How Lifeline compares
+
+Other tools solve pieces of this. Lifeline's niche is **carrying a message across
+people and gaps with no infrastructure**, then **bridging to the internet the
+moment any node can**.
+
+| Capability | **Lifeline** | Briar | bitchat | Meshtastic | Nostr |
+|---|:--:|:--:|:--:|:--:|:--:|
+| Works with no internet or cell | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Phone-to-phone, no extra hardware | ✅ | ✅ | ✅ | ❌ *LoRa* | ❌ |
+| Carries across gaps (delay-tolerant) | ✅ | ⚠️ | ⚠️ | ⚠️ | ❌ |
+| End-to-end encrypted | ✅ | ✅ | ✅ | ⚠️ *channel* | ⚠️ *DMs* |
+| No account or phone number | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Group messaging | ✅ | ✅ | ✅ | ✅ | ⚠️ |
+| SOS + live location | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Opportunistic internet bridge | ✅ | ⚠️ *Tor* | ⚠️ *Nostr* | ✅ *MQTT* | *is the internet* |
+| Open source | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+✅ full · ⚠️ partial / conditional · ❌ not supported. Reflects each project's
+typical capabilities as of 2026; meant to be fair, not exhaustive — all of these
+are worthwhile projects. Corrections welcome via
+[an issue](https://github.com/matrix-share/matrix/issues).
 
 ## Apps in this repo
 

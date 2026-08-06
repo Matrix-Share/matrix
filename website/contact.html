@@ -83,7 +83,7 @@
         Compose message
       </button>
       <p id="formNote" style="color:var(--faint);font-size:12.5px;line-height:1.5;margin-top:12px">
-        This opens a pre-filled email in your own mail app — nothing is sent to any server from this page.
+        This opens a pre-filled email to <b>archit.sharma@nometria.com</b> in your own mail app — nothing is sent to any server from this page. For anything public, <a href="https://github.com/matrix-share/matrix/discussions" style="color:var(--accent)">GitHub Discussions</a> is faster.
       </p>
     </form>
 
@@ -125,7 +125,7 @@
     var message = document.getElementById('message').value.trim();
     var subject = '[Lifeline] ' + topic + ' — ' + name;
     var body = message + '\n\n— ' + name + ' (' + email + ')';
-    window.location.href = 'mailto:hello@lifeline.mesh'
+    window.location.href = 'mailto:archit.sharma@nometria.com'
       + '?subject=' + encodeURIComponent(subject)
       + '&body=' + encodeURIComponent(body);
     var note = document.getElementById('formNote');

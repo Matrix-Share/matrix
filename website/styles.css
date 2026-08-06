@@ -197,6 +197,24 @@ h2{font-size:clamp(30px,4.6vw,50px);line-height:1.06;letter-spacing:-.035em;font
 .stat .v{font-size:clamp(34px,5vw,52px);font-weight:740;letter-spacing:-.04em;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1}
 .stat .k{color:var(--muted);font-size:13.5px;margin-top:8px}
 
+/* ---- Comparison table ---- */
+.compare-wrap{margin-top:48px;overflow-x:auto;-webkit-overflow-scrolling:touch;border:.5px solid var(--hairline);border-radius:var(--r-3);box-shadow:var(--e-1)}
+table.compare{border-collapse:collapse;width:100%;min-width:720px;background:var(--elevated);font-size:14.5px}
+table.compare th,table.compare td{padding:14px 16px;text-align:center;border-bottom:.5px solid var(--hairline)}
+table.compare thead th{position:sticky;top:0;background:var(--surface);font-size:13px;font-weight:640;letter-spacing:-.01em;white-space:nowrap}
+table.compare tbody th{text-align:left;font-weight:540;color:var(--ink-2);white-space:nowrap}
+table.compare th:first-child,table.compare td:first-child{position:sticky;left:0;background:var(--elevated);text-align:left;z-index:1}
+table.compare thead th:first-child{background:var(--surface);z-index:2}
+table.compare .us{background:var(--accent-weak)}
+table.compare thead .us{background:color-mix(in srgb,var(--accent) 20%,var(--surface));color:var(--accent);font-weight:720}
+table.compare tbody tr:last-child td,table.compare tbody tr:last-child th{border-bottom:none}
+.yes{color:var(--safe);font-weight:700}
+.no{color:var(--faint)}
+.part{color:var(--warn);font-weight:640}
+.cmp-legend{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:18px;color:var(--muted);font-size:13px}
+.cmp-legend span{display:inline-flex;align-items:center;gap:7px}
+.cmp-note{color:var(--faint);font-size:12.5px;text-align:center;margin-top:14px;max-width:70ch;margin-left:auto;margin-right:auto;line-height:1.5}
+
 /* ---- CTA ---- */
 .cta-band{position:relative;overflow:hidden}
 .cta-card{position:relative;border-radius:var(--r-4);padding:64px 32px;text-align:center;overflow:hidden;
