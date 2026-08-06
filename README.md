@@ -130,6 +130,8 @@ The GUI also exposes a **"Run network self-test"** button that executes the
 | [`STATUS.md`](STATUS.md) | Requirement-by-requirement (`FR-*`) implementation status. |
 | [`GAPS.md`](GAPS.md) | Design-doc gap analysis + research-paper "what-to-improve" agenda. |
 | [`INTEROP.md`](INTEROP.md) | How each listed OSS project migrates onto our seams (Reticulum, ggwave, BP7, Automerge, …). |
+| [`ROADMAP.md`](ROADMAP.md) | **Where the project is headed** — the big rocks (making the offline promise real, hardening, growth), grouped from the issue tracker. |
+| [`docs/launch/`](docs/launch/) | **Launch playbook** — how we're taking Lifeline public: Show HN / Reddit drafts, awesome-list targets, the demo storyboard, and the run-of-show. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`SECURITY.md`](SECURITY.md) · [`MAINTAINERS.md`](MAINTAINERS.md) | How to contribute; how to report vulnerabilities; who maintains the project. |
 | [`docs/RELEASE-READINESS.md`](docs/RELEASE-READINESS.md) | **Is it ready to use?** An honest cross-check of what works, what doesn't, and what "alpha" means here. Read before relying on it. |
 | [`docs/SSDLC.md`](docs/SSDLC.md) | **Secure development lifecycle** — how security is built into the process: SAST (Semgrep/CodeQL), supply-chain (cargo-audit/deny, npm audit, Dependabot), secret scanning, DAST (OWASP ZAP), and OpenSSF Scorecard, all with open-source tools. |
