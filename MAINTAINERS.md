@@ -8,7 +8,7 @@ and cutting releases of Project Lifeline. It is the canonical list referenced by
 
 | Name | GitHub | Areas |
 |---|---|---|
-| Project Lifeline maintainers | [@nometria](https://github.com/nometria) | Everything — core protocol, crypto, transport, apps |
+| Project Lifeline maintainers | [@matrix-share](https://github.com/matrix-share) | Everything — core protocol, crypto, transport, apps |
 
 > This is an early-stage project. As contributors take ownership of areas, add
 > them here with the subsystems they steward (e.g. `crates/core` crypto,
@@ -32,6 +32,6 @@ the threat-model impact in the PR.
 
 ## Reaching us
 
-- **General questions / ideas:** open a [GitHub Discussion](https://github.com/nometria/project-lifeline/discussions).
-- **Bugs:** open a [GitHub Issue](https://github.com/nometria/project-lifeline/issues) (not for security — see below).
+- **General questions / ideas:** open a [GitHub Discussion](https://github.com/matrix-share/matrix/discussions).
+- **Bugs:** open a [GitHub Issue](https://github.com/matrix-share/matrix/issues) (not for security — see below).
 - **Security vulnerabilities:** use private reporting per [`SECURITY.md`](SECURITY.md).

@@ -8,7 +8,7 @@
 //! It is pure math with no I/O and (besides `serde` for the wire types) no
 //! dependencies — the foundation the router/engine build geo-routing and geocast
 //! on, and which the differential-time-sync anchors reference. See
-//! [`docs/geo-and-differential.md`](https://github.com/nometria/project-lifeline/blob/main/docs/geo-and-differential.md).
+//! [`docs/geo-and-differential.md`](https://github.com/matrix-share/matrix/blob/main/docs/geo-and-differential.md).
 //!
 //! **Geohash** encodes a latitude/longitude into a short base-32 string whose
 //! *prefix* is a hierarchical cell: every point sharing a prefix is inside the

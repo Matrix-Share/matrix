@@ -19,7 +19,7 @@
 //! (BlueZ / CoreBluetooth / WinRT), or CoreBluetooth / Android BLE on phones via
 //! the mobile app. Those backends are inherently hardware-bound and live behind a
 //! feature; everything in this file is pure logic and is unit-tested against an
-//! in-memory GATT fabric. See [`docs/ble-transport.md`](https://github.com/nometria/project-lifeline/blob/main/docs/ble-transport.md).
+//! in-memory GATT fabric. See [`docs/ble-transport.md`](https://github.com/matrix-share/matrix/blob/main/docs/ble-transport.md).
 
 use crate::channel::Outbound;
 use crate::interface::PeerId;

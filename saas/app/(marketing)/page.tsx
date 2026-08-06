@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { PLANS } from '@/lib/plans';
 
-const REPO = 'https://github.com/nometria/project-lifeline';
+const REPO = 'https://github.com/matrix-share/matrix';
 
 export default function Home() {
   return (

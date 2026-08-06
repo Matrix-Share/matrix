@@ -16,7 +16,7 @@
 //! > **Roadmap:** `NodeEngine` is still a large single type spanning many
 //! > concerns (groups, onion, custody, gateways, prekeys, content-fetch, ARQ,
 //! > attribution…). Decomposing it into per-concern services driven by `tick()`
-//! > is tracked in [`ARCHITECTURE.md`](https://github.com/nometria/project-lifeline/blob/main/ARCHITECTURE.md).
+//! > is tracked in [`ARCHITECTURE.md`](https://github.com/matrix-share/matrix/blob/main/ARCHITECTURE.md).
 
 pub mod engine;
 
