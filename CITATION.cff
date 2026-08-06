@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: "Lifeline: an offline, end-to-end-encrypted mesh messenger"
+message: "If you use Lifeline or its protocol in your research, please cite it."
+type: software
+authors:
+  - given-names: Archit
+    family-names: Sharma
+    email: archit.sharma@nometria.com
+repository-code: "https://github.com/matrix-share/matrix"
+url: "https://matrix-alpha-ashen.vercel.app"
+abstract: >-
+  Lifeline is an open-source, self-hostable, end-to-end-encrypted mesh messenger
+  that keeps people connected when the internet and cellular networks fail.
+  Phones relay messages device-to-device using delay-tolerant store-carry-forward,
+  with sealed-sender envelopes, forward secrecy, and cryptographic proof of
+  delivery, and opportunistically bridge queued messages to the internet the
+  moment any node regains connectivity.
+keywords:
+  - mesh networking
+  - delay-tolerant networking
+  - end-to-end encryption
+  - offline-first
+  - disaster response
+  - decentralized messaging
+license: Apache-2.0

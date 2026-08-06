@@ -383,6 +383,48 @@
   </div>
 </section>
 
+<!-- ===================== COMPARISON ===================== -->
+<section class="band" id="compare">
+  <div class="wrap">
+    <div class="center">
+      <span class="kicker" data-reveal><span class="dot"></span>How it compares</span>
+      <h2 class="section-head" data-reveal>Where Lifeline is different</h2>
+      <p class="sub" data-reveal>Other tools solve pieces of this. Lifeline is built to carry a message across people and gaps with no infrastructure at all — and bridge to the internet the moment it can.</p>
+    </div>
+    <div class="compare-wrap" data-reveal>
+      <table class="compare">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th class="us">Lifeline</th>
+            <th>Briar</th>
+            <th>bitchat</th>
+            <th>Meshtastic</th>
+            <th>Nostr</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th>Works with no internet or cell</th><td class="us"><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="no">No</span></td></tr>
+          <tr><th>Phone-to-phone, no extra hardware</th><td class="us"><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="no">Needs LoRa radio</span></td><td><span class="no">No</span></td></tr>
+          <tr><th>Carries messages across gaps (delay-tolerant)</th><td class="us"><span class="yes">Yes</span></td><td><span class="part">Limited</span></td><td><span class="part">Limited</span></td><td><span class="part">Limited</span></td><td><span class="no">No</span></td></tr>
+          <tr><th>End-to-end encrypted</th><td class="us"><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="part">Channel keys</span></td><td><span class="part">DMs only</span></td></tr>
+          <tr><th>No account or phone number</th><td class="us"><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td></tr>
+          <tr><th>Group messaging</th><td class="us"><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="part">Partial</span></td></tr>
+          <tr><th>SOS + live location</th><td class="us"><span class="yes">Yes</span></td><td><span class="no">No</span></td><td><span class="no">No</span></td><td><span class="yes">Yes</span></td><td><span class="no">No</span></td></tr>
+          <tr><th>Opportunistic internet bridge</th><td class="us"><span class="yes">Yes</span></td><td><span class="part">Via Tor</span></td><td><span class="part">Via Nostr</span></td><td><span class="yes">MQTT</span></td><td><span class="no">Is the internet</span></td></tr>
+          <tr><th>Open source</th><td class="us"><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cmp-legend" data-reveal>
+      <span><span class="yes">Yes</span> full support</span>
+      <span><span class="part">Limited</span> partial / conditional</span>
+      <span><span class="no">No</span> not supported</span>
+    </div>
+    <p class="cmp-note" data-reveal>Comparison reflects each project's typical capabilities as of 2026 and is meant to be fair rather than exhaustive; all of these are worthwhile open-source projects. Corrections welcome via <a href="https://github.com/matrix-share/matrix/issues" style="color:var(--accent)">an issue</a>.</p>
+  </div>
+</section>
+
 <!-- ===================== SECURITY ===================== -->
 <section class="band secband" id="security">
   <div class="wrap">
