@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Security &amp; Responsible Disclosure — Lifeline</title>
+<meta name="description" content="How Lifeline is secured, how we test it, and how to responsibly report a vulnerability.">
+<meta name="theme-color" content="#6366f1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='1' stop-color='%23a855f7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="in">
+    <a class="logo" href="/"><span class="mk"></span>Lifeline</a>
+    <nav class="links">
+      <a class="hidesm" href="index.html#capabilities">Capabilities</a>
+      <a class="hidesm" href="index.html#security">Security</a>
+      <a class="hidesm" href="contact.html">Contact</a>
+      <button class="iconbtn" aria-label="Toggle theme" onclick="toggleTheme()" title="Toggle light / dark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v2m0 14v2m9-9h-2M5 12H3m14.5 6.5-1.4-1.4M7 7 5.6 5.6m12.8 0L17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg>
+      </button>
+      <a class="btn btn-primary sm cta" href="https://github.com/matrix-share/matrix">GitHub</a>
+    </nav>
+    <button class="iconbtn navtoggle" aria-label="Menu" onclick="location.href='/'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="doc">
+  <a class="backlink" href="/">← Back to home</a>
+  <h1>Security &amp; Responsible Disclosure</h1>
+  <div class="updated">Last updated: 6 August 2026</div>
+  <p class="lead">Security is the whole point of Lifeline. Our threat model assumes hostile networks, seized infrastructure, and adversaries who control the very devices in between. This page describes how the software is protected and how to report a problem if you find one.</p>
+
+  <h2>How Lifeline is protected</h2>
+  <ul>
+    <li><b>End-to-end encryption</b> using modern public-key cryptography, so only the intended recipient can read a message.</li>
+    <li><b>Forward secrecy</b> via rotating keys, so compromising a device today does not unlock its past messages.</li>
+    <li><b>Sealed envelopes</b> that hide the sender and recipient from relays, which only see opaque ciphertext.</li>
+    <li><b>Memory-safe core</b> written in Rust, dramatically reducing entire classes of vulnerabilities.</li>
+    <li><b>Panic wipe</b> to destroy all keys and data on a device instantly under duress.</li>
+  </ul>
+
+  <h2>How we test it</h2>
+  <p>Lifeline follows a secure software development lifecycle. Every change is checked by an automated pipeline that includes:</p>
+  <ul>
+    <li>Static application security testing (SAST) and linting on the Rust codebase.</li>
+    <li>Continuous fuzz testing of parsers and protocol code to surface edge-case crashes.</li>
+    <li>Dependency and supply-chain scanning for known-vulnerable components.</li>
+    <li>An <a class="link" href="https://github.com/matrix-share/matrix">OpenSSF Scorecard</a> assessing the project's security posture.</li>
+  </ul>
+  <p>Because the entire codebase is open source, anyone can independently audit the cryptography and protocol rather than taking our word for it.</p>
+
+  <h2>Reporting a vulnerability</h2>
+  <div class="card-note">
+    <b>Please report security issues privately first.</b> If you believe you have found a security vulnerability, do not open a public issue. Instead, use GitHub's private security advisory feature on the repository, or reach us through the <a class="link" href="contact.html">contact page</a> marking your message as a security report. We will acknowledge your report, work with you to understand and resolve it, and credit you if you wish once a fix is available.
+  </div>
+
+  <h2>Our commitment</h2>
+  <ul>
+    <li>We will investigate all credible reports and keep you informed of progress.</li>
+    <li>We will not pursue legal action against good-faith researchers who follow responsible disclosure and avoid privacy violations, data destruction, or service disruption.</li>
+    <li>We will publish advisories for confirmed vulnerabilities once a fix is available, so the community can update.</li>
+  </ul>
+
+  <h2>Scope</h2>
+  <p>The Lifeline application, the protocol implementation, and supporting libraries in the project repository are in scope. Third-party platforms, app stores, and infrastructure not operated by the project are out of scope. Please act in good faith, only test against devices and data you own, and never disrupt other participants in the mesh.</p>
+
+  <p style="margin-top:36px"><a class="backlink" href="/">← Back to home</a></p>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-bottom" style="margin-top:0;border-top:none">
+      <span>© 2026 Lifeline. Released under an open-source license.</span>
+      <span><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="security.html">Security</a> · <a href="contact.html">Contact</a></span>
+    </div>
+  </div>
+</footer>
+
+<script src="app.js" defer></script>
+</body>
+</html>
