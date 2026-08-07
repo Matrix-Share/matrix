@@ -155,6 +155,7 @@
       ctx.lineWidth = 1;
       edges.forEach(function (e) {
         var a = nodes[e.a], b = nodes[e.b];
+        if (!a || !b) return;
         var alpha = (1 - e.d / e.max) * (dark ? 0.28 : 0.20);
         ctx.strokeStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + alpha + ')';
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
