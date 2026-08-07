@@ -18,9 +18,9 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   const { orgId, plan } = parsed.data;
 
-  const org = orgs.byId(orgId);
+  const org = await orgs.byId(orgId);
   if (!org) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
-  const m = memberships.get(orgId, user.id);
+  const m = await memberships.get(orgId, user.id);
   if (!m || m.role === 'member') return NextResponse.json({ error: 'Only an owner or admin can manage billing.' }, { status: 403 });
   if (org.plan === plan) return NextResponse.json({ error: `You're already on ${plan}.` }, { status: 409 });
 
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     const { url } = await createSubscriptionCheckout({
       organizationId: orgId,
       priceId,
-      quantity: seatCount(orgId),
+      quantity: await seatCount(orgId),
       customerId: org.stripe_customer_id,
       customerEmail: user.email,
       successUrl: appUrl(`/billing?org=${orgId}&success=1`),

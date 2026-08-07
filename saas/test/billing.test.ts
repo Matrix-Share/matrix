@@ -3,12 +3,12 @@ import type Stripe from 'stripe';
 import { users, orgs, memberships, uid } from '@/lib/db';
 import { syncOrgSubscription, seatCount } from '@/lib/billing';
 
-function makeOrg(): string {
+async function makeOrg(): Promise<string> {
   const uidUser = uid();
-  users.create({ id: uidUser, email: `${uid()}@t.co`, name: 'T', role: 'user', password_hash: 'x:y' });
+  await users.create({ id: uidUser, email: `${uid()}@t.co`, name: 'T', role: 'user', password_hash: 'x:y' });
   const id = uid();
-  orgs.create({ id, name: 'Acme', slug: `acme-${id.slice(0, 6)}`, owner_id: uidUser });
-  memberships.create(id, uidUser, 'owner');
+  await orgs.create({ id, name: 'Acme', slug: `acme-${id.slice(0, 6)}`, owner_id: uidUser });
+  await memberships.create(id, uidUser, 'owner');
   return id;
 }
 
@@ -25,12 +25,12 @@ function fakeSub(orgId: string, over: Record<string, unknown> = {}, item: Record
 
 describe('syncOrgSubscription', () => {
   let orgId: string;
-  beforeEach(() => { orgId = makeOrg(); });
+  beforeEach(async () => { orgId = await makeOrg(); });
 
-  it('activates a Pro subscription and mirrors seats, status, period end, ids', () => {
-    const plan = syncOrgSubscription(fakeSub(orgId, {}, { quantity: 4 }));
+  it('activates a Pro subscription and mirrors seats, status, period end, ids', async () => {
+    const plan = await syncOrgSubscription(fakeSub(orgId, {}, { quantity: 4 }));
     expect(plan).toBe('pro');
-    const o = orgs.byId(orgId)!;
+    const o = (await orgs.byId(orgId))!;
     expect(o.plan).toBe('pro');
     expect(o.plan_status).toBe('active');
     expect(o.plan_seats).toBe(4);
@@ -39,60 +39,60 @@ describe('syncOrgSubscription', () => {
     expect(o.stripe_sub_id).toBe('sub_123');
   });
 
-  it('maps the Team price id to the team plan', () => {
-    const plan = syncOrgSubscription(fakeSub(orgId, {}, { price: { id: 'price_team_test' } }));
+  it('maps the Team price id to the team plan', async () => {
+    const plan = await syncOrgSubscription(fakeSub(orgId, {}, { price: { id: 'price_team_test' } }));
     expect(plan).toBe('team');
-    expect(orgs.byId(orgId)!.plan).toBe('team');
+    expect((await orgs.byId(orgId))!.plan).toBe('team');
   });
 
-  it('keeps a paid plan for trialing and past_due', () => {
-    expect(syncOrgSubscription(fakeSub(orgId, { status: 'trialing' }))).toBe('pro');
-    expect(orgs.byId(orgId)!.plan).toBe('pro');
-    expect(syncOrgSubscription(fakeSub(orgId, { status: 'past_due' }))).toBe('pro');
-    expect(orgs.byId(orgId)!.plan).toBe('pro');
+  it('keeps a paid plan for trialing and past_due', async () => {
+    expect(await syncOrgSubscription(fakeSub(orgId, { status: 'trialing' }))).toBe('pro');
+    expect((await orgs.byId(orgId))!.plan).toBe('pro');
+    expect(await syncOrgSubscription(fakeSub(orgId, { status: 'past_due' }))).toBe('pro');
+    expect((await orgs.byId(orgId))!.plan).toBe('pro');
   });
 
-  it('drops to free when the subscription is canceled or incomplete', () => {
-    syncOrgSubscription(fakeSub(orgId)); // pro first
-    const plan = syncOrgSubscription(fakeSub(orgId, { status: 'canceled' }));
+  it('drops to free when the subscription is canceled or incomplete', async () => {
+    await syncOrgSubscription(fakeSub(orgId)); // pro first
+    const plan = await syncOrgSubscription(fakeSub(orgId, { status: 'canceled' }));
     expect(plan).toBe('free');
-    const o = orgs.byId(orgId)!;
+    const o = (await orgs.byId(orgId))!;
     expect(o.plan).toBe('free');
     expect(o.plan_status).toBe('canceled');
   });
 
-  it('reads current_period_end from the item, falling back to the top level', () => {
+  it('reads current_period_end from the item, falling back to the top level', async () => {
     // Newer API: value on the item.
-    syncOrgSubscription(fakeSub(orgId, {}, { current_period_end: 1_950_000_000 }));
-    expect(orgs.byId(orgId)!.current_period_end).toBe(1_950_000_000);
+    await syncOrgSubscription(fakeSub(orgId, {}, { current_period_end: 1_950_000_000 }));
+    expect((await orgs.byId(orgId))!.current_period_end).toBe(1_950_000_000);
     // Older API: item has none, top-level does.
-    syncOrgSubscription(fakeSub(orgId, { current_period_end: 1_800_000_000 }, { current_period_end: undefined }));
-    expect(orgs.byId(orgId)!.current_period_end).toBe(1_800_000_000);
+    await syncOrgSubscription(fakeSub(orgId, { current_period_end: 1_800_000_000 }, { current_period_end: undefined }));
+    expect((await orgs.byId(orgId))!.current_period_end).toBe(1_800_000_000);
   });
 
-  it('accepts a customer object (not just an id string)', () => {
-    syncOrgSubscription(fakeSub(orgId, { customer: { id: 'cus_obj' } }));
-    expect(orgs.byId(orgId)!.stripe_customer_id).toBe('cus_obj');
+  it('accepts a customer object (not just an id string)', async () => {
+    await syncOrgSubscription(fakeSub(orgId, { customer: { id: 'cus_obj' } }));
+    expect((await orgs.byId(orgId))!.stripe_customer_id).toBe('cus_obj');
   });
 
-  it('is a no-op (returns null) when the subscription has no org metadata', () => {
-    const plan = syncOrgSubscription(fakeSub(orgId, { metadata: {} }));
+  it('is a no-op (returns null) when the subscription has no org metadata', async () => {
+    const plan = await syncOrgSubscription(fakeSub(orgId, { metadata: {} }));
     expect(plan).toBeNull();
-    expect(orgs.byId(orgId)!.plan).toBe('free'); // untouched
+    expect((await orgs.byId(orgId))!.plan).toBe('free'); // untouched
   });
 
-  it('is a no-op when the org does not exist', () => {
-    expect(syncOrgSubscription(fakeSub('does-not-exist'))).toBeNull();
+  it('is a no-op when the org does not exist', async () => {
+    expect(await syncOrgSubscription(fakeSub('does-not-exist'))).toBeNull();
   });
 });
 
 describe('seatCount', () => {
-  it('counts members, with a floor of 1', () => {
-    const orgId = makeOrg(); // creates 1 owner membership
-    expect(seatCount(orgId)).toBe(1);
+  it('counts members, with a floor of 1', async () => {
+    const orgId = await makeOrg(); // creates 1 owner membership
+    expect(await seatCount(orgId)).toBe(1);
     const u2 = uid();
-    users.create({ id: u2, email: `${u2}@t.co`, name: 'B', role: 'user', password_hash: 'x:y' });
-    memberships.create(orgId, u2, 'member');
-    expect(seatCount(orgId)).toBe(2);
+    await users.create({ id: u2, email: `${u2}@t.co`, name: 'B', role: 'user', password_hash: 'x:y' });
+    await memberships.create(orgId, u2, 'member');
+    expect(await seatCount(orgId)).toBe(2);
   });
 });

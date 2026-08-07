@@ -11,9 +11,9 @@ export const metadata = { title: 'Team' };
 
 export default async function Team({ searchParams }: { searchParams: Promise<{ org?: string }> }) {
   const user = await requireUser();
-  const myOrgs = orgs.forUser(user.id);
+  const myOrgs = await orgs.forUser(user.id);
   const { org: orgParam } = await searchParams;
-  const current = (orgParam && orgs.byId(orgParam)) || myOrgs[0];
+  const current = (orgParam && (await orgs.byId(orgParam))) || myOrgs[0];
 
   if (!current) {
     return (
@@ -30,9 +30,9 @@ export default async function Team({ searchParams }: { searchParams: Promise<{ o
     );
   }
 
-  const members = memberships.forOrg(current.id);
-  const pending = invites.forOrg(current.id);
-  const me = memberships.get(current.id, user.id);
+  const members = await memberships.forOrg(current.id);
+  const pending = await invites.forOrg(current.id);
+  const me = await memberships.get(current.id, user.id);
   const canManage = me?.role === 'owner' || me?.role === 'admin';
 
   return (

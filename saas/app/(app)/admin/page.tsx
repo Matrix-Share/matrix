@@ -7,8 +7,8 @@ export const metadata = { title: 'Admin' };
 
 export default async function Admin() {
   await requireAdmin();
-  const allUsers = users.all();
-  const allOrgs = orgs.all();
+  const allUsers = await users.all();
+  const allOrgs = await orgs.all();
 
   return (
     <>

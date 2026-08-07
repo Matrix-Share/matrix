@@ -7,9 +7,9 @@ export const metadata = { title: 'Dashboard' };
 
 export default async function Dashboard() {
   const user = await requireUser();
-  const myOrgs = orgs.forUser(user.id);
+  const myOrgs = await orgs.forUser(user.id);
   const primary = myOrgs[0];
-  const members = primary ? memberships.forOrg(primary.id).length : 0;
+  const members = primary ? (await memberships.forOrg(primary.id)).length : 0;
   const plan = planById(primary?.plan ?? 'free');
   // The messenger runs on the user's own node. Default to a local node; a
   // deployment can point this at a hosted address via NEXT_PUBLIC_NODE_URL.
