@@ -27,7 +27,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
 export async function createSession(userId: string): Promise<void> {
   const token = randomBytes(32).toString('hex');
   const expires = now() + SESSION_MS;
-  sessions.create(token, userId, expires);
+  await sessions.create(token, userId, expires);
   const jar = await cookies();
   jar.set(COOKIE, token, {
     httpOnly: true,
@@ -41,7 +41,7 @@ export async function createSession(userId: string): Promise<void> {
 export async function destroySession(): Promise<void> {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
-  if (token) sessions.remove(token);
+  if (token) await sessions.remove(token);
   jar.delete(COOKIE);
 }
 
@@ -49,13 +49,13 @@ export async function getCurrentUser(): Promise<User | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
-  const s = sessions.get(token);
+  const s = await sessions.get(token);
   if (!s) return null;
   if (s.expires_at < now()) {
-    sessions.remove(token);
+    await sessions.remove(token);
     return null;
   }
-  return users.byId(s.user_id) ?? null;
+  return (await users.byId(s.user_id)) ?? null;
 }
 
 /** Use in protected server components — redirects to /login when signed out. */

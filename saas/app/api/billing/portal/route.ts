@@ -16,9 +16,9 @@ export async function POST(req: Request) {
   const parsed = z.object({ orgId: z.string().min(1) }).safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
 
-  const org = orgs.byId(parsed.data.orgId);
+  const org = await orgs.byId(parsed.data.orgId);
   if (!org?.stripe_customer_id) return NextResponse.json({ error: 'No active subscription.' }, { status: 404 });
-  const m = memberships.get(org.id, user.id);
+  const m = await memberships.get(org.id, user.id);
   if (!m || m.role === 'member') return NextResponse.json({ error: 'Only an owner or admin can manage billing.' }, { status: 403 });
 
   try {

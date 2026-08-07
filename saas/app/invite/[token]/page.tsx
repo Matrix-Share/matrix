@@ -5,9 +5,9 @@ import { acceptInvite } from '@/lib/actions';
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const inv = invites.get(token);
+  const inv = await invites.get(token);
   const valid = inv && inv.expires_at > now();
-  const org = inv ? orgs.byId(inv.org_id) : null;
+  const org = inv ? await orgs.byId(inv.org_id) : null;
   const user = await getCurrentUser();
 
   return (

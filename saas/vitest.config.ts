@@ -14,7 +14,10 @@ export default defineConfig({
     environment: 'node',
     include: ['test/**/*.test.ts'],
     env: {
-      DATABASE_FILE: ':memory:',
+      // db.ts now targets Neon Postgres and throws at import if this is unset.
+      // A dummy value lets db-free tests (e.g. password hashing) import cleanly;
+      // tests that actually query need a real Neon DATABASE_URL in the env.
+      DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://user:pass@localhost/db',
       STRIPE_PRICE_PRO: 'price_pro_test',
       STRIPE_PRICE_TEAM: 'price_team_test',
       STRIPE_SECRET_KEY: 'sk_test_dummy',

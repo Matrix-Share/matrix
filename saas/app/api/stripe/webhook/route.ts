@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted':
-        syncOrgSubscription(event.data.object as Stripe.Subscription);
+        await syncOrgSubscription(event.data.object as Stripe.Subscription);
         break;
     }
   } catch (err) {

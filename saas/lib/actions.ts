@@ -32,18 +32,18 @@ export async function signup(_: State, form: FormData): Promise<State> {
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { name, email, password } = parsed.data;
 
-  if (users.byEmail(email)) return { error: 'An account with that email already exists.' };
+  if (await users.byEmail(email)) return { error: 'An account with that email already exists.' };
 
   const id = uid();
-  const role = users.count() === 0 ? 'admin' : 'user'; // first user bootstraps admin
-  users.create({ id, email, name, role, password_hash: await hashPassword(password) });
+  const role = (await users.count()) === 0 ? 'admin' : 'user'; // first user bootstraps admin
+  await users.create({ id, email, name, role, password_hash: await hashPassword(password) });
 
   // Personal organization so billing/teams have a home from day one.
   const org: Pick<Org, 'id' | 'name' | 'slug' | 'owner_id'> = {
     id: uid(), name: `${name}'s workspace`, slug: slugify(name), owner_id: id,
   };
-  orgs.create(org);
-  memberships.create(org.id, id, 'owner');
+  await orgs.create(org);
+  await memberships.create(org.id, id, 'owner');
 
   await createSession(id);
   redirect('/dashboard');
@@ -55,7 +55,7 @@ export async function login(_: State, form: FormData): Promise<State> {
     .safeParse({ email: form.get('email'), password: form.get('password') });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const user = users.byEmail(parsed.data.email);
+  const user = await users.byEmail(parsed.data.email);
   if (!user || !(await verifyPassword(parsed.data.password, user.password_hash))) {
     return { error: 'Incorrect email or password.' };
   }
@@ -72,10 +72,10 @@ export async function requestReset(_: State, form: FormData): Promise<State> {
   const parsed = emailZ.safeParse(form.get('email'));
   // Always report success — never reveal whether an email is registered.
   if (parsed.success) {
-    const user = users.byEmail(parsed.data);
+    const user = await users.byEmail(parsed.data);
     if (user) {
       const token = randomBytes(24).toString('hex');
-      resets.create(token, user.id, now() + 60 * 60 * 1000); // 1h
+      await resets.create(token, user.id, now() + 60 * 60 * 1000); // 1h
       await sendEmail(user.email, 'Reset your Lifeline password',
         `Reset your password: ${appUrl(`/reset?token=${token}`)}\n\nThis link expires in one hour.`);
     }
@@ -87,11 +87,11 @@ export async function resetPassword(_: State, form: FormData): Promise<State> {
   const token = String(form.get('token') || '');
   const parsed = passZ.safeParse(form.get('password'));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const rec = resets.get(token);
+  const rec = await resets.get(token);
   if (!rec || rec.expires_at < now()) return { error: 'This reset link is invalid or has expired.' };
-  users.update(rec.user_id, { password_hash: await hashPassword(parsed.data) });
-  resets.remove(token);
-  sessions.removeForUser(rec.user_id); // sign out everywhere
+  await users.update(rec.user_id, { password_hash: await hashPassword(parsed.data) });
+  await resets.remove(token);
+  await sessions.removeForUser(rec.user_id); // sign out everywhere
   redirect('/login?reset=1');
 }
 
@@ -102,9 +102,9 @@ export async function updateProfile(_: State, form: FormData): Promise<State> {
   const parsed = z.object({ name: z.string().min(1, 'Enter your name'), email: emailZ })
     .safeParse({ name: form.get('name'), email: form.get('email') });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const existing = users.byEmail(parsed.data.email);
+  const existing = await users.byEmail(parsed.data.email);
   if (existing && existing.id !== user.id) return { error: 'That email is already in use.' };
-  users.update(user.id, parsed.data);
+  await users.update(user.id, parsed.data);
   revalidatePath('/settings');
   return { ok: 'Profile updated.' };
 }
@@ -115,15 +115,15 @@ export async function changePassword(_: State, form: FormData): Promise<State> {
   const parsed = passZ.safeParse(form.get('password'));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   if (!(await verifyPassword(current, user.password_hash))) return { error: 'Current password is incorrect.' };
-  users.update(user.id, { password_hash: await hashPassword(parsed.data) });
+  await users.update(user.id, { password_hash: await hashPassword(parsed.data) });
   return { ok: 'Password changed.' };
 }
 
 export async function deleteAccount(): Promise<void> {
   const user = await getCurrentUser();
   if (user) {
-    sessions.removeForUser(user.id);
-    users.remove(user.id);
+    await sessions.removeForUser(user.id);
+    await users.remove(user.id);
     await destroySession();
   }
   redirect('/');
@@ -136,14 +136,14 @@ export async function createOrg(_: State, form: FormData): Promise<State> {
   const name = String(form.get('name') || '').trim();
   if (!name) return { error: 'Enter an organization name.' };
   const id = uid();
-  orgs.create({ id, name, slug: slugify(name), owner_id: user.id });
-  memberships.create(id, user.id, 'owner');
+  await orgs.create({ id, name, slug: slugify(name), owner_id: user.id });
+  await memberships.create(id, user.id, 'owner');
   redirect(`/team?org=${id}`);
 }
 
 async function assertOrgAdmin(orgId: string) {
   const user = await requireUser();
-  const m = memberships.get(orgId, user.id);
+  const m = await memberships.get(orgId, user.id);
   if (!m || (m.role !== 'owner' && m.role !== 'admin')) redirect('/team');
   return user;
 }
@@ -158,16 +158,16 @@ export async function inviteMember(_: State, form: FormData): Promise<State> {
 
   // Don't invite someone who's already in the workspace, or send a second
   // invite to an address that already has one pending.
-  const existing = users.byEmail(email);
-  if (existing && memberships.get(orgId, existing.id)) {
+  const existing = await users.byEmail(email);
+  if (existing && (await memberships.get(orgId, existing.id))) {
     return { error: 'That person is already a member of this workspace.' };
   }
-  if (invites.forOrg(orgId).some((i) => i.email.toLowerCase() === email)) {
+  if ((await invites.forOrg(orgId)).some((i) => i.email.toLowerCase() === email)) {
     return { error: 'An invite is already pending for that email.' };
   }
 
   const token = randomBytes(20).toString('hex');
-  invites.create({ token, org_id: orgId, email, role: parsed.data.role, expires_at: now() + 7 * 864e5, created_at: now() });
+  await invites.create({ token, org_id: orgId, email, role: parsed.data.role, expires_at: now() + 7 * 864e5, created_at: now() });
   await sendEmail(parsed.data.email, 'You’re invited to a Lifeline workspace',
     `Join the workspace: ${appUrl(`/invite/${token}`)}\n\nThis invite expires in 7 days.`);
   revalidatePath('/team');
@@ -176,18 +176,18 @@ export async function inviteMember(_: State, form: FormData): Promise<State> {
 
 export async function acceptInvite(token: string): Promise<void> {
   const user = await requireUser();
-  const inv = invites.get(token);
+  const inv = await invites.get(token);
   if (!inv || inv.expires_at < now()) redirect('/dashboard');
-  memberships.create(inv!.org_id, user.id, inv!.role);
-  invites.remove(token);
+  await memberships.create(inv!.org_id, user.id, inv!.role);
+  await invites.remove(token);
   redirect(`/team?org=${inv!.org_id}`);
 }
 
 export async function removeMember(orgId: string, userId: string): Promise<void> {
   await assertOrgAdmin(orgId);
-  const org = orgs.byId(orgId);
+  const org = await orgs.byId(orgId);
   if (org && org.owner_id === userId) return; // never remove the owner
-  memberships.remove(orgId, userId);
+  await memberships.remove(orgId, userId);
   revalidatePath('/team');
 }
 

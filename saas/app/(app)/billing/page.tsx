@@ -9,14 +9,14 @@ export const metadata = { title: 'Billing' };
 
 export default async function Billing({ searchParams }: { searchParams: Promise<{ org?: string; success?: string }> }) {
   const user = await requireUser();
-  const myOrgs = orgs.forUser(user.id);
+  const myOrgs = await orgs.forUser(user.id);
   const sp = await searchParams;
-  const current = (sp.org && orgs.byId(sp.org)) || myOrgs[0];
+  const current = (sp.org && (await orgs.byId(sp.org))) || myOrgs[0];
   if (!current) return <p className="muted">Create a workspace first.</p>;
-  const me = memberships.get(current.id, user.id);
+  const me = await memberships.get(current.id, user.id);
   const canManage = me?.role === 'owner' || me?.role === 'admin';
   const plan = planById(current.plan);
-  const seats = memberships.countForOrg(current.id);
+  const seats = await memberships.countForOrg(current.id);
   const renews = current.current_period_end ? new Date(current.current_period_end * 1000).toLocaleDateString() : null;
 
   return (
