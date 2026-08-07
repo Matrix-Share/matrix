@@ -16,7 +16,23 @@
     var next = isDark ? 'light' : 'dark';
     el.setAttribute('data-theme', next);
     try { localStorage.setItem('ll-theme', next); } catch (e) {}
+    syncTheme();
   };
+  function isDarkNow() {
+    var t = document.documentElement.getAttribute('data-theme');
+    return t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  // Reflect current theme in the toggle (show the mode you'd switch TO) and browser chrome.
+  function syncTheme() {
+    var dark = isDarkNow();
+    var btn = document.getElementById('themeBtn');
+    if (btn) {
+      btn.setAttribute('aria-pressed', dark ? 'true' : 'false');
+      btn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+      var sun = btn.querySelector('.ic-sun'), moon = btn.querySelector('.ic-moon');
+      if (sun && moon) { sun.style.display = dark ? '' : 'none'; moon.style.display = dark ? 'none' : ''; }
+    }
+  }
 
   /* ---- Mobile drawer ---- */
   window.toggleDrawer = function (open) {
@@ -31,7 +47,25 @@
     else document.addEventListener('DOMContentLoaded', fn);
   }
 
+  // Where the hosted app (login / dashboard) lives. Set after the SaaS is deployed.
+  var APP_URL = "__LIFELINE_APP_URL__";
+
   onReady(function () {
+    syncTheme();
+
+    /* Reveal above-the-fold content immediately — never leave the hero blank
+       waiting on IntersectionObserver (or a later script error). */
+    document.querySelectorAll('.hero [data-reveal]').forEach(function (el) { el.classList.add('in'); });
+
+    /* Wire the app entry points. Until the hosted app is deployed, fall back to
+       the run-it-yourself quickstart so the buttons are never dead links. */
+    var appReady = APP_URL && APP_URL.indexOf('__') !== 0;
+    var fallback = 'https://github.com/matrix-share/matrix#quickstart';
+    var appHref = appReady ? APP_URL : fallback;
+    var loginHref = appReady ? APP_URL.replace(/\/$/, '') + '/login' : fallback;
+    ['openAppBtn', 'openAppBtnM'].forEach(function (id) { var e = document.getElementById(id); if (e) e.href = appHref; });
+    ['loginBtn', 'loginBtnM'].forEach(function (id) { var e = document.getElementById(id); if (e) e.href = loginHref; });
+
     /* Scroll reveal */
     var items = document.querySelectorAll('[data-reveal]');
     if (reduce || !('IntersectionObserver' in window)) {
@@ -156,7 +190,7 @@
       edges.forEach(function (e) {
         var a = nodes[e.a], b = nodes[e.b];
         if (!a || !b) return;
-        var alpha = (1 - e.d / e.max) * (dark ? 0.28 : 0.20);
+        var alpha = (1 - e.d / e.max) * (dark ? 0.42 : 0.30);
         ctx.strokeStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + alpha + ')';
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
       });
