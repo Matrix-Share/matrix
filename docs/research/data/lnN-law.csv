@@ -1,0 +1,10 @@
+# Measurement 1: single-agent (non-transferable) over-spend, a=1, d=1, 400 trials, seed=42.
+# Theory (Thm. mean-field): E[N_win] = sum_{j} a/(a+d*j) ~ (a/d) ln N, so ratio -> a/d = 1.
+N,E_Nwin,lnN,ratio
+100,5.13,4.61,1.113
+300,6.26,5.70,1.098
+1000,7.65,6.91,1.107
+3000,8.57,8.01,1.071
+10000,10.03,9.21,1.089
+30000,10.86,10.31,1.053
+100000,12.60,11.51,1.094
