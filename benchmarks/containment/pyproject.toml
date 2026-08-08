@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "containment-bench"
+version = "0.0.1"
+description = "Benchmark for containment/mitigation policies on chase-escape (competing-diffusion) processes"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Archit Sharma", email = "archit.sharma@nometria.com" }]
+dependencies = ["numpy>=1.23"]
+
+[project.optional-dependencies]
+rl = ["gymnasium>=0.29"]      # RL track; torch is optional on top of this
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["containment_bench*"]
