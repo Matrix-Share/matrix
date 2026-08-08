@@ -44,7 +44,14 @@ against the Rust reference* (must reproduce ρ\*≈0.49 and the ln N ratio ≈1.
   optional. RL keeps torch **optional** — ship a numpy REINFORCE/CEM baseline so nothing
   hard-depends on torch (torch wheels for py3.13 are fragile). If torch installs cleanly,
   add a PPO baseline as a bonus.
-- **Status:** [ ] not started
+- **Status:** [x] **DONE + validated.** `benchmarks/containment/` package built:
+  `dynamics.py`, `topologies.py` (lattice + RGG + random-waypoint), `metrics.py`, `env.py`
+  (`ContainmentEnv`), `validate.py`. `python -m containment_bench.validate` **passes**:
+  ln N ratio 1.085 (Rust 1.09); lattice transition contained@0.30 → 0.218@0.49 → runaway@0.70
+  (ρ\*≈0.49, matches Rust). README + pyproject added.
+  - **Track-B note:** `ContainmentEnv` runs but its default episode granularity is coarse
+    (one chunk can resolve an episode from the 1-red seed). Track B's first task: tune
+    `chunk`/`horizon` and seed a small initial red patch so the agent makes many decisions.
 
 ---
 
@@ -145,3 +152,4 @@ already verified working; reuse the theory paper's figure style).
 
 ## Status log (append dated one-liners as work lands)
 - (init) Plan written; toolchain probed (py3.13 + numpy; no torch/gym/scipy; pure-numpy env decided).
+- Shared foundation built + validated against the Rust reference (ln N ratio, ρ\*≈0.49). Tracks A/B/C now unblocked. Next: Track A (benchmark suite + baselines + D&B paper).
