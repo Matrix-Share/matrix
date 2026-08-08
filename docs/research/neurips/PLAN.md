@@ -79,7 +79,17 @@ baselines + a measured finding). Lowest effort, highest credibility-per-effort.*
     reference findings.
 - **Experiments to run:** baseline sweep across all tasks; the finite-size universality
   measurement on RGG/mobility (extends the lattice result to the "realistic mesh" open case).
-- **Effort:** low–medium (packaging + baselines + writing). **Status:** [ ] not started
+- **Effort:** low–medium (packaging + baselines + writing). **Status:** [x] **DRAFT DONE.**
+  Built `tasks.py`, `baselines.py`, `run_reference.py`, `run_benchmark.py`; ran both.
+  Reference: well-mixed runs away ∀ρ; **topology-dependent ρ\*** (lattice ≈0.47, RGG ≈0.78,
+  mobility <0.30 — mobility hardest, a NEW result beyond the lattice-only theory).
+  Leaderboard: best policy is topology-dependent; `reactive-front` Pareto-beats always-on;
+  **no baseline contains the mobility task** (headroom for Track B). Paper compiled:
+  `docs/research/neurips/dnb.tex` (2 pgfplots figures + leaderboard table). Results in
+  `benchmarks/containment/results/`.
+  - **TODO before submit:** reformat to the NeurIPS D&B `.sty` (currently generic article;
+    tectonic lacks the template); fix one long-path line overflow in §8; add a datasheet
+    appendix; optionally larger finite-size runs for tighter ρ\*.
 
 ---
 
@@ -153,3 +163,4 @@ already verified working; reuse the theory paper's figure style).
 ## Status log (append dated one-liners as work lands)
 - (init) Plan written; toolchain probed (py3.13 + numpy; no torch/gym/scipy; pure-numpy env decided).
 - Shared foundation built + validated against the Rust reference (ln N ratio, ρ\*≈0.49). Tracks A/B/C now unblocked. Next: Track A (benchmark suite + baselines + D&B paper).
+- Track A drafted: cross-topology reference findings (topology-dependent ρ\*, mobility hardest) + baseline leaderboard (reactive-front Pareto-best; mobility uncontained) + compiled D&B paper (dnb.tex). Next: Track B RL to beat the baselines, esp. on mobility.
