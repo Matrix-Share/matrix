@@ -2,10 +2,8 @@
 
 *Messaging that works when nothing else does.*
 
-This is the friendly version. If you want the math, the protocol details, and the
-formal analysis, read the [technical white paper](docs/whitepaper/) and the
-[research notes](docs/research/). This document is for everyone else — no
-cryptography background required.
+This is the friendly version, for everyone — no cryptography background required.
+(The formal protocol write-up and research notes are maintained separately.)
 
 > **Status:** Lifeline is **alpha** and **not yet independently security-audited.**
 > It works and you can try it today, but please don't bet your life on it yet.
@@ -200,8 +198,6 @@ usable by anyone.
 ## Learn more
 
 - **[Use cases](docs/USE-CASES.md)** — the real-world situations Lifeline is built for, each mapped to the feature that answers it.
-- **[Technical white paper](docs/whitepaper/)** — the formal protocol + analysis.
 - **[Architecture](ARCHITECTURE.md)** — how the code fits together.
-- **[Research](docs/research/)** — the deeper theory and simulations.
 - **[Security policy](SECURITY.md)** — threat model + how to report a vulnerability.
 - **[Source code](https://github.com/matrix-share/matrix)** — read every line.

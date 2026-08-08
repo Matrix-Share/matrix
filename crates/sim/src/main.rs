@@ -56,17 +56,6 @@ fn main() {
         return;
     }
 
-    // `cargo run -p lifeline-sim -- containment-scaling` emits the finite-size
-    // CSV used to locate rho* and fit the planar order-parameter exponent.
-    if std::env::args().nth(1).as_deref() == Some("containment-scaling") {
-        let trials: u32 = std::env::args()
-            .nth(2)
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(200);
-        print!("{}", lifeline_sim::containment::report_scaling(trials));
-        return;
-    }
-
     if std::env::args().nth(1).as_deref() == Some("bench") {
         banner("Comparative routing evaluation · 3-cluster partition + mule (seed 42, 700 ticks)");
         print!("{}", bench::format_table(&bench::run_comparison(42, 700)));

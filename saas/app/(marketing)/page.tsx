@@ -206,9 +206,7 @@ const SECURITY = [
 const DOCS = [
   { title: 'White paper (plain English)', body: 'What Lifeline is, who it’s for, and how it works — no jargon. Start here if you’re new.', href: `${REPO}/blob/main/WHITEPAPER.md` },
   { title: 'Use cases', body: 'The real-world situations Lifeline is built for — disasters, shutdowns, crowds, the backcountry, privacy — each mapped to the feature that answers it.', href: `${REPO}/blob/main/docs/USE-CASES.md` },
-  { title: 'Technical white paper', body: 'The formal protocol, the capability-egress model, and the offline over-spend containment analysis.', href: `${REPO}/tree/main/docs/whitepaper` },
   { title: 'Architecture', body: 'How the system fits together — layers, crates, message flow, and the extension seams. Start here to read the code.', href: `${REPO}/blob/main/ARCHITECTURE.md` },
-  { title: 'Research', body: 'The bearer-token containment paper + a measured simulation of when offline fraud is containable (chase-escape dynamics).', href: `${REPO}/tree/main/docs/research` },
   { title: 'Security policy', body: 'The threat model, what’s in scope, and how to report a vulnerability responsibly.', href: `${REPO}/blob/main/SECURITY.md` },
   { title: 'Design docs (PRD)', body: 'The original product spec and the network/spectrum/gateway design documents everything was built from.', href: `${REPO}/tree/main/docs` },
   { title: 'Source on GitHub', body: 'Clone it, run it, read every line. The full monorepo: Rust mesh, web app, mobile app, and this site.', href: REPO },

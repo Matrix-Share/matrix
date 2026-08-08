@@ -24,8 +24,7 @@ is the top priority.
 - **Geohash location channels** — join-by-place ([#69](https://github.com/matrix-share/matrix/issues/69))
 
 ## Growth — being findable and adoptable
-Tracked under [`area:growth`](https://github.com/matrix-share/matrix/labels/area%3Agrowth);
-the full plan lives in [`docs/launch/`](docs/launch/).
+Tracked under [`area:growth`](https://github.com/matrix-share/matrix/labels/area%3Agrowth).
 
 - **Record the demo** — the airplane-mode phone-to-phone proof ([#109](https://github.com/matrix-share/matrix/issues/109))
 - **Launch** — Show HN ([#110](https://github.com/matrix-share/matrix/issues/110)), Reddit ([#111](https://github.com/matrix-share/matrix/issues/111)), other channels ([#112](https://github.com/matrix-share/matrix/issues/112))

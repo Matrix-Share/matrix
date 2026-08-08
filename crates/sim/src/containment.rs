@@ -1,6 +1,6 @@
 //! **Offline over-spend containment — the make-or-break measurement.**
 //!
-//! A frozen research theory (see `docs/research/`) claims that when a bearer
+//! A research model (maintained separately) describes how, when a bearer
 //! token is double-spent offline and a revocation gossips to catch it, the total
 //! over-spend `N_win` either grows mildly (`~ (a/d) ln N`) or undergoes a sharp
 //! phase transition — depending on a modelling axis an independent review
@@ -224,52 +224,6 @@ pub fn mean_chase_escape_2d(l: usize, lr: f64, lb: f64, trials: u32, seed: u64) 
         sum += run_chase_escape_2d(l, lr, lb, &mut rng);
     }
     sum as f64 / trials as f64
-}
-
-/// Mean over-spent fraction AND runaway probability for the 2-D lattice
-/// chase-escape. The runaway probability (prey survives to occupy a macroscopic
-/// fraction of the grid) is the natural order parameter for the containment
-/// transition; a realization is "runaway" if it over-spends > 5% of the lattice.
-pub fn stats_chase_escape_2d(l: usize, lr: f64, lb: f64, trials: u32, seed: u64) -> (f64, f64) {
-    let n = (l * l) as f64;
-    let mut frac_sum = 0.0f64;
-    let mut runaway = 0u32;
-    for t in 0..trials {
-        let mut rng = StdRng::seed_from_u64(seed ^ ((l as u64) << 20) ^ (t as u64) ^ 0x5CA1E);
-        let w = run_chase_escape_2d(l, lr, lb, &mut rng) as f64;
-        frac_sum += w / n;
-        if w / n > 0.05 {
-            runaway += 1;
-        }
-    }
-    (frac_sum / trials as f64, runaway as f64 / trials as f64)
-}
-
-/// Finite-size scan across the 2-D containment transition, for locating the
-/// critical ratio `rho*` (finite-size crossing of the runaway probability) and
-/// estimating the order-parameter exponent `beta` in
-/// `P_runaway ~ (rho - rho*)^beta`. Emits CSV to stdout for offline fitting.
-pub fn report_scaling(trials: u32) -> String {
-    let seed = 42u64;
-    let mut out = String::new();
-    out.push_str("# 2-D lattice chase-escape (trail-confined detection): finite-size scan.\n");
-    out.push_str(&format!("# rho = lambda_r/lambda_b; trials per point = {trials}; seed = {seed}.\n"));
-    out.push_str("L,rho,mean_frac,p_runaway\n");
-    let ls = [48usize, 96, 144];
-    // Fine grid bracketing the transition seen in Measurement 4 (rho ~ 0.5-0.65).
-    let mut rhos: Vec<f64> = Vec::new();
-    let mut r = 0.30f64;
-    while r <= 0.751 {
-        rhos.push((r * 1000.0).round() / 1000.0);
-        r += 0.025;
-    }
-    for &l in &ls {
-        for &rho in &rhos {
-            let (mf, pr) = stats_chase_escape_2d(l, rho, 1.0, trials, seed);
-            out.push_str(&format!("{l},{rho:.3},{mf:.5},{pr:.4}\n"));
-        }
-    }
-    out
 }
 
 /// Mean over `trials` independent realizations (deterministic: seed + trial idx).
