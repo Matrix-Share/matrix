@@ -30,17 +30,18 @@ class ContainmentEnv(_Base):
     def __init__(self, neighbors, origin: int | None = None, lr: float = 1.0,
                  lb_max: float = 2.0, n_actions: int = 5, chunk: int | None = None,
                  lam: float = 1.0, budget: float = np.inf, horizon: int = 400,
-                 seed: int = 0):
+                 init_red: int = 1, seed: int = 0):
         self.nb = neighbors
         self.n = len(neighbors)
         self.origin = self.n // 2 if origin is None else origin
         self.lr = lr
         self.lb_max = lb_max
         self.n_actions = n_actions
-        self.chunk = chunk if chunk is not None else max(1, self.n // 20)
+        self.chunk = chunk if chunk is not None else max(1, self.n // 50)
         self.lam = lam
         self.budget = budget
         self.horizon = horizon
+        self.init_red = max(1, init_red)
         self.rng = np.random.default_rng(seed)
         if gym is not None:
             self.action_space = gym.spaces.Discrete(n_actions)
@@ -52,16 +53,33 @@ class ContainmentEnv(_Base):
             self.rng = np.random.default_rng(seed)
         self.state = np.zeros(self.n, dtype=np.int8)     # 0 W, 1 R, 2 B
         self.red_pos = np.full(self.n, -1, dtype=np.int64)
-        self.reds = [int(self.origin)]
-        self.state[self.origin] = 1
-        self.red_pos[self.origin] = 0
-        self.n_win = 1
-        nb0 = self.nb[self.origin]
+        self.reds = []
         self.blues = []
-        if len(nb0):
-            b = int(nb0[0]); self.state[b] = 2; self.blues.append(b)
+        # grow a BFS blob of `init_red` red sites from the origin
+        frontier = [int(self.origin)]
+        self.state[self.origin] = 1
+        while frontier and len(self.reds) < self.init_red:
+            s = frontier.pop(0)
+            self.red_pos[s] = len(self.reds); self.reds.append(s)
+            for x in self.nb[s]:
+                x = int(x)
+                if self.state[x] == 0 and len(self.reds) + len(frontier) < self.init_red:
+                    self.state[x] = 1; frontier.append(x)
+        for s in frontier:                      # any leftover frontier -> red too
+            self.red_pos[s] = len(self.reds); self.reds.append(s)
+        self.n_win = len(self.reds)
+        # seed one blue predator on the blob's boundary
+        for s in self.reds:
+            done = False
+            for x in self.nb[s]:
+                x = int(x)
+                if self.state[x] == 0:
+                    self.state[x] = 2; self.blues.append(x); done = True; break
+            if done:
+                break
         self.t = 0
-        self.spent = 0.0
+        self.spent = 0.0        # sum of lb over fired micro-events
+        self.micro = 0          # number of fired micro-events
         return self._obs(), {}
 
     def _obs(self):
@@ -81,6 +99,7 @@ class ContainmentEnv(_Base):
         lb = (float(action) / max(1, self.n_actions - 1)) * self.lb_max
         new_overspend = 0
         cost = 0.0
+        micro = 0
         for _ in range(self.chunk):
             if not self.reds:
                 break
@@ -90,6 +109,7 @@ class ContainmentEnv(_Base):
             if total <= 0.0:
                 break
             cost += lb                        # detection effort spent this micro-step
+            micro += 1
             if self.rng.random() * total < tr:
                 site = self.reds[self.rng.integers(len(self.reds))]
                 nbrs = self.nb[site]
@@ -107,9 +127,13 @@ class ContainmentEnv(_Base):
                     self.red_pos[x] = -1; self.state[x] = 2; self.blues.append(x)
         self.t += 1
         self.spent += cost
-        reward = -(new_overspend / self.n) - self.lam * (cost / self.n)
+        self.micro += micro
+        # normalized average detection intensity used this step, in [0,1]
+        step_intensity = (cost / (micro * self.lb_max)) if micro else 0.0
+        reward = -(new_overspend / self.n) - self.lam * step_intensity * (micro / self.chunk)
         terminated = len(self.reds) == 0
         truncated = self.t >= self.horizon or self.spent >= self.budget
+        intensity = self.spent / (self.micro * self.lb_max) if self.micro else 0.0
         info = {"n_win": self.n_win, "overspent_frac": self.n_win / self.n,
-                "spent": self.spent}
+                "spent": self.spent, "intensity": intensity}
         return self._obs(), reward, terminated, truncated, info
