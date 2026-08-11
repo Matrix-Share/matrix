@@ -68,6 +68,15 @@ opaque ciphertext frames. On real devices, nodes mesh directly over
 BLE/Wi-Fi Aware/ultrasound; the relay just stands in for the internet transport
 so browsers can connect.
 
+> **Alpha status of the offline radios (read this).** The BLE bearer's
+> platform-independent stack (segmentation, reassembly, the engine bridge) is
+> shipped and tested, and a **desktop `btleplug` backend** is now wired behind
+> `--features ble-radio` + `LIFELINE_BLE`. On-device MTU negotiation/duty-cycling
+> and the phone (CoreBluetooth/Android) radio are still in progress, so today's
+> multi-device demos mesh over the relay/LAN that stands in for the radios. The
+> "phone-to-phone with no internet at all" promise is designed and partly built,
+> not yet a turnkey fact — tracked in [`docs/ROADMAP-location.md`](docs/ROADMAP-location.md).
+
 ## How Lifeline compares
 
 Other tools solve pieces of this. Lifeline's niche is **carrying a message across
@@ -82,7 +91,7 @@ moment any node can**.
 | End-to-end encrypted | ✅ | ✅ | ✅ | ⚠️ *channel* | ⚠️ *DMs* |
 | No account or phone number | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Group messaging | ✅ | ✅ | ✅ | ✅ | ⚠️ |
-| SOS + live location | ✅ | ❌ | ❌ | ✅ | ❌ |
+| SOS · find each other · live location | ✅ | ❌ | ❌ | ✅ | ❌ |
 | Opportunistic internet bridge | ✅ | ⚠️ *Tor* | ⚠️ *Nostr* | ✅ *MQTT* | *is the internet* |
 | Open source | ✅ | ✅ | ✅ | ✅ | ✅ |
 

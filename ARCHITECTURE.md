@@ -130,6 +130,29 @@ needs a request/response layer over one-way frames — is pending; see roadmap.)
 > secrecy comes from rotating the recipient *prekey* fed to the sealed box
 > (`core::prekey`), which is the DTN-appropriate design.
 
+### 3.6 Location, "find each other," and place channels (geo)
+
+Location rides the *same* sealed-bundle path as any message — there is no separate
+location protocol, only different addressing and a small amount of node-side state.
+
+- **Share → Nearby.** A shared position is a `Location` payload sealed to a contact
+  (`submit_location`), to every contact (`LocationAll`), or to one group's members
+  (`LocationGroup`). The node thread keeps `peer_pos: {addr → (lat, lon, at)}`;
+  `build_nearby` turns it into the Nearby view (distance + compass bearing via
+  `lifeline-geo`). Positions **auto-expire** after `LIFELINE_LOCATION_TTL_SECS`
+  (default 30 min) — a one-time share is never indefinite tracking — and the panic
+  wipe clears the cache.
+- **Geocast (area addressing).** `broadcast_geo` seals a bundle to a key *derived
+  from each covered geohash cell* (`core::geocast::region_recipient`), so any node
+  in the cell can open it without the sender holding its key. It is authenticated
+  public regional broadcast, **not** confidential against relays (the cell is
+  recoverable from `dst`) — see `SECURITY.md`.
+- **Place channels (join-by-place).** `join_region(geohash)` subscribes a node to a
+  cell so it opens geocasts for that cell regardless of its own position;
+  `post_to_region` posts to a cell. Delivered messages carry an `Inbound.region`
+  tag and thread under `place:<geohash>`, letting strangers at the same place
+  coordinate without being contacts.
+
 ---
 
 ## 4. Message lifecycle (data flow)

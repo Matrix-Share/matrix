@@ -82,15 +82,17 @@ otherwise the safety feature becomes a tracking risk.
 ## D. Documentation consistency (across the board)
 
 - [x] `USE-CASES.md` (7 categories), linked from README + WHITEPAPER. *(PR #62)*
-- [ ] `STATUS.md`: add find-each-other / location-broadcast to the `FR-*`
-      traceability (extends FR-43).
-- [ ] `ARCHITECTURE.md`: document the peer-position → Nearby data path and the
-      `LocationAll` command.
+- [x] `STATUS.md`: find-each-other / live / privacy / place-channels added to the
+      `FR-*` traceability (FR-43a–d), plus the desktop BLE backend row.
+- [x] `ARCHITECTURE.md`: §3.6 documents the peer-position → Nearby path, geocast
+      addressing, and place channels.
 - [ ] `docs/geo-and-differential.md`: extend with the find-each-other +
       differential-positioning design.
-- [ ] README **feature list**: mention "find each other."
+- [x] README **feature list**: mentions "find each other" + an honest alpha caveat
+      on the offline radios.
 - [ ] Each app README (`mobile/`, `saas/`, `crates/node/`) references the **same
-      feature set** and the **same honest status**.
+      feature set** and the **same honest status** (root README done; app READMEs
+      pending).
 
 ## E. Messaging consistency (across the board)
 
@@ -101,9 +103,11 @@ site, SaaS, white papers.
       *(PR #62)*
 - [ ] Add a **"Find each other" card** to the *Features* list on both marketing
       sites (Features currently omits it).
-- [ ] Mobile app mirrors the find-each-other + use-cases framing.
-- [ ] Keep the **alpha / native-radio-not-shipped** caveat *identical* on every
-      surface (README, white papers, marketing, in-app) — audit for drift.
+- [~] Mobile app mirrors the find-each-other framing — the **Nearby screen** ships
+      (share / scope / live / countdown); marketing copy parity still pending.
+- [~] Keep the **alpha / native-radio-not-shipped** caveat *identical* on every
+      surface — root README now carries the honest BLE status; marketing + white
+      papers + in-app still to audit for drift.
 - [ ] Consistent **"sharing your location can save your life"** framing + the
       four headline scenarios on every surface.
 - [ ] One **canonical feature list** (single source of truth) that every surface
