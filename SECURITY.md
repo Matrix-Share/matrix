@@ -30,6 +30,34 @@ The design threat model is documented in the PRD (`docs/PRD-*.md`, §15) and
 - **The relay** — it must never be able to read or forge message content; it
   only forwards opaque ciphertext frames. Report anything that breaks this.
 
+## Location privacy threat model
+
+Location ("find each other," SOS coordinates, shared POIs) is sensitive, so its
+handling has its own rules:
+
+- **Consensual.** A position is transmitted only in response to an explicit user
+  action (tapping *Share*, sending an SOS). Nothing is sent in the background.
+  Sharing is opt-in; the choice is remembered but never enabled silently.
+- **Who can see it.** A location shared to a contact or a group is sealed to that
+  recipient set exactly like any other message — the relay and passers-by see
+  only ciphertext. Scope is honored end to end: `LocationGroup` reaches only that
+  group's members; `Location` reaches one contact; `LocationAll` reaches every
+  contact.
+- **Bounded in time.** Shared positions **auto-expire** (`LIFELINE_LOCATION_TTL_SECS`,
+  default 30 min): a receiving node drops a contact's fix once it lapses, so a
+  one-time share can never become indefinite tracking. *Stop sharing* halts
+  further updates from the sender; the last fix then expires within the TTL.
+- **Geocast / area-addressed messages are NOT private against relays.** A geocast
+  is addressed by a region (geohash) whose recipient key is derived deterministically
+  from the region, so any relay can tell *which area* a geocast targets (though not
+  its plaintext without the region key). Geocast is authenticated public regional
+  broadcast, not a confidential channel — do not use it to hide *where* an alert is
+  about. This caveat is intentional and documented in `crates/core/src/geocast.rs`.
+- **Seizure / duress.** The panic wipe (G3) destroys on-disk secrets *and* clears
+  cached location state held only in memory — contacts' last-known positions,
+  shared POIs, and this node's own fix — so a coerced or seized device reveals
+  nothing about who was where.
+
 ## What is explicitly out of scope
 
 - Denial of service that requires physically jamming radios or overwhelming a

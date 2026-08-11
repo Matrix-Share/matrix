@@ -1128,6 +1128,12 @@ impl NodeEngine {
         self.my_pos.map(|p| (p.lat, p.lon))
     }
 
+    /// Forget this node's own position (used by the duress/panic wipe so a seized
+    /// device retains no location, and by a "stop sharing" action).
+    pub fn clear_position(&mut self) {
+        self.my_pos = None;
+    }
+
     /// Provide an authoritative time (e.g. from a GPS fix), making this node a
     /// stratum-1 reference that disciplines its neighbours' clocks. `gps_unix` and
     /// `local_now` are both unix seconds.

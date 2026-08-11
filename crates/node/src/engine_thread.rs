@@ -166,6 +166,14 @@ pub fn run(
     let mut tick_no = 0u64;
     let mut shutdown = false;
     let mut panic_wipe = false;
+    // Shared positions auto-expire after this long, so a one-time share can never
+    // become indefinite tracking (privacy). Configurable via the environment; a
+    // shared fix simply vanishes from every peer's Nearby view once it lapses.
+    let position_ttl_secs: u64 = std::env::var("LIFELINE_LOCATION_TTL_SECS")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .filter(|&v| v > 0)
+        .unwrap_or(30 * 60);
 
     loop {
         let now = unix_now();
@@ -340,6 +348,34 @@ pub fn run(
                     );
                     dirty = true;
                 }
+                Command::LocationGroup {
+                    group,
+                    lat,
+                    lon,
+                    acc_m,
+                } => {
+                    // Scoped share: only this group's members receive our position.
+                    engine.set_position(lat, lon);
+                    my_pos_at = now;
+                    let mut ids = Vec::new();
+                    for addr in engine.group_members(&group) {
+                        if let Some(id) =
+                            engine.submit_location(&addr, lat, lon, acc_m.unwrap_or(0), now)
+                        {
+                            ids.push(id);
+                        }
+                    }
+                    record_broadcast(
+                        &mut messages,
+                        &mut sent_index,
+                        &ids,
+                        "out",
+                        &name,
+                        &format!("📍 shared location with group “{group}” ({lat:.4}, {lon:.4})"),
+                        now,
+                    );
+                    dirty = true;
+                }
                 Command::AddPoi {
                     name,
                     category,
@@ -487,6 +523,13 @@ pub fn run(
         // scrubs every in-memory secret — so this one action clears both disk and
         // memory. Irreversible by design; there is no final persist.
         if panic_wipe {
+            // Duress wipe also clears cached location data held only in memory —
+            // contacts' last-known positions, shared POIs, our own fix, any live
+            // strobe — so a seized device reveals nothing about who was where.
+            // (Returning drops this frame regardless; clearing makes it explicit.)
+            peer_pos.clear();
+            pois.clear();
+            engine.clear_position();
             let data_dir = state_path
                 .parent()
                 .unwrap_or_else(|| std::path::Path::new("."));
@@ -617,6 +660,8 @@ pub fn run(
         }
 
         // 5. Publish snapshot.
+        // Expire stale shared positions first (privacy: no indefinite tracking).
+        peer_pos.retain(|_, &mut (_, _, at)| pos_fresh(at, now, position_ttl_secs));
         let (nearby, my_pos) = build_nearby(&engine, &peer_pos, my_pos_at);
         let poi_views = build_pois(&engine, &pois);
         // Drop a strobe once it has run its course; otherwise surface it.
@@ -848,6 +893,12 @@ fn dist_bearing(
 /// position, annotated with distance + compass direction from *this* node when
 /// we have our own fix, sorted nearest-first. Returns the list plus our own
 /// position (present iff we have a fix).
+/// Whether a position fix recorded at `at` (unix secs) is still within the sharing
+/// TTL — shared positions expire so a one-time share is never indefinite tracking.
+fn pos_fresh(at: u64, now: u64, ttl: u64) -> bool {
+    now.saturating_sub(at) < ttl
+}
+
 fn build_nearby(
     engine: &NodeEngine,
     peer_pos: &HashMap<Address, (f64, f64, u64)>,
@@ -1062,5 +1113,24 @@ mod tests {
         assert_eq!(nearest_first(None, 0, Some(1.0), 0), Ordering::Greater);
         // ...and two unknowns fall back to most-recent first.
         assert_eq!(nearest_first(None, 50, None, 10), Ordering::Less);
+    }
+
+    #[test]
+    fn shared_positions_expire_after_the_ttl() {
+        let ttl = 1800; // 30 min
+        let now = 100_000;
+        // A fix from just now, and one older than five minutes, are both fresh.
+        assert!(pos_fresh(now, now, ttl));
+        assert!(pos_fresh(now - 300, now, ttl));
+        // A fix right at the TTL boundary has expired (no indefinite tracking)...
+        assert!(!pos_fresh(now - ttl, now, ttl));
+        assert!(!pos_fresh(now - ttl - 1, now, ttl));
+        // ...and the retain predicate the loop uses drops exactly the stale ones.
+        let mut map: HashMap<Address, (f64, f64, u64)> = HashMap::new();
+        map.insert(Address::from_hash_bytes([1u8; 16]), (0.0, 0.0, now)); // fresh
+        map.insert(Address::from_hash_bytes([2u8; 16]), (0.0, 0.0, now - ttl - 1)); // stale
+        map.retain(|_, &mut (_, _, at)| pos_fresh(at, now, ttl));
+        assert_eq!(map.len(), 1);
+        assert!(map.contains_key(&Address::from_hash_bytes([1u8; 16])));
     }
 }

@@ -62,6 +62,15 @@ pub enum Command {
         lon: f64,
         acc_m: Option<u32>,
     },
+    /// Share this node's location with only the members of one group — a scoped
+    /// share ("share with this group only") for location privacy. Also sets this
+    /// node's own position so distances render.
+    LocationGroup {
+        group: String,
+        lat: f64,
+        lon: f64,
+        acc_m: Option<u32>,
+    },
     /// Add a **point of interest** (wayfinding) at a location — water, a stage,
     /// medical, "our tent". Stored locally and, if `share`, broadcast to every
     /// contact so the whole crew can navigate to it.

@@ -31,10 +31,13 @@ what turns the use cases from aspiration into fact.
       mobile app (dual-role) — plus MTU negotiation and duty-cycling, verified
       on-device.
 - [ ] **Wi-Fi Aware** transport for higher-bandwidth phone-to-phone links.
-- [ ] **Mobile app: the Nearby / find-each-other view** (Expo) — currently
-      web-only; most real users are on phones.
-- [ ] Mobile **location permissions** (foreground + background) with a
-      battery-aware update cadence.
+- [x] **Mobile app: the Nearby / find-each-other view** (Expo) — a Nearby tab
+      showing contacts nearest-first with distance + compass bearing, plus an
+      opt-in "Share my location" control ([`mobile/screens/NearbyScreen.tsx`](../mobile/screens/NearbyScreen.tsx)).
+- [~] Mobile **location permissions** — foreground / when-in-use is wired
+      (`expo-location`, [`mobile/lib/location.ts`](../mobile/lib/location.ts)), and
+      SOS/geocast now attach a real GPS fix. **Remaining:** background permission +
+      a battery-aware update cadence (pairs with live sharing below).
 - [ ] **Live / continuous location sharing** ("share for 15 min") with periodic
       updates and auto-expiry — today it's a single snapshot.
 - [ ] **Differential / relative positioning** using `lifeline-timesync` +
@@ -49,12 +52,16 @@ what turns the use cases from aspiration into fact.
 Location is sensitive. Sharing it must be **consensual, scoped, and revocable** —
 otherwise the safety feature becomes a tracking risk.
 
-- [ ] Explicit **opt-in per share** and a prominent **"stop sharing"** control.
-- [ ] **Per-group / per-contact scopes** — "share with this group only."
-- [ ] **Auto-expiry (TTL)** on shared positions; no indefinite tracking.
-- [ ] Document the **location threat model** in [SECURITY.md](../SECURITY.md):
+- [x] Explicit **opt-in per share** and a prominent **"stop sharing"** control
+      (mobile Nearby screen; sharing is off until you tap Share).
+- [x] **Per-group / per-contact scopes** — "share with this group only"
+      (`LocationGroup` command + `/api/location_group`; scope chips in the app).
+- [x] **Auto-expiry (TTL)** on shared positions; no indefinite tracking
+      (`LIFELINE_LOCATION_TTL_SECS`, default 30 min; tested).
+- [x] Document the **location threat model** in [SECURITY.md](../SECURITY.md):
       who can see a position, and the rendezvous-addressing caveat for it.
-- [ ] Verify **panic wipe** also destroys cached peer positions.
+- [x] Verify **panic wipe** also destroys cached peer positions (the panic branch
+      now clears `peer_pos`, POIs, and our own fix explicitly).
 
 ## C. Testing
 

@@ -53,6 +53,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/safe", post(post_safe))
         .route("/api/location", post(post_location))
         .route("/api/location_all", post(post_location_all))
+        .route("/api/location_group", post(post_location_group))
         .route("/api/poi", post(post_poi))
         .route("/api/strobe", post(post_strobe))
         .route("/api/group/create", post(post_group_create))
@@ -142,6 +143,29 @@ async fn post_location_all(
     Json(req): Json<LocationAllReq>,
 ) -> impl IntoResponse {
     let _ = st.cmd.send(Command::LocationAll {
+        lat: req.lat,
+        lon: req.lon,
+        acc_m: req.acc_m,
+    });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct LocationGroupReq {
+    group: String,
+    lat: f64,
+    lon: f64,
+    acc_m: Option<u32>,
+}
+
+/// Share this node's location with only one group's members — a scoped share for
+/// location privacy ("share with this group only").
+async fn post_location_group(
+    State(st): State<AppState>,
+    Json(req): Json<LocationGroupReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::LocationGroup {
+        group: req.group,
         lat: req.lat,
         lon: req.lon,
         acc_m: req.acc_m,
