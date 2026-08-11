@@ -7,7 +7,7 @@
  * tap "Share my location"; the choice is remembered, and "Stop sharing" halts
  * further updates from this device. (Scoped shares + auto-expiry are the next step.)
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,11 +19,24 @@ import { getFix, getPermission, type PermState } from '../lib/location';
 import { Empty, Header } from './MessagesScreen';
 
 const SHARE_KEY = 'lifeline.sharingLoc';
+const LIVE_INTERVAL_MS = 30_000; // how often a live share pushes a fresh fix
+const DURATIONS: { label: string; min: number }[] = [
+  { label: '15 min', min: 15 },
+  { label: '1 hour', min: 60 },
+];
 
 function fmtDist(m?: number): string | null {
   if (m == null) return null;
   if (m < 1000) return `${Math.round(m)} m`;
   return `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`;
+}
+
+function fmtCountdown(secs: number): string {
+  const s = Math.max(0, secs);
+  const m = Math.floor(s / 60);
+  if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m left`;
+  if (m >= 1) return `${m}m left`;
+  return `${s}s left`;
 }
 
 export default function NearbyScreen() {
@@ -36,11 +49,19 @@ export default function NearbyScreen() {
   const [lastShared, setLastShared] = useState<number | null>(null);
   // Who the share reaches: 'all' (every contact) or a specific group id (scoped).
   const [scope, setScope] = useState<string>('all');
+  // Chosen live-share duration (minutes) and the unix-secs deadline when active.
+  const [durationMin, setDurationMin] = useState(15);
+  const [liveUntil, setLiveUntil] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState(Math.floor(Date.now() / 1000));
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
   const groups = snap?.groups ?? [];
 
   useEffect(() => {
     getPermission().then(setPerm);
-    AsyncStorage.getItem(SHARE_KEY).then((v) => setSharing(v === '1'));
+    // A live session can't survive an app restart (its deadline isn't persisted), so
+    // we never silently resume sharing — the user re-taps Share. The stored flag is
+    // only a hint that they had used it before.
   }, []);
 
   const persistSharing = useCallback((on: boolean) => {
@@ -48,33 +69,64 @@ export default function NearbyScreen() {
     AsyncStorage.setItem(SHARE_KEY, on ? '1' : '0').catch(() => {});
   }, []);
 
-  const share = useCallback(async () => {
+  // Push one fresh fix to the currently-selected scope. Returns success.
+  const sendFix = useCallback(async (): Promise<boolean> => {
+    const fix = await getFix();
+    if (scopeRef.current === 'all') {
+      await actions.shareLocationAll(fix.lat, fix.lon, fix.acc_m);
+    } else {
+      await actions.shareLocationGroup(scopeRef.current, fix.lat, fix.lon, fix.acc_m);
+    }
+    setLastShared(Math.floor(Date.now() / 1000));
+    return true;
+  }, [actions]);
+
+  // Start a live share: push now, then keep the fix fresh until the deadline.
+  const startLive = useCallback(async () => {
     setBusy(true);
     try {
-      const fix = await getFix();
+      await sendFix();
       setPerm('granted');
-      if (scope === 'all') {
-        await actions.shareLocationAll(fix.lat, fix.lon, fix.acc_m);
-      } else {
-        await actions.shareLocationGroup(scope, fix.lat, fix.lon, fix.acc_m);
-      }
       persistSharing(true);
-      setLastShared(Math.floor(Date.now() / 1000));
+      setLiveUntil(Math.floor(Date.now() / 1000) + durationMin * 60);
     } catch (e: any) {
       setPerm(await getPermission());
       Alert.alert('Could not share location', e?.message ?? 'Unknown error.');
     } finally {
       setBusy(false);
     }
-  }, [actions, persistSharing, scope]);
+  }, [sendFix, persistSharing, durationMin]);
 
   const stop = useCallback(() => {
+    setLiveUntil(null);
     persistSharing(false);
     Alert.alert(
       'Stopped sharing',
       'This device will stop sending location updates. People who already received your last position may still see it until it expires.'
     );
   }, [persistSharing]);
+
+  // The live-share loop: while active, re-send a fix on an interval and auto-stop
+  // at the deadline. A 1 Hz tick drives the countdown display.
+  useEffect(() => {
+    if (!sharing || liveUntil == null) return;
+    const push = setInterval(() => {
+      if (Math.floor(Date.now() / 1000) >= liveUntil) return; // deadline handled by tick
+      sendFix().catch(() => {});
+    }, LIVE_INTERVAL_MS);
+    const tick = setInterval(() => {
+      const t = Math.floor(Date.now() / 1000);
+      setNowTick(t);
+      if (t >= liveUntil) {
+        setLiveUntil(null);
+        persistSharing(false);
+      }
+    }, 1000);
+    return () => { clearInterval(push); clearInterval(tick); };
+  }, [sharing, liveUntil, sendFix, persistSharing]);
+
+  const live = sharing && liveUntil != null;
+  const secsLeft = liveUntil != null ? liveUntil - nowTick : 0;
 
   if (!baseUrl) {
     return (
@@ -96,8 +148,8 @@ export default function NearbyScreen() {
       title="Nearby"
       insets={insets}
       status={
-        sharing ? (
-          <Pill label={scope === 'all' ? 'Sharing with everyone' : `Sharing with ${scope}`} tone="safe" />
+        live ? (
+          <Pill label={scope === 'all' ? 'Live · everyone' : `Live · ${scope}`} tone="safe" />
         ) : (
           <Pill label="Not sharing" tone="muted" />
         )
@@ -108,42 +160,52 @@ export default function NearbyScreen() {
         <Card style={{ padding: space.lg }}>
           <Txt variant="headline">Find each other</Txt>
           <Txt variant="footnote" color={colors.muted} style={{ marginTop: 2, marginBottom: space.md }}>
-            Share your location with your contacts so you can find one another when the
-            network is down. It stays private until you tap Share.
+            Share your location live so you can find one another when the network is
+            down. It updates as you move and stops on its own — private until you tap Share.
           </Txt>
 
-          {/* Scope: everyone, or a single group (only shown if you have groups). */}
-          {groups.length > 0 && !sharing && (
-            <View style={{ marginBottom: space.md }}>
-              <Txt variant="caption" color={colors.muted} style={{ marginBottom: space.sm }}>SHARE WITH</Txt>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-                <ScopeChip label="Everyone" on={scope === 'all'} onPress={() => setScope('all')} />
-                {groups.map((g) => (
-                  <ScopeChip key={g.id} label={g.id} on={scope === g.id} onPress={() => setScope(g.id)} />
+          {!live && (
+            <>
+              {/* Scope: everyone, or a single group (only shown if you have groups). */}
+              {groups.length > 0 && (
+                <View style={{ marginBottom: space.md }}>
+                  <Txt variant="caption" color={colors.muted} style={{ marginBottom: space.sm }}>SHARE WITH</Txt>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+                    <ScopeChip label="Everyone" on={scope === 'all'} onPress={() => setScope('all')} />
+                    {groups.map((g) => (
+                      <ScopeChip key={g.id} label={g.id} on={scope === g.id} onPress={() => setScope(g.id)} />
+                    ))}
+                  </View>
+                </View>
+              )}
+              {/* Duration for the live share. */}
+              <Txt variant="caption" color={colors.muted} style={{ marginBottom: space.sm }}>FOR</Txt>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.md }}>
+                {DURATIONS.map((d) => (
+                  <ScopeChip key={d.min} label={d.label} on={durationMin === d.min} onPress={() => setDurationMin(d.min)} />
                 ))}
               </View>
-            </View>
+              <Button
+                title={busy ? 'Starting…' : 'Share live'}
+                icon="navigate"
+                loading={busy}
+                onPress={startLive}
+              />
+            </>
           )}
 
-          {!sharing ? (
-            <Button
-              title={busy ? 'Sharing…' : 'Share my location'}
-              icon="location"
-              loading={busy}
-              onPress={share}
-            />
-          ) : (
+          {live && (
             <>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: space.md }}>
-                <Icon name="checkmark-circle" size={18} color={colors.safe} />
-                <Txt variant="subhead" color={colors.muted}>
-                  {lastShared ? `Shared ${ago(lastShared)} ago` : 'Sharing is on'}
+                <Icon name="radio" size={18} color={colors.safe} />
+                <Txt variant="subhead" color={colors.ink}>
+                  Live · {fmtCountdown(secsLeft)}
                 </Txt>
+                {lastShared && (
+                  <Txt variant="footnote" color={colors.muted}>· updated {ago(lastShared)} ago</Txt>
+                )}
               </View>
-              <View style={{ flexDirection: 'row', gap: space.md }}>
-                <Button title="Update" icon="refresh" kind="secondary" style={{ flex: 1 }} loading={busy} onPress={share} />
-                <Button title="Stop sharing" icon="hand-left" kind="danger" style={{ flex: 1 }} onPress={stop} />
-              </View>
+              <Button title="Stop sharing" icon="hand-left" kind="danger" onPress={stop} />
             </>
           )}
 
