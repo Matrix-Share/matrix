@@ -7,13 +7,15 @@ import { radius, space } from '../theme/tokens';
 import { Txt } from '../components/ui';
 import { useNode } from '../lib/node';
 import MessagesScreen from '../screens/MessagesScreen';
+import NearbyScreen from '../screens/NearbyScreen';
 import NetworkScreen from '../screens/NetworkScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ChatScreen from '../screens/ChatScreen';
 
-type Tab = 'messages' | 'network' | 'settings';
+type Tab = 'messages' | 'nearby' | 'network' | 'settings';
 const TABS: { key: Tab; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
   { key: 'messages', label: 'Messages', icon: 'chatbubble' },
+  { key: 'nearby', label: 'Nearby', icon: 'location' },
   { key: 'network', label: 'Network', icon: 'git-network' },
   { key: 'settings', label: 'Settings', icon: 'settings' },
 ];
@@ -39,6 +41,7 @@ export default function AppShell() {
     <View style={{ flex: 1, backgroundColor: colors.grouped }}>
       <View style={{ flex: 1 }}>
         {tab === 'messages' && <MessagesScreen onOpen={setChat} />}
+        {tab === 'nearby' && <NearbyScreen />}
         {tab === 'network' && <NetworkScreen />}
         {tab === 'settings' && <SettingsScreen />}
       </View>

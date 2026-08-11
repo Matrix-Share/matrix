@@ -34,12 +34,29 @@ export type Status = {
   is_gateway: boolean;
   gradient: number | null;
 };
+/** A contact's last-shared location, with distance + direction from this node. */
+export type Nearby = {
+  address: string;
+  name: string;
+  lat: number;
+  lon: number;
+  at: number;
+  distance_m?: number;
+  bearing_deg?: number;
+  compass?: string;
+};
+/** This node's own last-known position. */
+export type Pos = { lat: number; lon: number; at: number };
 export type Snapshot = {
   identity: { name: string; address: string; code: string };
   status: Status;
   messages: Msg[];
   directory: Contact[];
   groups: Group[];
+  /** Contacts sharing a live location, nearest-first — the Nearby view. */
+  nearby?: Nearby[];
+  /** This node's own last-known position, if set. */
+  my_pos?: Pos | null;
 };
 
 type Conn = 'idle' | 'connecting' | 'online' | 'offline';
@@ -58,6 +75,12 @@ type NodeCtx = {
     safe: () => Promise<void>;
     sos: (lat?: number, lon?: number, acc_m?: number, battery_pct?: number) => Promise<void>;
     geocast: (lat: number, lon: number, radius_m: number, body: string) => Promise<void>;
+    /** Record this node's own position (used to measure distance to contacts). */
+    setPosition: (lat: number, lon: number) => Promise<void>;
+    /** Share this position with every contact — "find each other in a crowd." */
+    shareLocationAll: (lat: number, lon: number, acc_m?: number) => Promise<void>;
+    /** Share this position with only one group's members (scoped share). */
+    shareLocationGroup: (group: string, lat: number, lon: number, acc_m?: number) => Promise<void>;
     addContact: (code: string) => Promise<void>;
     createGroup: (id: string) => Promise<void>;
     addMember: (group: string, addr: string) => Promise<void>;
@@ -157,6 +180,22 @@ export function NodeProvider({ children }: { children: React.ReactNode }) {
       geocast: async (lat, lon, radius_m, body) => {
         await post('/api/position', { lat, lon });
         await post('/api/geocast', { lat, lon, radius_m, body });
+      },
+      setPosition: async (lat, lon) => { await post('/api/position', { lat, lon }); },
+      shareLocationAll: async (lat, lon, acc_m) => {
+        // Record our own position first so distances to contacts render immediately.
+        await post('/api/position', { lat, lon });
+        await post('/api/location_all', {
+          lat, lon,
+          acc_m: acc_m != null ? Math.round(acc_m) : undefined,
+        });
+      },
+      shareLocationGroup: async (group, lat, lon, acc_m) => {
+        await post('/api/position', { lat, lon });
+        await post('/api/location_group', {
+          group, lat, lon,
+          acc_m: acc_m != null ? Math.round(acc_m) : undefined,
+        });
       },
       addContact: async (code) => { await post('/api/contacts', { code }); },
       createGroup: async (id) => { await post('/api/group/create', { id }); },
