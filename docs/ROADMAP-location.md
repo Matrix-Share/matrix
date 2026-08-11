@@ -26,10 +26,14 @@ what turns the use cases from aspiration into fact.
       — ATT-MTU segmentation/reassembly, the `BleDriver` engine↔radio bridge, and
       the `GattPort` seam — verified end-to-end over an in-memory GATT fabric
       ([`crates/transport/src/ble.rs`](../crates/transport/src/ble.rs),
-      [design](ble-transport.md)). **Remaining (hardware-bound):** a real
-      `GattPort` — `btleplug` on desktop (central), CoreBluetooth/Android in the
-      mobile app (dual-role) — plus MTU negotiation and duty-cycling, verified
-      on-device.
+      [design](ble-transport.md)). **Desktop backend done:** a real `GattPort` over
+      `btleplug` (central role) — scan → connect → subscribe → notify/write — wired
+      behind the `ble-radio` feature and `LIFELINE_BLE`
+      ([`crates/node/src/ble_backend.rs`](../crates/node/src/ble_backend.rs)); build
+      with `cargo build -p lifeline-node --features ble-radio`. **Remaining
+      (hardware-bound):** on-device verification, ATT-MTU negotiation (we currently
+      advertise the safe 20-byte minimum), duty-cycling, and the CoreBluetooth /
+      Android dual-role backend in the mobile app.
 - [ ] **Wi-Fi Aware** transport for higher-bandwidth phone-to-phone links.
 - [x] **Mobile app: the Nearby / find-each-other view** (Expo) — a Nearby tab
       showing contacts nearest-first with distance + compass bearing, plus an

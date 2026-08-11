@@ -18,6 +18,8 @@
 mod api;
 #[cfg(feature = "nostr")]
 mod async_bearer;
+#[cfg(feature = "ble-radio")]
+mod ble_backend;
 mod engine_thread;
 #[cfg(feature = "nostr")]
 mod nostr_bridge;
@@ -296,16 +298,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     // Native BLE bearer (the phone-to-phone offline path). The platform-
     // independent stack — ATT segmentation + the engine bridge — lives in
-    // `lifeline_transport::ble` and is tested; activating it needs a radio
-    // backend implementing `ble::GattPort` (btleplug on desktop, CoreBluetooth /
-    // Android on phones), which is hardware-bound and not compiled into this
-    // daemon yet. Recognize the flag so the intent is visible rather than silently
-    // ignored. See docs/ble-transport.md.
+    // `lifeline_transport::ble` and is tested; activating it needs a radio backend
+    // implementing `ble::GattPort`. The desktop backend (btleplug, central role)
+    // is compiled in with the `ble-radio` feature; CoreBluetooth/Android on phones
+    // arrive via the mobile app. See docs/ble-transport.md.
     if std::env::var("LIFELINE_BLE").is_ok() {
+        #[cfg(feature = "ble-radio")]
+        if let Some(iface) = ble_backend::spawn(&tokio::runtime::Handle::current()) {
+            extra_ifaces.push(Box::new(iface));
+        }
+        #[cfg(not(feature = "ble-radio"))]
         tracing::warn!(
-            "LIFELINE_BLE set, but this build has no BLE radio backend \
-             (ble::GattPort). The BLE transport stack is present and tested; a \
-             hardware backend is required to activate it — see docs/ble-transport.md."
+            "LIFELINE_BLE set, but this build lacks the `ble-radio` feature. \
+             Rebuild with `--features ble-radio` for the desktop btleplug backend; \
+             see docs/ble-transport.md."
         );
     }
 

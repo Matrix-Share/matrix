@@ -36,9 +36,18 @@ axum = { version = "0.7", features = ["ws"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# Optional native BLE radio backend (desktop central role). Hardware-bound, so it
+# lives behind the `ble-radio` feature and is off by default.
+btleplug = { version = "0.11", optional = true }
+uuid = { version = "1", optional = true }
+futures-util = { version = "0.3", optional = true }
+
 [features]
 # Bridge the node onto the global Nostr relay network as an extra bearer.
 # Off by default so the base daemon avoids the async-WebSocket/TLS/secp stack.
 nostr = ["dep:lifeline-bridge", "lifeline-bridge/ws"]
 # Bridge the node onto the Meshtastic LoRa mesh over MQTT as an extra bearer.
 meshtastic = ["dep:lifeline-bridge", "lifeline-bridge/mqtt"]
+# Native BLE radio backend via btleplug (desktop central). Drives the platform-
+# independent BLE stack in `lifeline-transport::ble` against real hardware.
+ble-radio = ["dep:btleplug", "dep:uuid", "dep:futures-util"]
