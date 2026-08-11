@@ -146,6 +146,11 @@ pub struct Inbound {
     /// onion message. The UI must thread on this, not on `payload.group_id`, or a
     /// direct message could be spoofed into a group thread.
     pub group: Option<String>,
+    /// The geohash **place channel** this message arrived on, set only when it was
+    /// opened via a region this node has *joined* (a join-by-place channel) — used
+    /// to thread place messages separately from 1:1/group chat. `None` for every
+    /// other message, including area-alert geocasts to the node's current cell.
+    pub region: Option<String>,
 }
 
 struct Port {
@@ -230,6 +235,10 @@ pub struct NodeEngine {
     my_pos: Option<lifeline_geo::GeoPoint>,
     /// Bundle ids of geocasts already delivered to our app (dedup).
     geocast_seen: HashSet<Bytes>,
+    /// Geohash cells this node has **joined** as place channels (join-by-place):
+    /// it opens and delivers geocasts addressed to any of these cells, not just its
+    /// current position, so strangers at the same place can coordinate.
+    subscribed_regions: HashSet<String>,
     /// Differential mesh time (FR — offline clock). Disciplined by neighbour
     /// beacons and, if present, a local GPS reference. Advisory only: it is used
     /// for a coarse "mesh time" display and message timestamps, and is **never**
@@ -398,6 +407,7 @@ impl NodeEngine {
             fetched: Vec::new(),
             my_pos: None,
             geocast_seen: HashSet::new(),
+            subscribed_regions: HashSet::new(),
             time: lifeline_timesync::TimeSync::new(),
             paired: HashSet::new(),
             peer_bundles: HashMap::new(),
@@ -1189,21 +1199,38 @@ impl NodeEngine {
     /// no single recipient, so it is never terminated by unicast delivery — it
     /// keeps spreading so every node in the region gets it.
     fn try_geocast_deliver(&mut self, bundle: &Bundle) {
-        let Some(pos) = self.my_pos else { return };
         if self.origin_ids.contains(&bundle.bundle_id) {
             return; // our own geocast
         }
-        let my_cell = lifeline_geo::encode(pos, GEOCAST_PRECISION);
-        if bundle.dst != lifeline_core::geocast::region_dst(&my_cell) {
-            return; // not addressed to our region cell
+        // A geocast opens against our current position cell (area alerts) OR any
+        // place channel we've joined (join-by-place). Try the current cell first
+        // (region tag stays `None` so it threads like a normal area alert); then
+        // subscribed cells, which thread as a place channel.
+        let mut matched: Option<(String, bool)> = None; // (cell, is_joined_channel)
+        if let Some(pos) = self.my_pos {
+            let my_cell = lifeline_geo::encode(pos, GEOCAST_PRECISION);
+            if bundle.dst == lifeline_core::geocast::region_dst(&my_cell) {
+                matched = Some((my_cell, false));
+            }
         }
+        if matched.is_none() {
+            for cell in &self.subscribed_regions {
+                if bundle.dst == lifeline_core::geocast::region_dst(cell) {
+                    matched = Some((cell.clone(), true));
+                    break;
+                }
+            }
+        }
+        let Some((cell, is_channel)) = matched else {
+            return; // not addressed to our cell or any joined place
+        };
         if self.geocast_seen.len() >= MAX_GEOCAST_SEEN {
             self.geocast_seen.clear(); // bound memory under a unique-id flood
         }
         if !self.geocast_seen.insert(bundle.bundle_id.clone()) {
             return; // already delivered
         }
-        if let Ok(opened) = lifeline_core::geocast::open_region(&my_cell, bundle) {
+        if let Ok(opened) = lifeline_core::geocast::open_region(&cell, bundle) {
             // Moderation applies to geocasts too (FR-48).
             if self.state.is_blocked(&opened.sender.id) {
                 return;
@@ -1212,8 +1239,41 @@ impl NodeEngine {
                 from: opened.sender.id.clone(),
                 payload: opened.payload,
                 group: None,
+                region: is_channel.then(|| cell.clone()),
             });
         }
+    }
+
+    /// Join a **place channel** by geohash cell: from now on this node opens and
+    /// delivers geocasts addressed to that cell, so strangers at the same place can
+    /// coordinate without being contacts. Idempotent.
+    pub fn join_region(&mut self, geohash: impl Into<String>) {
+        self.subscribed_regions.insert(geohash.into());
+    }
+
+    /// Leave a place channel; stop delivering geocasts for that cell.
+    pub fn leave_region(&mut self, geohash: &str) {
+        self.subscribed_regions.remove(geohash);
+    }
+
+    /// The place channels (geohash cells) this node has joined.
+    pub fn subscribed_regions(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.subscribed_regions.iter().cloned().collect();
+        v.sort();
+        v
+    }
+
+    /// Post a payload to a specific place channel (geohash cell), independent of
+    /// this node's own position — the message is sealed to the cell's derived key
+    /// so any node that has joined the cell can open it. Returns the bundle id.
+    pub fn post_to_region(&mut self, geohash: &str, payload: Payload, now: u64) -> Option<Bytes> {
+        let recipient = lifeline_core::geocast::region_recipient(geohash);
+        let mut opts = SealOptions::normal(now).with_priority(Priority::Normal);
+        opts.copies_left = GEOCAST_COPIES;
+        let bundle = seal_bundle(&self.identity, &recipient, &payload, &opts).ok()?;
+        let id = bundle.bundle_id.clone();
+        self.originate(bundle, now);
+        Some(id)
     }
 
     pub fn broadcast_text(&mut self, body: &str, priority: Priority, now: u64) -> Vec<Bytes> {
@@ -1521,6 +1581,7 @@ impl NodeEngine {
                         from: m.owner.clone(),
                         payload: inner,
                         group: Some(m.group_id.clone()),
+                        region: None,
                     });
                 }
             }
@@ -2141,6 +2202,7 @@ impl NodeEngine {
                         from: opened.sender.id.clone(),
                         payload: real,
                         group: None,
+                        region: None,
                     });
                 }
             }
@@ -2203,6 +2265,7 @@ impl NodeEngine {
                 from: opened.sender.id.clone(),
                 payload: opened.payload.clone(),
                 group: None, // a direct 1:1 message is never a group thread
+                region: None,
             });
         }
         self.state.mark_delivered(bundle.bundle_id.clone());

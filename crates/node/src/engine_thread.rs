@@ -507,6 +507,35 @@ pub fn run(
                     });
                     dirty = true;
                 }
+                Command::JoinPlace { geohash } => {
+                    engine.join_region(geohash.clone());
+                    dirty = true;
+                }
+                Command::LeavePlace { geohash } => {
+                    engine.leave_region(&geohash);
+                    dirty = true;
+                }
+                Command::SendPlace { geohash, body } => {
+                    let payload = Payload {
+                        kind: PayloadKind::Text,
+                        body: Some(body.clone()),
+                        coords: None,
+                        battery_pct: None,
+                        attach: None,
+                        group_id: None,
+                    };
+                    let id = engine.post_to_region(&geohash, payload, now);
+                    messages.push(MsgView {
+                        id: id.map(|b| b.to_b64url()).unwrap_or_default(),
+                        dir: "out".into(),
+                        peer: format!("place:{geohash}"),
+                        peer_name: name.clone(),
+                        body,
+                        ts: now,
+                        status: "sent".into(),
+                    });
+                    dirty = true;
+                }
                 Command::Shutdown => {
                     shutdown = true;
                 }
@@ -571,15 +600,23 @@ pub fn run(
             // verified sender-keys path), NOT the payload's self-asserted
             // `group_id` — otherwise a direct/geocast message could be spoofed
             // into a group thread.
-            let (peer, dir) = match &inb.group {
-                Some(g) => {
-                    if !groups.contains(g) {
-                        groups.push(g.clone());
+            let (peer, dir) = if let Some(cell) = &inb.region {
+                // A place-channel message threads under `place:<geohash>` — the
+                // sender need not be a contact.
+                (format!("place:{cell}"), "in")
+            } else {
+                match &inb.group {
+                    Some(g) => {
+                        if !groups.contains(g) {
+                            groups.push(g.clone());
+                        }
+                        (format!("group:{g}"), "in")
                     }
-                    (format!("group:{g}"), "in")
+                    None if inb.payload.kind == PayloadKind::Sos => {
+                        (inb.from.to_text(), "in-sos")
+                    }
+                    None => (inb.from.to_text(), "in"),
                 }
-                None if inb.payload.kind == PayloadKind::Sos => (inb.from.to_text(), "in-sos"),
-                None => (inb.from.to_text(), "in"),
             };
             // Record any location (shared position or an SOS with coordinates) so
             // the Nearby view can show where this contact is (FR-43).
@@ -678,7 +715,7 @@ pub fn run(
                 seconds: *seconds,
                 from: from.clone(),
             });
-        let snap = build_snapshot(
+        let mut snap = build_snapshot(
             &engine,
             &identity_view,
             &my_addr,
@@ -690,6 +727,7 @@ pub fn run(
             poi_views,
             strobe_view,
         );
+        snap.places = engine.subscribed_regions();
         if let Ok(mut g) = shared.lock() {
             *g = snap;
         }
@@ -1050,6 +1088,7 @@ fn build_snapshot(
         my_pos,
         pois,
         strobe,
+        places: Vec::new(), // set by the caller from engine.subscribed_regions()
     }
 }
 

@@ -64,6 +64,9 @@ pub fn router(state: AppState) -> Router {
         .route("/api/panic", post(post_panic))
         .route("/api/position", post(post_position))
         .route("/api/geocast", post(post_geocast))
+        .route("/api/place/join", post(post_place_join))
+        .route("/api/place/leave", post(post_place_leave))
+        .route("/api/place/send", post(post_place_send))
         .route("/api/qr.svg", get(get_qr))
         .route("/manifest.webmanifest", get(get_manifest))
         .route("/icon.svg", get(get_icon))
@@ -251,6 +254,47 @@ async fn post_geocast(
         lat: req.lat,
         lon: req.lon,
         radius_m: req.radius_m,
+        body: req.body,
+    });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct PlaceReq {
+    geohash: String,
+}
+
+/// Join a geohash place channel (join-by-place).
+async fn post_place_join(
+    State(st): State<AppState>,
+    Json(req): Json<PlaceReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::JoinPlace { geohash: req.geohash });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+/// Leave a place channel.
+async fn post_place_leave(
+    State(st): State<AppState>,
+    Json(req): Json<PlaceReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::LeavePlace { geohash: req.geohash });
+    Json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct PlaceSendReq {
+    geohash: String,
+    body: String,
+}
+
+/// Post a message to a joined place channel.
+async fn post_place_send(
+    State(st): State<AppState>,
+    Json(req): Json<PlaceSendReq>,
+) -> impl IntoResponse {
+    let _ = st.cmd.send(Command::SendPlace {
+        geohash: req.geohash,
         body: req.body,
     });
     Json(serde_json::json!({ "ok": true }))

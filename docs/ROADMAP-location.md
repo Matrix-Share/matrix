@@ -38,12 +38,17 @@ what turns the use cases from aspiration into fact.
       (`expo-location`, [`mobile/lib/location.ts`](../mobile/lib/location.ts)), and
       SOS/geocast now attach a real GPS fix. **Remaining:** background permission +
       a battery-aware update cadence (pairs with live sharing below).
-- [ ] **Live / continuous location sharing** ("share for 15 min") with periodic
-      updates and auto-expiry — today it's a single snapshot.
+- [x] **Live / continuous location sharing** ("share for 15 min / 1 hour") — the
+      mobile Nearby screen now pushes a fresh fix on an interval until a chosen
+      deadline, with a live countdown and auto-stop; positions still TTL-expire.
 - [ ] **Differential / relative positioning** using `lifeline-timesync` +
       `lifeline-geo` for crowd-grade accuracy (the "differential GPS" idea).
-- [ ] **Geohash location channels** (join-by-place) so strangers at the same
-      event can coordinate without being contacts (bitchat-style).
+- [x] **Geohash location channels** (join-by-place) so strangers at the same
+      event can coordinate without being contacts — `join_region`/`leave_region`/
+      `post_to_region` in the engine (built on the geocast region key), node
+      commands + `/api/place/*`, messages threaded under `place:<geohash>`, and an
+      end-to-end test. *(App channel screen is the remaining UI follow-up; the
+      client actions are wired.)*
 - [ ] Nearby **staleness policy**: expire/dim old fixes (we currently keep all),
       and surface **accuracy** (`acc_m`, already captured) in the UI.
 

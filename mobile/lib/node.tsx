@@ -57,6 +57,8 @@ export type Snapshot = {
   nearby?: Nearby[];
   /** This node's own last-known position, if set. */
   my_pos?: Pos | null;
+  /** Geohash place channels this node has joined (messages thread as place:<hash>). */
+  places?: string[];
 };
 
 type Conn = 'idle' | 'connecting' | 'online' | 'offline';
@@ -81,6 +83,12 @@ type NodeCtx = {
     shareLocationAll: (lat: number, lon: number, acc_m?: number) => Promise<void>;
     /** Share this position with only one group's members (scoped share). */
     shareLocationGroup: (group: string, lat: number, lon: number, acc_m?: number) => Promise<void>;
+    /** Join a geohash place channel (join-by-place). */
+    joinPlace: (geohash: string) => Promise<void>;
+    /** Leave a place channel. */
+    leavePlace: (geohash: string) => Promise<void>;
+    /** Post a message to a joined place channel. */
+    sendPlace: (geohash: string, body: string) => Promise<void>;
     addContact: (code: string) => Promise<void>;
     createGroup: (id: string) => Promise<void>;
     addMember: (group: string, addr: string) => Promise<void>;
@@ -197,6 +205,9 @@ export function NodeProvider({ children }: { children: React.ReactNode }) {
           acc_m: acc_m != null ? Math.round(acc_m) : undefined,
         });
       },
+      joinPlace: async (geohash) => { await post('/api/place/join', { geohash }); },
+      leavePlace: async (geohash) => { await post('/api/place/leave', { geohash }); },
+      sendPlace: async (geohash, body) => { await post('/api/place/send', { geohash, body }); },
       addContact: async (code) => { await post('/api/contacts', { code }); },
       createGroup: async (id) => { await post('/api/group/create', { id }); },
       addMember: async (group, addr) => { await post('/api/group/add', { group, addr }); },

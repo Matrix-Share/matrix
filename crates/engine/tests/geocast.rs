@@ -62,3 +62,44 @@ fn geocast_reaches_nodes_in_the_region_only() {
     );
     assert_eq!(far_got, 0, "a node outside the region must not");
 }
+
+#[test]
+fn place_channel_reaches_joiners_regardless_of_position() {
+    let med = SharedMedium::new();
+    // A poster, someone who joined the place channel (but is nowhere near it), and
+    // a stranger who joined a *different* place. None are contacts.
+    let mut poster = NodeEngine::new(Identity::generate(0), EngineConfig::default());
+    let mut joiner = NodeEngine::new(Identity::generate(0), EngineConfig::default());
+    let mut stranger = NodeEngine::new(Identity::generate(0), EngineConfig::default());
+    for e in [&mut poster, &mut joiner, &mut stranger] {
+        e.add_interface(Box::new(med.attach(InterfaceCaps::ble())));
+    }
+
+    // Join-by-place: the channel is a geohash cell. The joiner subscribes to it
+    // without ever setting a GPS position; the stranger joins an unrelated cell.
+    let cell = "9q8yyk"; // downtown SF, precision 6
+    joiner.join_region(cell);
+    stranger.join_region("gbsuv7"); // somewhere in the UK
+
+    let id = poster.post_to_region(cell, text("meet at the fountain"), 0);
+    assert!(id.is_some(), "posting to a place channel should produce a bundle");
+
+    let mut joiner_hits = 0usize;
+    let mut stranger_got = 0usize;
+    for t in 0..80u64 {
+        for e in [&mut poster, &mut joiner, &mut stranger] {
+            e.tick(t);
+        }
+        for m in joiner.take_inbox() {
+            if m.payload.body.as_deref() == Some("meet at the fountain") {
+                // The message must be tagged with the place channel it arrived on.
+                assert_eq!(m.region.as_deref(), Some(cell));
+                joiner_hits += 1;
+            }
+        }
+        stranger_got += stranger.take_inbox().len();
+    }
+
+    assert!(joiner_hits >= 1, "a node that joined the place must receive the post");
+    assert_eq!(stranger_got, 0, "a node that did not join the place must not");
+}
