@@ -41,7 +41,7 @@ is in [`GAPS.md`](GAPS.md).
 ## Transports (§8.4)
 | Req | State | Where |
 |---|---|---|
-| FR-16..21 BLE / Wi-Fi Aware / ultrasound / optical / LoRa / internet | ◐ | **`transport::Interface` contract + caps + MTU fragmentation for all six, driven by `NodeEngine`; delivery proven over each in tests. A real `UdpInterface` (multicast/LAN) meshes two nodes with no relay (verified over real sockets). Lossy-link ARQ (`transport::arq`, selective-repeat with cumulative+bitmap SACKs) recovers dropped fragments — proven delivering a message over a 30%-loss channel.** BLE/ggwave/LoRa radio backends ○ (platform work) |
+| FR-16..21 BLE / Wi-Fi Aware / ultrasound / optical / LoRa / internet | ◐ | **`transport::Interface` contract + caps + MTU fragmentation for all six, driven by `NodeEngine`; delivery proven over each in tests. A real `UdpInterface` (multicast/LAN) meshes two nodes with no relay (verified over real sockets). Lossy-link ARQ (`transport::arq`, selective-repeat with cumulative+bitmap SACKs) recovers dropped fragments — proven delivering a message over a 30%-loss channel.** BLE stack (ATT segmentation/reassembly + `GattPort` seam) ✅ tested; **desktop `btleplug` central backend** ◐ wired behind `--features ble-radio` + `LIFELINE_BLE` (compiles/clippy-clean; on-device + MTU negotiation + mobile radio pending). ggwave/LoRa radio backends ○ (platform work) |
 | FR-22 Concurrent transports, router picks best | ✅ | `NodeEngine` runs multiple `Interface`s concurrently; same bundle over any (test: BLE+ultrasound+internet) |
 
 ## Routing & delivery (§8.5)
@@ -79,7 +79,11 @@ is in [`GAPS.md`](GAPS.md).
 | FR-40 One-tap SOS + GPS + battery | ✅ | protocol + `NodeEngine::broadcast_sos` + **GUI SOS button** (geolocation + battery, graceful fallback) via `POST /api/sos` — verified delivering as `in-sos` end-to-end |
 | FR-41 "I'm safe" broadcast | ✅ | `NodeEngine::broadcast_safe` fans out to all contacts (tested end-to-end) |
 | FR-42 Authority alerts | ✅ | `core::alert` — Ed25519-signed alerts with an **authenticated broadcast identity**, trusted-authority root store, key↔address binding, expiry (tested incl. spoof/tamper). External Cell-Broadcast *ingest* ○ |
-| FR-43 Location sharing | ✅ | `NodeEngine::submit_location` + **GUI share-location** (`POST /api/location`, browser geolocation) — verified delivered; periodic-interval scheduling is app-level |
+| FR-43 Location sharing | ✅ | `NodeEngine::submit_location` + **GUI share-location** (`POST /api/location`, browser geolocation) — verified delivered |
+| FR-43a Find each other (Nearby) | ✅ | peer-position tracking → `build_nearby` (distance + compass bearing via `lifeline-geo`), share-with-everyone (`LocationAll`) and scoped share-with-group (`LocationGroup`, `POST /api/location_group`); **mobile Nearby screen** (`mobile/screens/NearbyScreen.tsx`) with a compass list |
+| FR-43b Live / continuous sharing | ✅ | mobile pushes a fresh fix on an interval for a chosen duration with auto-stop; positions **auto-expire** node-side (`LIFELINE_LOCATION_TTL_SECS`, default 30 min) so a one-time share is never indefinite tracking (unit-tested) |
+| FR-43c Location privacy | ✅ | opt-in per share + stop-sharing; per-group/per-contact scope; TTL expiry; **panic wipe clears cached peer positions/POIs/own fix**; threat model in `SECURITY.md` |
+| FR-43d Geohash place channels | ✅ | join-by-place (`join_region`/`leave_region`/`post_to_region` on the geocast region key), `POST /api/place/{join,leave,send}`, messages threaded under `place:<geohash>` — strangers coordinate without being contacts (end-to-end test) |
 
 ## Security & anti-abuse (§8.9)
 | Req | State | Where |

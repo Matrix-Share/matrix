@@ -5,7 +5,10 @@ import { useTheme } from '../theme/theme';
 import { radius, space } from '../theme/tokens';
 import { Button, Card, Icon, Pill, Txt } from '../components/ui';
 import { useNode } from '../lib/node';
+import { getFix } from '../lib/location';
 import { Empty, Header } from './MessagesScreen';
+
+const GEOCAST_RADIUS_M = 800;
 
 function fmtBytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -43,14 +46,29 @@ export default function NetworkScreen() {
     : [];
 
   const doSos = async () => {
-    await actions.sos();
-    Alert.alert('SOS sent', 'Broadcast to everyone in range at the highest priority.');
+    // Attach a location if we can get one quickly, but never let a missing/denied
+    // fix block an SOS — send it either way.
+    let fix: Awaited<ReturnType<typeof getFix>> | null = null;
+    try { fix = await getFix(); } catch { fix = null; }
+    await actions.sos(fix?.lat, fix?.lon, fix?.acc_m);
+    Alert.alert(
+      'SOS sent',
+      fix
+        ? 'Broadcast to everyone in range at the highest priority, with your location attached.'
+        : 'Broadcast to everyone in range at the highest priority. (No location attached — enable location to include it.)'
+    );
   };
   const doGeo = async () => {
     const t = geo.trim();
     if (!t) return;
-    // A real device would attach GPS; here we send without coordinates guidance.
-    Alert.alert('Geocast needs location', 'On a device, Lifeline attaches your GPS to pick the region. Location wiring lands with the native build.');
+    try {
+      const fix = await getFix();
+      await actions.geocast(fix.lat, fix.lon, GEOCAST_RADIUS_M, t);
+      setGeo('');
+      Alert.alert('Area alert sent', `Delivered to everyone within ${GEOCAST_RADIUS_M} m of you.`);
+    } catch (e: any) {
+      Alert.alert('Geocast needs your location', e?.message ?? 'Enable location to pick the region to alert.');
+    }
   };
 
   return (

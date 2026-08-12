@@ -62,6 +62,15 @@ pub enum Command {
         lon: f64,
         acc_m: Option<u32>,
     },
+    /// Share this node's location with only the members of one group — a scoped
+    /// share ("share with this group only") for location privacy. Also sets this
+    /// node's own position so distances render.
+    LocationGroup {
+        group: String,
+        lat: f64,
+        lon: f64,
+        acc_m: Option<u32>,
+    },
     /// Add a **point of interest** (wayfinding) at a location — water, a stage,
     /// medical, "our tent". Stored locally and, if `share`, broadcast to every
     /// contact so the whole crew can navigate to it.
@@ -106,6 +115,13 @@ pub enum Command {
         radius_m: f64,
         body: String,
     },
+    /// Join a **place channel** by geohash cell (join-by-place): receive messages
+    /// posted to that cell without the posters being contacts.
+    JoinPlace { geohash: String },
+    /// Leave a place channel.
+    LeavePlace { geohash: String },
+    /// Post a message to a joined place channel.
+    SendPlace { geohash: String, body: String },
 }
 
 /// The full UI snapshot, serialized to the browser as JSON.
@@ -132,6 +148,10 @@ pub struct Snapshot {
     /// synchronized glow. Present only while `start .. start+seconds` is current.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub strobe: Option<StrobeView>,
+    /// Geohash **place channels** this node has joined (join-by-place). Messages on
+    /// them thread under `place:<geohash>` in `messages`.
+    #[serde(default)]
+    pub places: Vec<String>,
 }
 
 /// An active strobe beacon: a synchronized crowd-finding glow. Every phone

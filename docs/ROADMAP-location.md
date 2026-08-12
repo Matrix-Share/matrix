@@ -26,21 +26,33 @@ what turns the use cases from aspiration into fact.
       — ATT-MTU segmentation/reassembly, the `BleDriver` engine↔radio bridge, and
       the `GattPort` seam — verified end-to-end over an in-memory GATT fabric
       ([`crates/transport/src/ble.rs`](../crates/transport/src/ble.rs),
-      [design](ble-transport.md)). **Remaining (hardware-bound):** a real
-      `GattPort` — `btleplug` on desktop (central), CoreBluetooth/Android in the
-      mobile app (dual-role) — plus MTU negotiation and duty-cycling, verified
-      on-device.
+      [design](ble-transport.md)). **Desktop backend done:** a real `GattPort` over
+      `btleplug` (central role) — scan → connect → subscribe → notify/write — wired
+      behind the `ble-radio` feature and `LIFELINE_BLE`
+      ([`crates/node/src/ble_backend.rs`](../crates/node/src/ble_backend.rs)); build
+      with `cargo build -p lifeline-node --features ble-radio`. **Remaining
+      (hardware-bound):** on-device verification, ATT-MTU negotiation (we currently
+      advertise the safe 20-byte minimum), duty-cycling, and the CoreBluetooth /
+      Android dual-role backend in the mobile app.
 - [ ] **Wi-Fi Aware** transport for higher-bandwidth phone-to-phone links.
-- [ ] **Mobile app: the Nearby / find-each-other view** (Expo) — currently
-      web-only; most real users are on phones.
-- [ ] Mobile **location permissions** (foreground + background) with a
-      battery-aware update cadence.
-- [ ] **Live / continuous location sharing** ("share for 15 min") with periodic
-      updates and auto-expiry — today it's a single snapshot.
+- [x] **Mobile app: the Nearby / find-each-other view** (Expo) — a Nearby tab
+      showing contacts nearest-first with distance + compass bearing, plus an
+      opt-in "Share my location" control ([`mobile/screens/NearbyScreen.tsx`](../mobile/screens/NearbyScreen.tsx)).
+- [~] Mobile **location permissions** — foreground / when-in-use is wired
+      (`expo-location`, [`mobile/lib/location.ts`](../mobile/lib/location.ts)), and
+      SOS/geocast now attach a real GPS fix. **Remaining:** background permission +
+      a battery-aware update cadence (pairs with live sharing below).
+- [x] **Live / continuous location sharing** ("share for 15 min / 1 hour") — the
+      mobile Nearby screen now pushes a fresh fix on an interval until a chosen
+      deadline, with a live countdown and auto-stop; positions still TTL-expire.
 - [ ] **Differential / relative positioning** using `lifeline-timesync` +
       `lifeline-geo` for crowd-grade accuracy (the "differential GPS" idea).
-- [ ] **Geohash location channels** (join-by-place) so strangers at the same
-      event can coordinate without being contacts (bitchat-style).
+- [x] **Geohash location channels** (join-by-place) so strangers at the same
+      event can coordinate without being contacts — `join_region`/`leave_region`/
+      `post_to_region` in the engine (built on the geocast region key), node
+      commands + `/api/place/*`, messages threaded under `place:<geohash>`, and an
+      end-to-end test. *(App channel screen is the remaining UI follow-up; the
+      client actions are wired.)*
 - [ ] Nearby **staleness policy**: expire/dim old fixes (we currently keep all),
       and surface **accuracy** (`acc_m`, already captured) in the UI.
 
@@ -49,12 +61,16 @@ what turns the use cases from aspiration into fact.
 Location is sensitive. Sharing it must be **consensual, scoped, and revocable** —
 otherwise the safety feature becomes a tracking risk.
 
-- [ ] Explicit **opt-in per share** and a prominent **"stop sharing"** control.
-- [ ] **Per-group / per-contact scopes** — "share with this group only."
-- [ ] **Auto-expiry (TTL)** on shared positions; no indefinite tracking.
-- [ ] Document the **location threat model** in [SECURITY.md](../SECURITY.md):
+- [x] Explicit **opt-in per share** and a prominent **"stop sharing"** control
+      (mobile Nearby screen; sharing is off until you tap Share).
+- [x] **Per-group / per-contact scopes** — "share with this group only"
+      (`LocationGroup` command + `/api/location_group`; scope chips in the app).
+- [x] **Auto-expiry (TTL)** on shared positions; no indefinite tracking
+      (`LIFELINE_LOCATION_TTL_SECS`, default 30 min; tested).
+- [x] Document the **location threat model** in [SECURITY.md](../SECURITY.md):
       who can see a position, and the rendezvous-addressing caveat for it.
-- [ ] Verify **panic wipe** also destroys cached peer positions.
+- [x] Verify **panic wipe** also destroys cached peer positions (the panic branch
+      now clears `peer_pos`, POIs, and our own fix explicitly).
 
 ## C. Testing
 
@@ -66,15 +82,17 @@ otherwise the safety feature becomes a tracking risk.
 ## D. Documentation consistency (across the board)
 
 - [x] `USE-CASES.md` (7 categories), linked from README + WHITEPAPER. *(PR #62)*
-- [ ] `STATUS.md`: add find-each-other / location-broadcast to the `FR-*`
-      traceability (extends FR-43).
-- [ ] `ARCHITECTURE.md`: document the peer-position → Nearby data path and the
-      `LocationAll` command.
-- [ ] `docs/geo-and-differential.md`: extend with the find-each-other +
-      differential-positioning design.
-- [ ] README **feature list**: mention "find each other."
-- [ ] Each app README (`mobile/`, `saas/`, `crates/node/`) references the **same
-      feature set** and the **same honest status**.
+- [x] `STATUS.md`: find-each-other / live / privacy / place-channels added to the
+      `FR-*` traceability (FR-43a–d), plus the desktop BLE backend row.
+- [x] `ARCHITECTURE.md`: §3.6 documents the peer-position → Nearby path, geocast
+      addressing, and place channels.
+- [x] `docs/geo-and-differential.md`: extended with the shipped find-each-other /
+      Nearby + place-channel design (build plan §2).
+- [x] README **feature list**: mentions "find each other" + an honest alpha caveat
+      on the offline radios.
+- [~] Each app README references the **same feature set** and **honest status** —
+      root README + `mobile/README` (Nearby) done; `saas/`/`crates/node/` READMEs
+      still to sweep.
 
 ## E. Messaging consistency (across the board)
 
@@ -83,11 +101,13 @@ site, SaaS, white papers.
 
 - [x] Marketing "Where Lifeline helps" use-cases section (SaaS + static site).
       *(PR #62)*
-- [ ] Add a **"Find each other" card** to the *Features* list on both marketing
-      sites (Features currently omits it).
-- [ ] Mobile app mirrors the find-each-other + use-cases framing.
-- [ ] Keep the **alpha / native-radio-not-shipped** caveat *identical* on every
-      surface (README, white papers, marketing, in-app) — audit for drift.
+- [x] Add a **"Find each other" card** to the *Features* list on both marketing
+      sites (static site already had one; added to the SaaS `FEATURES`).
+- [x] Mobile app mirrors the find-each-other framing — the **Nearby screen** ships
+      (share / scope / live / countdown), and the mobile README lists it.
+- [~] Keep the **alpha / native-radio-not-shipped** caveat *identical* on every
+      surface — root README now carries the honest BLE status; marketing + white
+      papers + in-app still to audit for drift.
 - [ ] Consistent **"sharing your location can save your life"** framing + the
       four headline scenarios on every surface.
 - [ ] One **canonical feature list** (single source of truth) that every surface
