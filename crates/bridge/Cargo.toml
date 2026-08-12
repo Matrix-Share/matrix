@@ -18,7 +18,7 @@ rand.workspace = true
 # Optional: a live WebSocket Nostr relay client (`ws` feature). Kept off by
 # default so the core codec + adapters build without the async/TLS stack.
 tokio = { version = "1", features = ["rt", "macros", "net", "time", "sync"], optional = true }
-tokio-tungstenite = { version = "0.24", features = ["connect", "rustls-tls-webpki-roots"], optional = true }
+tokio-tungstenite = { version = "0.30", features = ["connect", "rustls-tls-webpki-roots"], optional = true }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"], optional = true }
 
 # Optional: the Meshtastic adapter. `prost` gives us the real Meshtastic
@@ -45,5 +45,5 @@ mqtt = ["meshtastic", "dep:rumqttc", "dep:tracing"]
 lifeline-core = { path = "../core" }
 lifeline-engine = { path = "../engine" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
-tokio-tungstenite = { version = "0.24", features = ["connect"] }
+tokio-tungstenite = { version = "0.30", features = ["connect"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
