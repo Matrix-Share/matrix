@@ -82,7 +82,10 @@ fn place_channel_reaches_joiners_regardless_of_position() {
     stranger.join_region("gbsuv7"); // somewhere in the UK
 
     let id = poster.post_to_region(cell, text("meet at the fountain"), 0);
-    assert!(id.is_some(), "posting to a place channel should produce a bundle");
+    assert!(
+        id.is_some(),
+        "posting to a place channel should produce a bundle"
+    );
 
     let mut joiner_hits = 0usize;
     let mut stranger_got = 0usize;
@@ -100,6 +103,12 @@ fn place_channel_reaches_joiners_regardless_of_position() {
         stranger_got += stranger.take_inbox().len();
     }
 
-    assert!(joiner_hits >= 1, "a node that joined the place must receive the post");
-    assert_eq!(stranger_got, 0, "a node that did not join the place must not");
+    assert!(
+        joiner_hits >= 1,
+        "a node that joined the place must receive the post"
+    );
+    assert_eq!(
+        stranger_got, 0,
+        "a node that did not join the place must not"
+    );
 }

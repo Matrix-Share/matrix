@@ -22,7 +22,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use lifeline_transport::ble::{BleDriver, GattPort, FRAME_CHAR_UUID, MIN_ATT_PAYLOAD, SERVICE_UUID};
+use lifeline_transport::ble::{
+    BleDriver, GattPort, FRAME_CHAR_UUID, MIN_ATT_PAYLOAD, SERVICE_UUID,
+};
 use lifeline_transport::{ChannelInterface, InterfaceCaps, Outbound, PeerId};
 
 use btleplug::api::{
@@ -137,7 +139,9 @@ pub fn spawn(handle: &tokio::runtime::Handle) -> Option<ChannelInterface> {
 /// service discovery + connections until an error bubbles up (then the caller
 /// restarts us). Per connected peripheral, a task forwards its notifications and
 /// the shared outbound queue is drained to its frame characteristic.
-async fn run_central(shared: Arc<Mutex<BleShared>>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn run_central(
+    shared: Arc<Mutex<BleShared>>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let service = uuid::Uuid::parse_str(SERVICE_UUID)?;
     let frame_uuid = uuid::Uuid::parse_str(FRAME_CHAR_UUID)?;
 

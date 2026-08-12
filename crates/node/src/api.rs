@@ -269,7 +269,9 @@ async fn post_place_join(
     State(st): State<AppState>,
     Json(req): Json<PlaceReq>,
 ) -> impl IntoResponse {
-    let _ = st.cmd.send(Command::JoinPlace { geohash: req.geohash });
+    let _ = st.cmd.send(Command::JoinPlace {
+        geohash: req.geohash,
+    });
     Json(serde_json::json!({ "ok": true }))
 }
 
@@ -278,7 +280,9 @@ async fn post_place_leave(
     State(st): State<AppState>,
     Json(req): Json<PlaceReq>,
 ) -> impl IntoResponse {
-    let _ = st.cmd.send(Command::LeavePlace { geohash: req.geohash });
+    let _ = st.cmd.send(Command::LeavePlace {
+        geohash: req.geohash,
+    });
     Json(serde_json::json!({ "ok": true }))
 }
 

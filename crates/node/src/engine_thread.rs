@@ -612,9 +612,7 @@ pub fn run(
                         }
                         (format!("group:{g}"), "in")
                     }
-                    None if inb.payload.kind == PayloadKind::Sos => {
-                        (inb.from.to_text(), "in-sos")
-                    }
+                    None if inb.payload.kind == PayloadKind::Sos => (inb.from.to_text(), "in-sos"),
                     None => (inb.from.to_text(), "in"),
                 }
             };
@@ -1167,7 +1165,10 @@ mod tests {
         // ...and the retain predicate the loop uses drops exactly the stale ones.
         let mut map: HashMap<Address, (f64, f64, u64)> = HashMap::new();
         map.insert(Address::from_hash_bytes([1u8; 16]), (0.0, 0.0, now)); // fresh
-        map.insert(Address::from_hash_bytes([2u8; 16]), (0.0, 0.0, now - ttl - 1)); // stale
+        map.insert(
+            Address::from_hash_bytes([2u8; 16]),
+            (0.0, 0.0, now - ttl - 1),
+        ); // stale
         map.retain(|_, &mut (_, _, at)| pos_fresh(at, now, ttl));
         assert_eq!(map.len(), 1);
         assert!(map.contains_key(&Address::from_hash_bytes([1u8; 16])));
