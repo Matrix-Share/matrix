@@ -180,6 +180,7 @@ const FEATURES = [
   { icon: '🔒', title: 'Private by default', body: 'End-to-end encryption with forward secrecy. Private sends hide even who you talk to.' },
   { icon: '👥', title: 'Groups & teams', body: 'Encrypted group threads that keep working across a fractured network.' },
   { icon: '📍', title: 'Geocast an area', body: 'Alert everyone within a radius of a point — addressed by place, not by contact.' },
+  { icon: '🧭', title: 'Find each other', body: 'Share your live location and see who’s nearby — distance and direction to your group when the network is down. Opt-in, scoped to who you choose, and auto-expiring.' },
   { icon: '🖥️', title: 'Managed relays', body: 'Spin up hosted relays and gateways from a dashboard, and see your mesh at a glance.' },
 ];
 

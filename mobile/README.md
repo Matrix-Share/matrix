@@ -16,6 +16,9 @@ subscribes to the node's live snapshot over WebSocket and auto-reconnects.
 ## Screens
 - **Messages** — conversations (mesh & broadcasts, groups, direct); tap into a
   thread with encrypted send, a private (rendezvous) toggle, and a priority toggle.
+- **Nearby** — find each other: contacts who are sharing a location, nearest-first,
+  with distance + compass bearing, and an opt-in **live** share (choose who —
+  everyone or a group — and for how long; it auto-stops and positions auto-expire).
 - **Network** — live mesh stats, broadcast, SOS, "I'm safe", geocast.
 - **Settings** — node connection, identity, appearance (Auto/Light/Dark), and the
   **panic wipe**.
@@ -38,7 +41,7 @@ new architecture. Configure your EAS project/credentials before building.
 ```
 theme/        tokens.ts (design tokens) · theme.tsx (light/dark provider)
 components/    ui.tsx    (Txt, Button, Card, Row, Avatar, Pill, Icon…)
-lib/          node.tsx  (node connection + live state + actions)
+lib/          node.tsx  (node connection + live state + actions) · location.ts (GPS access)
 navigation/   AppShell.tsx (tab bar + chat presentation)
-screens/      Messages · Chat · Network · Settings
+screens/      Messages · Chat · Nearby · Network · Settings
 ```

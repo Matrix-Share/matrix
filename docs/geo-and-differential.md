@@ -91,9 +91,20 @@ Ranked, each landing on a seam that already exists:
    `set_position` + `broadcast_geo(lat, lon, radius, …)` and position-gated
    delivery; a geocast has no single recipient so it keeps spreading. Verified
    end-to-end: a node inside the region receives it, one outside doesn't, none are
-   contacts. *Remaining:* node/UI hookup (browser geolocation → position; an
-   "alert an area" send form) and a `GeoRoutingPolicy` that forwards *toward* the
-   region (today geocasts spray broadly).
+   contacts. *Node/UI hookup done:* browser + mobile geolocation → position, an
+   "alert an area" send form, and **geohash place channels** — `join_region` /
+   `leave_region` / `post_to_region` let a node open geocasts for a *joined* cell
+   regardless of its own position, so strangers at the same place coordinate
+   without being contacts (messages thread under `place:<geohash>`; end-to-end
+   test). *Remaining:* a `GeoRoutingPolicy` that forwards *toward* the region
+   (today geocasts spray broadly).
+   - **Find each other / Nearby — shipped.** ✅ Peer positions shared via
+     `Location` / `LocationAll` / `LocationGroup` feed `build_nearby` (distance +
+     compass bearing from `lifeline-geo`); the app renders a nearest-first list and
+     an opt-in **live** share (scope + duration + auto-stop). Positions
+     **auto-expire** (`LIFELINE_LOCATION_TTL_SECS`) so a share is never indefinite
+     tracking, and the panic wipe clears them. This is "Angle 1 — location as an
+     information mechanism" made concrete.
 3. **Differential time sync — core done.** ✅ `lifeline-timesync`: a GPS node is a
    stratum-1 **reference** that broadcasts its time; GPS-denied nodes discipline
    their oscillators to it (stratum 2+) and re-broadcast, so corrections propagate

@@ -86,13 +86,13 @@ otherwise the safety feature becomes a tracking risk.
       `FR-*` traceability (FR-43a–d), plus the desktop BLE backend row.
 - [x] `ARCHITECTURE.md`: §3.6 documents the peer-position → Nearby path, geocast
       addressing, and place channels.
-- [ ] `docs/geo-and-differential.md`: extend with the find-each-other +
-      differential-positioning design.
+- [x] `docs/geo-and-differential.md`: extended with the shipped find-each-other /
+      Nearby + place-channel design (build plan §2).
 - [x] README **feature list**: mentions "find each other" + an honest alpha caveat
       on the offline radios.
-- [ ] Each app README (`mobile/`, `saas/`, `crates/node/`) references the **same
-      feature set** and the **same honest status** (root README done; app READMEs
-      pending).
+- [~] Each app README references the **same feature set** and **honest status** —
+      root README + `mobile/README` (Nearby) done; `saas/`/`crates/node/` READMEs
+      still to sweep.
 
 ## E. Messaging consistency (across the board)
 
@@ -101,10 +101,10 @@ site, SaaS, white papers.
 
 - [x] Marketing "Where Lifeline helps" use-cases section (SaaS + static site).
       *(PR #62)*
-- [ ] Add a **"Find each other" card** to the *Features* list on both marketing
-      sites (Features currently omits it).
-- [~] Mobile app mirrors the find-each-other framing — the **Nearby screen** ships
-      (share / scope / live / countdown); marketing copy parity still pending.
+- [x] Add a **"Find each other" card** to the *Features* list on both marketing
+      sites (static site already had one; added to the SaaS `FEATURES`).
+- [x] Mobile app mirrors the find-each-other framing — the **Nearby screen** ships
+      (share / scope / live / countdown), and the mobile README lists it.
 - [~] Keep the **alpha / native-radio-not-shipped** caveat *identical* on every
       surface — root README now carries the honest BLE status; marketing + white
       papers + in-app still to audit for drift.
