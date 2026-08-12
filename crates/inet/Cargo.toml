@@ -19,4 +19,4 @@ ed25519-dalek.workspace = true
 rand.workspace = true
 thiserror.workspace = true
 url = "2"
-ureq = { version = "2", optional = true }
+ureq = { version = "3", optional = true }
