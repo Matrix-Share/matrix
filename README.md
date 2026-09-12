@@ -46,6 +46,14 @@ proof of delivery and no blockchain**. Built from the design docs in
 
 ## Quickstart — chat with someone in 60 seconds
 
+**One command (auto-detects Docker or Rust):**
+
+```bash
+./quickstart.sh
+# starts a relay + two nodes and opens two browser tabs (Asha, Ravi).
+# type a message in one — it arrives E2E-encrypted in the other, with a receipt.
+```
+
 **Docker (self-hosted, recommended):**
 
 ```bash

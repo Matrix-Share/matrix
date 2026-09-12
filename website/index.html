@@ -4,12 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Lifeline — Messaging that works when the network doesn't</title>
-<meta name="description" content="Lifeline is an offline, end-to-end encrypted messenger that carries your messages phone-to-phone over Bluetooth and Wi-Fi — no towers, no SIM, no internet, no accounts. Built for disasters, blackouts, crowds and the backcountry.">
+<meta name="description" content="Lifeline is an open-source, end-to-end encrypted mesh messenger designed to keep working when towers and the internet fail, carrying messages phone-to-phone. Alpha preview — no accounts, no servers holding your data; native Bluetooth radio in progress, not yet security-audited.">
 <meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#08080c" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="Lifeline — Messaging that works when the network doesn't">
-<meta property="og:description" content="An offline, end-to-end encrypted mesh messenger. Your phone becomes the network. No towers, no SIM, no accounts.">
+<meta property="og:description" content="An open-source, end-to-end encrypted mesh messenger designed to keep working when the network fails — your phone becomes the network. Alpha preview, not yet security-audited.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://matrix-alpha-ashen.vercel.app/">
+<meta property="og:image" content="https://matrix-alpha-ashen.vercel.app/social-preview.png">
+<meta property="og:image:alt" content="Lifeline — open-source, end-to-end encrypted mesh messenger">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Lifeline — Messaging that works when the network doesn't">
+<meta name="twitter:description" content="Open-source, end-to-end encrypted mesh messenger designed to keep working when the network fails. Alpha preview, not yet security-audited.">
+<meta name="twitter:image" content="https://matrix-alpha-ashen.vercel.app/social-preview.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='1' stop-color='%23a855f7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M4 18H12L14.5 8L18 25L20.5 18H28' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='4' cy='18' r='2.2' fill='white'/%3E%3Ccircle cx='28' cy='18' r='2.2' fill='white'/%3E%3Ccircle cx='14.5' cy='8' r='2.4' fill='white'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -72,7 +79,7 @@
   <canvas id="mesh" aria-hidden="true"></canvas>
   <div class="veil" aria-hidden="true"></div>
   <div class="wrap">
-    <span class="eyebrow" data-reveal><span class="d"></span>Open-source · works with zero infrastructure</span>
+    <span class="eyebrow" data-reveal><span class="d"></span>Open-source · alpha preview · not yet security-audited</span>
     <h1 data-reveal data-delay="1">Messaging that works when the network <span class="ser warm-text">doesn&rsquo;t.</span></h1>
     <p class="lede" data-reveal data-delay="2">
       When the towers go down and the SIM says <em>No&nbsp;Service</em>, Lifeline keeps going.
@@ -88,11 +95,14 @@
       </a>
     </div>
     <div class="trust" data-reveal data-delay="3">
-      <span><span class="ck">✓</span> No towers or SIM</span>
-      <span><span class="ck">✓</span> No internet required</span>
-      <span><span class="ck">✓</span> No accounts, ever</span>
       <span><span class="ck">✓</span> End-to-end encrypted</span>
+      <span><span class="ck">✓</span> No accounts, ever</span>
+      <span><span class="ck">✓</span> No servers hold your data</span>
+      <span><span class="ck">✓</span> Open source</span>
     </div>
+    <p class="hero-status" data-reveal data-delay="3" style="margin:18px auto 0;max-width:640px;font-size:14px;line-height:1.55;color:var(--muted);border:1px solid rgba(128,128,128,.35);border-radius:12px;padding:12px 16px;background:rgba(128,128,128,.08)">
+      <strong style="color:var(--accent)">Where it really is today.</strong> The mesh runs now over Wi-Fi/LAN with an optional zero-knowledge relay. Native phone-to-phone <em>Bluetooth</em> radio is built but not yet shipped, and Lifeline has <strong>not had a security audit</strong> — so please don't rely on it for a real emergency yet. <a href="https://github.com/matrix-share/matrix#quickstart--chat-with-someone-in-60-seconds" style="color:var(--accent);text-decoration:underline">See exactly what works today →</a>
+    </p>
 
     <!-- floating product card -->
     <div class="stage" data-reveal data-delay="3">
