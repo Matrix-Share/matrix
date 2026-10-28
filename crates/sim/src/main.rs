@@ -56,6 +56,39 @@ fn main() {
         return;
     }
 
+    // `cargo run -p lifeline-sim -- trace <file> [ticks]` replays an external
+    // contact trace (converted by tools/trace_to_lifeline.py) and prints the
+    // same comparative routing table on real mobility instead of synthetic.
+    if std::env::args().nth(1).as_deref() == Some("trace") {
+        let path = match std::env::args().nth(2) {
+            Some(p) => p,
+            None => {
+                eprintln!("usage: cargo run -p lifeline-sim -- trace <file> [ticks]");
+                std::process::exit(2);
+            }
+        };
+        let (events, node_count, max_tick) = match bench::load_trace_events(&path) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("error reading {path}: {e}");
+                std::process::exit(2);
+            }
+        };
+        let ticks = std::env::args()
+            .nth(3)
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(max_tick + 1);
+        banner(&format!(
+            "External-trace comparative evaluation · {path} ({node_count} nodes, {} contacts, {ticks} ticks)",
+            events.len()
+        ));
+        print!(
+            "{}",
+            bench::format_table(&bench::run_comparison_trace(42, ticks, node_count, &events))
+        );
+        return;
+    }
+
     if std::env::args().nth(1).as_deref() == Some("bench") {
         banner("Comparative routing evaluation · 3-cluster partition + mule (seed 42, 700 ticks)");
         print!("{}", bench::format_table(&bench::run_comparison(42, 700)));

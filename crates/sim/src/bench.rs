@@ -12,8 +12,10 @@
 //! worst overhead, and spray-and-wait recovers most of epidemic's delivery at a
 //! fraction of its overhead.
 
-use crate::mobility::RandomWaypoint;
+use crate::mobility::{RandomWaypoint, TraceMobility};
 use crate::{DeliveryReport, Mule, RoutingStrategy, World};
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
 
 /// Phones per cluster in the benchmark scenario.
 const PER_CLUSTER: usize = 4;
@@ -113,6 +115,84 @@ pub fn run_comparison_rwp(seed: u64, ticks: u64, nodes: usize) -> Vec<BenchRow> 
         .iter()
         .map(|&strategy| {
             let mut w = build_rwp(strategy, seed, nodes);
+            let report = w.run(ticks);
+            BenchRow { strategy, report }
+        })
+        .collect()
+}
+
+/// Load a Lifeline per-tick contact trace (`tick a b` lines, `#` comments), as
+/// produced by `tools/trace_to_lifeline.py` from a real external dataset.
+/// Returns `(events, node_count, max_tick)`. This is the trace-ingestion path
+/// the mobility module documents, wired to a file so a real CRAWDAD/SocioPatterns
+/// trace can drive the comparative evaluation (not just synthetic mobility).
+pub fn load_trace_events(path: &str) -> io::Result<(Vec<(u64, usize, usize)>, usize, u64)> {
+    let f = File::open(path)?;
+    let mut events = Vec::new();
+    let (mut max_id, mut max_tick) = (0usize, 0u64);
+    for line in BufReader::new(f).lines() {
+        let line = line?;
+        let s = line.trim();
+        if s.is_empty() || s.starts_with('#') {
+            continue;
+        }
+        let mut it = s.split_whitespace();
+        let t = match it.next().and_then(|x| x.parse::<u64>().ok()) {
+            Some(v) => v,
+            None => continue,
+        };
+        let a = match it.next().and_then(|x| x.parse::<usize>().ok()) {
+            Some(v) => v,
+            None => continue,
+        };
+        let b = match it.next().and_then(|x| x.parse::<usize>().ok()) {
+            Some(v) => v,
+            None => continue,
+        };
+        if a == b {
+            continue;
+        }
+        max_id = max_id.max(a).max(b);
+        max_tick = max_tick.max(t);
+        events.push((t, a, b));
+    }
+    Ok((events, max_id + 1, max_tick))
+}
+
+/// Build a world that replays an external contact trace under `strategy`. Same
+/// traffic model as [`build_rwp`] (every node messages a deterministic
+/// pseudo-random peer) so only the mobility and forwarding policy differ.
+fn build_trace(
+    strategy: RoutingStrategy,
+    seed: u64,
+    node_count: usize,
+    events: &[(u64, usize, usize)],
+) -> World {
+    let mut w = World::new(seed);
+    w.set_strategy(strategy);
+    w.set_mobility(Box::new(TraceMobility::from_events(events.iter().copied())));
+    for _ in 0..node_count {
+        w.add_node(0, false, vec![]);
+    }
+    for i in 0..node_count {
+        let to = (i.wrapping_mul(7).wrapping_add(3)) % node_count;
+        let to = if to == i { (to + 1) % node_count } else { to };
+        w.send_text(i, to, "are you safe?");
+    }
+    w
+}
+
+/// Run the external-trace comparison across all strategies for `ticks`.
+pub fn run_comparison_trace(
+    seed: u64,
+    ticks: u64,
+    node_count: usize,
+    events: &[(u64, usize, usize)],
+) -> Vec<BenchRow> {
+    STRATEGIES
+        .iter()
+        .map(|&strategy| {
+            let mut w = build_trace(strategy, seed, node_count, events);
             let report = w.run(ticks);
             BenchRow { strategy, report }
         })
