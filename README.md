@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="website/logo-wordmark.svg" alt="Lifeline" width="340">
+  <img src="website/logo-wordmark.svg" alt="Relayne" width="340">
 </p>
 
 <p align="center"><b>Messaging that works when the network doesn't.</b></p>
 
 <p align="center">
-  <a href="https://matrix-alpha-ashen.vercel.app">Website</a> ·
+  <a href="https://relayne.org">Website</a> ·
   <a href="WHITEPAPER.md">Whitepaper</a> ·
   <a href="#how-lifeline-compares">How it compares</a> ·
   <a href="docs/USE-CASES.md">Use cases</a> ·
@@ -36,7 +36,7 @@ proof of delivery and no blockchain**. Built from the design docs in
 > [!IMPORTANT]
 > **Status: alpha, and not yet independently security-audited.** The cryptography
 > and protocol are implemented and unit-tested, but they have not had a
-> third-party review — **don't rely on Lifeline for high-risk or life-safety
+> third-party review — **don't rely on Relayne for high-risk or life-safety
 > communication yet.** Also note **what runs today**: nodes mesh over a local
 > WebSocket **relay** (or LAN/UDP), which stands in for the internet transport so
 > browsers and servers can connect. The native phone-to-phone radio bearers
@@ -85,13 +85,13 @@ so browsers can connect.
 > "phone-to-phone with no internet at all" promise is designed and partly built,
 > not yet a turnkey fact — tracked in [`docs/ROADMAP-location.md`](docs/ROADMAP-location.md).
 
-## How Lifeline compares
+## How Relayne compares
 
-Other tools solve pieces of this. Lifeline's niche is **carrying a message across
+Other tools solve pieces of this. Relayne's niche is **carrying a message across
 people and gaps with no infrastructure**, then **bridging to the internet the
 moment any node can**.
 
-| Capability | **Lifeline** | Briar | bitchat | Meshtastic | Nostr |
+| Capability | **Relayne** | Briar | bitchat | Meshtastic | Nostr |
 |---|:--:|:--:|:--:|:--:|:--:|
 | Works with no internet or cell | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Phone-to-phone, no extra hardware | ✅ | ✅ | ✅ | ❌ *LoRa* | ❌ |
@@ -110,7 +110,7 @@ are worthwhile projects. Corrections welcome via
 
 ## Apps in this repo
 
-Lifeline is one product across several surfaces. The **mesh + messenger is the
+Relayne is one product across several surfaces. The **mesh + messenger is the
 core** (Rust, above); the rest are optional layers that share one design system.
 
 | Surface | Path | What it is | Run it |
@@ -137,8 +137,8 @@ The GUI also exposes a **"Run network self-test"** button that executes the
 
 | Doc | What |
 |---|---|
-| [`WHITEPAPER.md`](WHITEPAPER.md) | **Plain-English white paper** — what Lifeline is, who it's for, and how it works, with no jargon. Start here if you're new. |
-| [`docs/USE-CASES.md`](docs/USE-CASES.md) | **Where Lifeline helps** — the real-world situations it's built for (disasters, shutdowns, crowds, the backcountry, privacy, and more), each mapped to the feature that answers it. |
+| [`WHITEPAPER.md`](WHITEPAPER.md) | **Plain-English white paper** — what Relayne is, who it's for, and how it works, with no jargon. Start here if you're new. |
+| [`docs/USE-CASES.md`](docs/USE-CASES.md) | **Where Relayne helps** — the real-world situations it's built for (disasters, shutdowns, crowds, the backcountry, privacy, and more), each mapped to the feature that answers it. |
 | [`docs/ROADMAP-location.md`](docs/ROADMAP-location.md) | **Roadmap** — the checklist to make the location / "find each other" story production-real and keep docs + messaging consistent across every surface. |
 | [`docs/ble-transport.md`](docs/ble-transport.md) | **BLE transport** — how the phone-to-phone Bluetooth bearer is built (ATT segmentation + the radio seam), the platform matrix, and what's tested vs. needs hardware. |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | **How the system fits together** — layers, crates, the extension seams, message flow, threading, and the roadmap. Start here to understand the codebase. |

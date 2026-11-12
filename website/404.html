@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lost the signal · Relayne</title>
+<meta name="description" content="That page could not be reached. Head back to Relayne, the open-source mesh messenger that keeps working when the network doesn't.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#08080c" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ea580c'/%3E%3Cstop offset='1' stop-color='%23fb923c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M6 22 Q10.5 10 16 12' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round'/%3E%3Cpath d='M16 12 Q21.5 10 26 22' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' opacity='.6' stroke-dasharray='1 2.6'/%3E%3Ccircle cx='6' cy='22' r='2.2' fill='white'/%3E%3Ccircle cx='26' cy='22' r='2.2' fill='white'/%3E%3Ccircle cx='16' cy='12' r='2.5' fill='white'/%3E%3Ccircle cx='10.8' cy='14.4' r='1.5' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css?v=2">
+<!-- apply saved theme before paint (matches app.js key) -->
+<script>try{var t=localStorage.getItem('ll-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<style>
+  .nf{min-height:100svh;display:grid;place-items:center;padding:40px 20px;position:relative;overflow:hidden}
+  .nf .card{max-width:560px;text-align:center;position:relative;z-index:1}
+  .nf .brand{display:inline-flex;align-items:center;gap:10px;font-weight:700;font-size:20px;letter-spacing:-.02em;color:var(--ink);text-decoration:none;margin-bottom:34px}
+  .nf .code{font-family:var(--mono,ui-monospace,monospace);font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+  .nf h1{font-size:clamp(30px,6vw,46px);line-height:1.05;letter-spacing:-.03em;margin:0 0 14px}
+  .nf h1 .ser{font-family:var(--serif,Georgia,serif);font-style:italic;font-weight:500;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .nf p{color:var(--ink-2);font-size:17px;line-height:1.55;margin:0 auto 30px;max-width:46ch}
+  .nf .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  /* faint mesh line, same warm language as the hero */
+  .nf .mesh{position:absolute;inset:0;z-index:0;opacity:.5;pointer-events:none}
+  @media (prefers-reduced-motion:no-preference){.nf .dot{animation:nfp 3.2s ease-in-out infinite}}
+  @keyframes nfp{0%,100%{opacity:.35}50%{opacity:1}}
+</style>
+</head>
+<body>
+<div class="rails" aria-hidden="true"></div>
+<main class="nf">
+  <svg class="mesh" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g stroke="var(--accent-3)" stroke-width="1.2" fill="none" opacity=".35">
+      <path d="M80 440 L300 360 L520 470 L740 350"/>
+      <path d="M740 350 L960 470 L1140 360"/>
+      <path d="M300 360 L520 210 M740 350 L960 210"/>
+    </g>
+    <g fill="var(--accent)">
+      <circle class="dot" cx="300" cy="360" r="4"/>
+      <circle class="dot" cx="520" cy="470" r="4" style="animation-delay:.5s"/>
+      <circle class="dot" cx="740" cy="350" r="4" style="animation-delay:1s"/>
+      <circle class="dot" cx="960" cy="470" r="4" style="animation-delay:1.5s"/>
+    </g>
+  </svg>
+  <div class="card">
+    <a class="logo brand" href="/"><span class="mk"></span>Relayne</a>
+    <div class="code">Error 404 · no route found</div>
+    <h1>This hop went <span class="ser">nowhere.</span></h1>
+    <p>The mesh could not carry you to that page. It may have moved, or it may never have existed. Everything still routes from the home page.</p>
+    <div class="cta">
+      <a class="btn btn-dark lg" href="/">Back to home
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+      </a>
+      <a class="btn btn-ghost lg" href="https://github.com/matrix-share/matrix">View on GitHub</a>
+    </div>
+  </div>
+</main>
+</body>
+</html>

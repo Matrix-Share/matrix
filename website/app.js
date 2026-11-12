@@ -1,4 +1,4 @@
-/* Lifeline site — progressive enhancement: reveal, nav, theme, counters, and the
+/* Relayne site — progressive enhancement: reveal, nav, theme, counters, and the
    hero mesh animation (the "network is the people" metaphor). No dependencies. */
 (function () {
   document.documentElement.classList.add('js');

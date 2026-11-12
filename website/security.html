@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Security &amp; Responsible Disclosure — Lifeline</title>
-<meta name="description" content="How Lifeline is secured, how we test it, and how to responsibly report a vulnerability.">
+<title>Security &amp; Responsible Disclosure · Relayne</title>
+<meta name="description" content="How Relayne is secured, how we test it, and how to responsibly report a vulnerability.">
 <meta name="theme-color" content="#6366f1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='1' stop-color='%23a855f7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M4 18H12L14.5 8L18 25L20.5 18H28' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='4' cy='18' r='2.2' fill='white'/%3E%3Ccircle cx='28' cy='18' r='2.2' fill='white'/%3E%3Ccircle cx='14.5' cy='8' r='2.4' fill='white'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=2">
 </head>
 <body>
 
 <header class="nav">
   <div class="in">
-    <a class="logo" href="/"><span class="mk"></span>Lifeline</a>
+    <a class="logo" href="/"><span class="mk"></span>Relayne</a>
     <nav class="links">
       <a class="hidesm" href="index.html#capabilities">Capabilities</a>
       <a class="hidesm" href="index.html#security">Security</a>
@@ -33,9 +33,9 @@
   <a class="backlink" href="/">← Back to home</a>
   <h1>Security &amp; Responsible Disclosure</h1>
   <div class="updated">Last updated: 6 August 2026</div>
-  <p class="lead">Security is the whole point of Lifeline. Our threat model assumes hostile networks, seized infrastructure, and adversaries who control the very devices in between. This page describes how the software is protected and how to report a problem if you find one.</p>
+  <p class="lead">Security is the whole point of Relayne. Our threat model assumes hostile networks, seized infrastructure, and adversaries who control the very devices in between. This page describes how the software is protected and how to report a problem if you find one.</p>
 
-  <h2>How Lifeline is protected</h2>
+  <h2>How Relayne is protected</h2>
   <ul>
     <li><b>End-to-end encryption</b> using modern public-key cryptography, so only the intended recipient can read a message.</li>
     <li><b>Forward secrecy</b> via rotating keys, so compromising a device today does not unlock its past messages.</li>
@@ -45,7 +45,7 @@
   </ul>
 
   <h2>How we test it</h2>
-  <p>Lifeline follows a secure software development lifecycle. Every change is checked by an automated pipeline that includes:</p>
+  <p>Relayne follows a secure software development lifecycle. Every change is checked by an automated pipeline that includes:</p>
   <ul>
     <li>Static application security testing (SAST) and linting on the Rust codebase.</li>
     <li>Continuous fuzz testing of parsers and protocol code to surface edge-case crashes.</li>
@@ -67,16 +67,48 @@
   </ul>
 
   <h2>Scope</h2>
-  <p>The Lifeline application, the protocol implementation, and supporting libraries in the project repository are in scope. Third-party platforms, app stores, and infrastructure not operated by the project are out of scope. Please act in good faith, only test against devices and data you own, and never disrupt other participants in the mesh.</p>
+  <p>The Relayne application, the protocol implementation, and supporting libraries in the project repository are in scope. Third-party platforms, app stores, and infrastructure not operated by the project are out of scope. Please act in good faith, only test against devices and data you own, and never disrupt other participants in the mesh.</p>
 
   <p style="margin-top:36px"><a class="backlink" href="/">← Back to home</a></p>
 </main>
 
 <footer>
   <div class="wrap">
-    <div class="foot-bottom" style="margin-top:0;border-top:none">
-      <span>© 2026 Lifeline. Released under an open-source license.</span>
-      <span><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="security.html">Security</a> · <a href="contact.html">Contact</a></span>
+    <div class="foot-grid">
+      <div class="foot-col">
+        <a class="logo" href="/"><span class="mk"></span>Relayne</a>
+        <p class="foot-about">Messaging that works when the network doesn't. An open-source, offline, end-to-end encrypted mesh, your phone becomes the network.</p>
+        <div class="badgehost" style="margin-top:16px">
+          <span class="mini-badge">Open source</span>
+          <span class="mini-badge">End-to-end encrypted</span>
+          <span class="mini-badge">No accounts</span>
+        </div>
+      </div>
+      <div class="foot-col">
+        <h4>Product</h4>
+        <a href="/#problem">Why Relayne</a>
+        <a href="/#how">How it works</a>
+        <a href="/#capabilities">Capabilities</a>
+        <a href="/#security">Security</a>
+      </div>
+      <div class="foot-col">
+        <h4>Project</h4>
+        <a href="https://github.com/matrix-share/matrix">GitHub</a>
+        <a href="https://github.com/matrix-share/matrix/discussions">Discussions</a>
+        <a href="https://github.com/matrix-share/matrix/issues">Issues</a>
+        <a href="/#open">Open source</a>
+      </div>
+      <div class="foot-col">
+        <h4>Company</h4>
+        <a href="contact.html">Contact</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Use</a>
+        <a href="security.html">Security &amp; disclosure</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Relayne. Released under an open-source license.</span>
+      <span>Built to work when everything else fails.</span>
     </div>
   </div>
 </footer>

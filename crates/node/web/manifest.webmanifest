@@ -1,6 +1,6 @@
 {
-  "name": "Lifeline — offline mesh messenger",
-  "short_name": "Lifeline",
+  "name": "Relayne — offline mesh messenger",
+  "short_name": "Relayne",
   "description": "Encrypted messaging that works with no towers, no internet, no accounts. Messages hop device to device across the mesh.",
   "start_url": "/",
   "scope": "/",

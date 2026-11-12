@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 64" width="260" height="64" role="img" aria-label="Lifeline">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 64" width="280" height="64" role="img" aria-label="Relayne">
   <defs>
     <linearGradient id="llg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6366f1"/>
-      <stop offset=".55" stop-color="#8b5cf6"/>
-      <stop offset="1" stop-color="#a855f7"/>
+      <stop offset="0" stop-color="#ea580c"/>
+      <stop offset=".55" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#fb923c"/>
     </linearGradient>
     <radialGradient id="llh" cx="30%" cy="26%" r="70%">
       <stop offset="0" stop-color="#ffffff" stop-opacity=".55"/>
@@ -12,10 +12,12 @@
   </defs>
   <rect width="64" height="64" rx="16" fill="url(#llg)"/>
   <rect width="64" height="64" rx="16" fill="url(#llh)"/>
-  <g stroke="#ffffff" stroke-width="1.4" opacity=".28" stroke-linecap="round">
-    <path d="M16 36 L29 16"/><path d="M29 16 L48 36"/>
+  <g stroke="#ffffff" stroke-width="1.3" opacity=".22" stroke-linecap="round">
+    <path d="M12 44 L32 22"/><path d="M32 22 L52 44"/><path d="M12 44 L52 44"/>
   </g>
-  <path d="M8 36 H24 L29 16 L36 50 L41 36 H56" fill="none" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="8" cy="36" r="4.2" fill="#ffffff"/><circle cx="56" cy="36" r="4.2" fill="#ffffff"/><circle cx="29" cy="16" r="4.6" fill="#ffffff"/>
-  <text x="84" y="42" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="30" font-weight="700" letter-spacing="-1" fill="#18181b">Lifeline</text>
+  <path d="M12 44 Q21 20 32 24" fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M32 24 Q43 20 52 44" fill="none" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round" opacity=".6" stroke-dasharray="1.6 5"/>
+  <circle cx="12" cy="44" r="4" fill="#ffffff"/><circle cx="52" cy="44" r="4" fill="#ffffff"/><circle cx="32" cy="24" r="4.8" fill="#ffffff"/>
+  <circle cx="21.5" cy="28.8" r="2.7" fill="#ffffff"/>
+  <text x="84" y="42" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="30" font-weight="700" letter-spacing="-1" fill="#18181b">Relayne</text>
 </svg>

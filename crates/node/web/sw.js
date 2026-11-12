@@ -1,8 +1,8 @@
-// Lifeline service worker — enables installability (PWA / "mobile app") and an
+// Relayne service worker — enables installability (PWA / "mobile app") and an
 // offline app shell. Deliberately conservative: the app is a live WebSocket
 // client against the local node, so we NEVER cache API or WS traffic — only the
 // static shell, and always network-first so a redeploy is picked up immediately.
-const SHELL = 'lifeline-shell-v1';
+const SHELL = 'relayne-shell-v1';
 const ASSETS = ['/', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', (e) => {
