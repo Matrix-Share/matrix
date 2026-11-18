@@ -11,9 +11,14 @@ export default async function Dashboard() {
   const primary = myOrgs[0];
   const members = primary ? (await memberships.forOrg(primary.id)).length : 0;
   const plan = planById(primary?.plan ?? 'free');
-  // The messenger runs on the user's own node. Default to a local node; a
-  // deployment can point this at a hosted address via NEXT_PUBLIC_NODE_URL.
-  const nodeUrl = process.env.NEXT_PUBLIC_NODE_URL || 'http://localhost:8080';
+  // The messenger runs on the user's OWN node (browser or phone PWA); there is no
+  // hosted node to open. If a deployment points at a real running node, link straight
+  // to it; otherwise send people to the 60-second quickstart to start one, since a
+  // hardcoded localhost address is dead for anyone who isn't already running a node.
+  const hostedNode = process.env.NEXT_PUBLIC_NODE_URL;
+  const quickstart = 'https://github.com/matrix-share/matrix#quickstart--chat-with-someone-in-60-seconds';
+  const appHref = hostedNode || quickstart;
+  const appLabel = hostedNode ? 'Open web app' : 'Start the web app';
 
   return (
     <>
@@ -32,10 +37,10 @@ export default async function Dashboard() {
         <div className="card">
           <h2>Open the messenger</h2>
           <p className="muted" style={{ fontSize: 14.5, margin: '4px 0 16px' }}>
-            The Relayne app runs on <b>your own node</b>, in the browser or installed to your phone, and works fully offline. Open it below (it defaults to a node on this machine).
+            The Relayne app runs on <b>your own node</b>, in the browser or installed to your phone, and works fully offline. Start one in about a minute, then keep messaging even with no signal.
           </p>
           <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
-            <a className="btn btn-primary sm" href={nodeUrl} target="_blank" rel="noopener">Open web app</a>
+            <a className="btn btn-primary sm" href={appHref} target="_blank" rel="noopener">{appLabel}</a>
             <a className="btn btn-ghost sm" href="https://github.com/matrix-share/matrix#apps-in-this-repo" target="_blank" rel="noopener">Get the mobile app</a>
           </div>
         </div>
