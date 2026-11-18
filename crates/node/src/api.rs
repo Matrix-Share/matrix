@@ -22,7 +22,26 @@ pub struct AppState {
     pub version: Arc<AtomicU64>,
 }
 
-/// Reject requests whose `Host` header isn't a loopback name. When the API is
+/// Hosts allowed in addition to loopback, from `LIFELINE_ALLOWED_HOSTS`
+/// (comma-separated, case-insensitive). This is the opt-in for serving the node
+/// on a real public hostname when it is *intentionally* exposed (e.g. a hosted
+/// demo behind a reverse proxy). Unset — the default — means loopback only.
+fn allowed_hosts() -> &'static [String] {
+    static HOSTS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    HOSTS.get_or_init(|| {
+        std::env::var("LIFELINE_ALLOWED_HOSTS")
+            .map(|s| {
+                s.split(',')
+                    .map(|h| h.trim().to_ascii_lowercase())
+                    .filter(|h| !h.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    })
+}
+
+/// Reject requests whose `Host` header isn't a loopback name (or one of the
+/// explicitly allowed hosts from `LIFELINE_ALLOWED_HOSTS`). When the API is
 /// bound to localhost (the default), this is the defence against **DNS
 /// rebinding**: a malicious web page the user visits can't rebind its hostname to
 /// 127.0.0.1 and then drive this API, because its requests still carry the
@@ -31,8 +50,13 @@ pub struct AppState {
 async fn guard_host(req: Request, next: Next) -> Result<Response, StatusCode> {
     if let Some(host) = req.headers().get(axum::http::header::HOST) {
         let host = host.to_str().unwrap_or("");
-        let name = host.rsplit_once(':').map(|(h, _)| h).unwrap_or(host);
-        let ok = matches!(name, "localhost" | "127.0.0.1" | "::1" | "[::1]");
+        let name = host
+            .rsplit_once(':')
+            .map(|(h, _)| h)
+            .unwrap_or(host)
+            .to_ascii_lowercase();
+        let ok = matches!(name.as_str(), "localhost" | "127.0.0.1" | "::1" | "[::1]")
+            || allowed_hosts().iter().any(|h| h == &name);
         if !ok {
             return Err(StatusCode::FORBIDDEN);
         }
