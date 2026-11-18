@@ -1,0 +1,9 @@
+{
+  "name": "relayne-ws-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Zero-knowledge WebSocket rendezvous relay for the Relayne browser client.",
+  "scripts": { "start": "node server.mjs" },
+  "dependencies": { "ws": "^8.18.0" }
+}

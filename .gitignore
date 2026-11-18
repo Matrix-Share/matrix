@@ -11,3 +11,6 @@
 *.swp
 
 # Cargo.lock IS committed (this workspace ships binaries).
+
+# Node deps (reproduced from package-lock.json)
+**/node_modules/
