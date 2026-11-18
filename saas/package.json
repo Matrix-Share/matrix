@@ -7,6 +7,8 @@
   },
   "scripts": {
     "dev": "next dev",
+    "sync-design": "node ../scripts/sync-design.mjs",
+    "prebuild": "node ../scripts/sync-design.mjs || echo 'design sync skipped (using committed tokens)'",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
