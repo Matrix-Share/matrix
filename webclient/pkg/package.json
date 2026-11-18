@@ -1,0 +1,17 @@
+{
+  "name": "lifeline-wasm",
+  "type": "module",
+  "description": "Browser (WASM) bindings for Relayne client-side identity + crypto, so each tab holds its own keys and the server stays zero-knowledge.",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "files": [
+    "lifeline_wasm_bg.wasm",
+    "lifeline_wasm.js",
+    "lifeline_wasm.d.ts"
+  ],
+  "main": "lifeline_wasm.js",
+  "types": "lifeline_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
