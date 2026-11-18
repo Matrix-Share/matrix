@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Relayne — messaging that works when nothing else does',
+    default: 'Relayne: messaging that works when nothing else does',
     template: '%s · Relayne',
   },
   description:

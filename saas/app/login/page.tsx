@@ -20,7 +20,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <div className="field"><label htmlFor="email">Email</label>
             <input className="input" id="email" name="email" type="email" placeholder="you@example.com" autoComplete="email" required /></div>
           <div className="field">
-            <div className="row"><label htmlFor="password" className="grow">Password</label><Link href="/forgot" style={{ fontSize: 13, color: 'var(--accent)' }}>Forgot?</Link></div>
+            <div className="row"><label htmlFor="password" className="grow">Password</label><Link href="/forgot" style={{ fontSize: 13, color: 'var(--accent-text)' }}>Forgot?</Link></div>
             <input className="input" id="password" name="password" type="password" placeholder="Your password" autoComplete="current-password" required /></div>
         </StatefulForm>
         <div className="auth-foot">New to Relayne? <Link href="/signup">Create an account</Link></div>

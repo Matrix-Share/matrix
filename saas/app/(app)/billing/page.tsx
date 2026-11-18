@@ -73,7 +73,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
           );
         })}
       </div>
-      <p className="muted" style={{ marginTop: 20, fontSize: 13 }}>Prices shown are per workspace. <Link href="/pricing" style={{ color: 'var(--accent)' }}>Compare plans</Link>.</p>
+      <p className="muted" style={{ marginTop: 20, fontSize: 13 }}>Prices shown are per workspace. <Link href="/pricing" style={{ color: 'var(--accent-text)' }}>Compare plans</Link>.</p>
     </>
   );
 }
