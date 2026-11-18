@@ -43,8 +43,8 @@ async function q<T = Record<string, unknown>>(text: string, params: unknown[] = 
 }
 
 /* ---------- Schema (idempotent, applied once per instance) ---------- */
-const g = globalThis as unknown as { __lifelineSchema?: Promise<void> };
-const ready: Promise<void> = g.__lifelineSchema ?? (g.__lifelineSchema = ensureSchema());
+const g = globalThis as unknown as { __relayneSchema?: Promise<void> };
+const ready: Promise<void> = g.__relayneSchema ?? (g.__relayneSchema = ensureSchema());
 
 async function ensureSchema(): Promise<void> {
   const stmts = [

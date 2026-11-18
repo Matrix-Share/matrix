@@ -6,7 +6,7 @@ export default function ForgotPage() {
   return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <Link href="/" className="brand" style={{ marginBottom: 22 }}><span className="mark" />Lifeline</Link>
+        <Link href="/" className="brand" style={{ marginBottom: 22 }}><span className="mark" />Relayne</Link>
         <h1>Reset your password</h1>
         <p className="sub">We’ll email you a link to set a new one.</p>
         <StatefulForm action={requestReset} submit="Send reset link">

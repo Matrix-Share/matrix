@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { sessions, users, now, type User } from './db';
 
 const scryptAsync = promisify(scrypt);
-const COOKIE = 'lifeline_session';
+const COOKIE = 'relayne_session';
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 /** scrypt password hash, stored as `salt:hash` (both hex). */

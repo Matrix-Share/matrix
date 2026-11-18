@@ -1,4 +1,4 @@
-# Lifeline — SaaS (marketing site + accounts + billing)
+# Relayne — SaaS (marketing site + accounts + billing)
 
 The web product around the open-source mesh: a public marketing site, user
 accounts, a workspace dashboard, teams, and subscription billing. The **mesh

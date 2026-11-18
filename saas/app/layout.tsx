@@ -3,8 +3,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Lifeline — messaging that works when nothing else does',
-    template: '%s · Lifeline',
+    default: 'Relayne — messaging that works when nothing else does',
+    template: '%s · Relayne',
   },
   description:
     'Encrypted mesh messaging with no towers, no internet, no accounts. Plus a hosted dashboard, managed relays, and team billing.',

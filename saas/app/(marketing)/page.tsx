@@ -13,7 +13,7 @@ export default function Home() {
           Messaging that works when nothing else does.
         </h1>
         <p className="muted" style={{ fontSize: 'clamp(17px,2.4vw,21px)', maxWidth: '42ch', margin: '22px auto 0', lineHeight: 1.45 }}>
-          Lifeline carries your message device to device across a mesh — so it gets through in a blackout,
+          Relayne carries your message device to device across a mesh — so it gets through in a blackout,
           a disaster, or a dead zone. End-to-end encrypted, by design.
         </p>
         <div className="row" style={{ justifyContent: 'center', gap: 12, marginTop: 30, flexWrap: 'wrap' }}>
@@ -30,7 +30,7 @@ export default function Home() {
           <div>
             <b style={{ fontSize: 15 }}>The messenger needs no account.</b>
             <p className="muted" style={{ fontSize: 14, marginTop: 4, lineHeight: 1.55 }}>
-              The Lifeline app is <b style={{ color: 'var(--ink)' }}>accountless and works fully offline</b> — your
+              The Relayne app is <b style={{ color: 'var(--ink)' }}>accountless and works fully offline</b> — your
               identity is a key on your device, there’s nothing to sign up for, and you can{' '}
               <a href={REPO} style={{ color: 'var(--accent)' }}>run it yourself</a> for free. The signup here is only
               for the optional <b style={{ color: 'var(--ink)' }}>hosted platform</b> — a dashboard, managed relays,
@@ -63,7 +63,7 @@ export default function Home() {
           <div style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 14 }}>Where it helps</div>
           <h2 style={{ fontSize: 'clamp(28px,4vw,42px)', letterSpacing: '-.03em', fontWeight: 680, marginTop: 12 }}>For every time the network isn’t there.</h2>
           <p className="muted" style={{ fontSize: 16, maxWidth: '54ch', margin: '16px auto 0', lineHeight: 1.5 }}>
-            Missing, broken, blocked, or overwhelmed — the towers fail in a lot of ways. Lifeline is built for all of them.
+            Missing, broken, blocked, or overwhelmed — the towers fail in a lot of ways. Relayne is built for all of them.
           </p>
         </div>
         <div className="tiles" style={{ marginTop: 40 }}>
@@ -103,7 +103,7 @@ export default function Home() {
           <b style={{ fontSize: 15 }}>Status: alpha — not yet independently audited.</b>
           <p className="muted" style={{ fontSize: 14, marginTop: 4, lineHeight: 1.55 }}>
             The cryptography and protocol are implemented and unit-tested, but they haven’t had a third-party review
-            yet. <b style={{ color: 'var(--ink)' }}>Don’t rely on Lifeline for high-risk or life-safety communication
+            yet. <b style={{ color: 'var(--ink)' }}>Don’t rely on Relayne for high-risk or life-safety communication
             today.</b> The design targets phone-to-phone radio (Bluetooth LE / Wi-Fi Aware); today nodes mesh over a
             local relay or LAN that stands in for those bearers. It’s open source precisely so it can be reviewed and
             hardened in the open — <a href={`${REPO}/blob/main/SECURITY.md`} style={{ color: 'var(--accent)' }}>report an issue</a>.
@@ -205,8 +205,8 @@ const SECURITY = [
 ];
 
 const DOCS = [
-  { title: 'White paper (plain English)', body: 'What Lifeline is, who it’s for, and how it works — no jargon. Start here if you’re new.', href: `${REPO}/blob/main/WHITEPAPER.md` },
-  { title: 'Use cases', body: 'The real-world situations Lifeline is built for — disasters, shutdowns, crowds, the backcountry, privacy — each mapped to the feature that answers it.', href: `${REPO}/blob/main/docs/USE-CASES.md` },
+  { title: 'White paper (plain English)', body: 'What Relayne is, who it’s for, and how it works — no jargon. Start here if you’re new.', href: `${REPO}/blob/main/WHITEPAPER.md` },
+  { title: 'Use cases', body: 'The real-world situations Relayne is built for — disasters, shutdowns, crowds, the backcountry, privacy — each mapped to the feature that answers it.', href: `${REPO}/blob/main/docs/USE-CASES.md` },
   { title: 'Architecture', body: 'How the system fits together — layers, crates, message flow, and the extension seams. Start here to read the code.', href: `${REPO}/blob/main/ARCHITECTURE.md` },
   { title: 'Security policy', body: 'The threat model, what’s in scope, and how to report a vulnerability responsibly.', href: `${REPO}/blob/main/SECURITY.md` },
   { title: 'Design docs (PRD)', body: 'The original product spec and the network/spectrum/gateway design documents everything was built from.', href: `${REPO}/tree/main/docs` },

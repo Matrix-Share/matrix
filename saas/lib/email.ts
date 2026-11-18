@@ -7,7 +7,7 @@ import 'server-only';
  */
 export async function sendEmail(to: string, subject: string, text: string): Promise<void> {
   const key = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || 'Lifeline <noreply@lifeline.app>';
+  const from = process.env.EMAIL_FROM || 'Relayne <noreply@relayne.org>';
   if (!key) {
     // In production a missing key means invites/resets silently never arrive —
     // warn loudly so a self-hoster notices. In dev, printing the link is enough.

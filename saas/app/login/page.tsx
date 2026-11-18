@@ -12,7 +12,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <Link href="/" className="brand" style={{ marginBottom: 22 }}><span className="mark" />Lifeline</Link>
+        <Link href="/" className="brand" style={{ marginBottom: 22 }}><span className="mark" />Relayne</Link>
         <h1>Welcome back</h1>
         <p className="sub">Log in to your workspace.</p>
         {reset && <div className="alert alert-ok">Password updated — log in with your new password.</div>}
@@ -23,7 +23,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <div className="row"><label htmlFor="password" className="grow">Password</label><Link href="/forgot" style={{ fontSize: 13, color: 'var(--accent)' }}>Forgot?</Link></div>
             <input className="input" id="password" name="password" type="password" placeholder="Your password" autoComplete="current-password" required /></div>
         </StatefulForm>
-        <div className="auth-foot">New to Lifeline? <Link href="/signup">Create an account</Link></div>
+        <div className="auth-foot">New to Relayne? <Link href="/signup">Create an account</Link></div>
       </div>
     </div>
   );

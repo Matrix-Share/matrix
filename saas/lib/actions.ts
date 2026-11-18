@@ -76,7 +76,7 @@ export async function requestReset(_: State, form: FormData): Promise<State> {
     if (user) {
       const token = randomBytes(24).toString('hex');
       await resets.create(token, user.id, now() + 60 * 60 * 1000); // 1h
-      await sendEmail(user.email, 'Reset your Lifeline password',
+      await sendEmail(user.email, 'Reset your Relayne password',
         `Reset your password: ${appUrl(`/reset?token=${token}`)}\n\nThis link expires in one hour.`);
     }
   }
@@ -168,7 +168,7 @@ export async function inviteMember(_: State, form: FormData): Promise<State> {
 
   const token = randomBytes(20).toString('hex');
   await invites.create({ token, org_id: orgId, email, role: parsed.data.role, expires_at: now() + 7 * 864e5, created_at: now() });
-  await sendEmail(parsed.data.email, 'You’re invited to a Lifeline workspace',
+  await sendEmail(parsed.data.email, 'You’re invited to a Relayne workspace',
     `Join the workspace: ${appUrl(`/invite/${token}`)}\n\nThis invite expires in 7 days.`);
   revalidatePath('/team');
   return { ok: `Invite sent to ${parsed.data.email}.` };

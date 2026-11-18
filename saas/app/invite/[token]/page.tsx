@@ -13,7 +13,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
   return (
     <div className="auth-wrap">
       <div className="auth-card center">
-        <Link href="/" className="brand" style={{ justifyContent: 'center', marginBottom: 22 }}><span className="mark" />Lifeline</Link>
+        <Link href="/" className="brand" style={{ justifyContent: 'center', marginBottom: 22 }}><span className="mark" />Relayne</Link>
         {!valid ? (
           <>
             <h1>Invite expired</h1>

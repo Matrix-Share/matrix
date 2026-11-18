@@ -48,7 +48,7 @@
   }
 
   // Where the hosted app (login / dashboard) lives. Set after the SaaS is deployed.
-  var APP_URL = "__LIFELINE_APP_URL__";
+  var APP_URL = "https://app.relayne.org";
 
   onReady(function () {
     syncTheme();

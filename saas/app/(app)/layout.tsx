@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="app">
       <aside className="sidebar">
-        <Link href="/" className="brand" style={{ fontSize: 17, padding: '4px 12px 14px' }}><span className="mark" style={{ width: 24, height: 24 }} />Lifeline</Link>
+        <Link href="/" className="brand" style={{ fontSize: 17, padding: '4px 12px 14px' }}><span className="mark" style={{ width: 24, height: 24 }} />Relayne</Link>
         <SideNav items={items} />
         <div className="grow" />
         <div className="side-foot">

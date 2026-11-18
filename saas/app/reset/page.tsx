@@ -7,7 +7,7 @@ export default async function ResetPage({ searchParams }: { searchParams: Promis
   return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <Link href="/" className="brand" style={{ marginBottom: 22 }}><span className="mark" />Lifeline</Link>
+        <Link href="/" className="brand" style={{ marginBottom: 22 }}><span className="mark" />Relayne</Link>
         <h1>Set a new password</h1>
         <p className="sub">Choose a strong password you don’t use elsewhere.</p>
         {!token ? (

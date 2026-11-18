@@ -11,7 +11,7 @@ const PROTECTED = ['/dashboard', '/team', '/billing', '/settings', '/admin'];
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (PROTECTED.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
-    if (!req.cookies.get('lifeline_session')) {
+    if (!req.cookies.get('relayne_session')) {
       const url = req.nextUrl.clone();
       url.pathname = '/login';
       return NextResponse.redirect(url);

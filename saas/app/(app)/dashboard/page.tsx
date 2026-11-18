@@ -18,7 +18,7 @@ export default async function Dashboard() {
   return (
     <>
       <h1 className="page-h">Welcome back, {user.name.split(' ')[0]}.</h1>
-      <p className="page-sub">Here’s your Lifeline workspace at a glance.</p>
+      <p className="page-sub">Here’s your Relayne workspace at a glance.</p>
 
       <div className="tiles">
         <div className="tile"><div className="k">Plan</div><div className="v">{plan.name}</div><Link href="/billing" className="btn btn-plain sm" style={{ paddingLeft: 0 }}>Manage →</Link></div>
@@ -32,7 +32,7 @@ export default async function Dashboard() {
         <div className="card">
           <h2>Open the messenger</h2>
           <p className="muted" style={{ fontSize: 14.5, margin: '4px 0 16px' }}>
-            The Lifeline app runs on <b>your own node</b> — in the browser or installed to your phone — and works fully offline. Open it below (defaults to a node on this machine).
+            The Relayne app runs on <b>your own node</b> — in the browser or installed to your phone — and works fully offline. Open it below (defaults to a node on this machine).
           </p>
           <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
             <a className="btn btn-primary sm" href={nodeUrl} target="_blank" rel="noopener">Open web app</a>

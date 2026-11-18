@@ -7,7 +7,7 @@ export default async function MarketingLayout({ children }: { children: React.Re
     <>
       <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'var(--bar)', backdropFilter: 'saturate(1.8) blur(20px)', borderBottom: '.5px solid var(--hairline)' }}>
         <div className="container row" style={{ height: 56 }}>
-          <Link href="/" className="brand"><span className="mark" />Lifeline</Link>
+          <Link href="/" className="brand"><span className="mark" />Relayne</Link>
           <span className="grow" />
           <div className="row" style={{ gap: 6 }}>
             <Link href="/#features" className="btn btn-plain sm hide-sm">Features</Link>
@@ -29,7 +29,7 @@ export default async function MarketingLayout({ children }: { children: React.Re
       {children}
       <footer style={{ borderTop: '.5px solid var(--hairline)', padding: '36px 0', marginTop: 40 }}>
         <div className="container row" style={{ flexWrap: 'wrap', gap: 16 }}>
-          <Link href="/" className="brand" style={{ fontSize: 16 }}><span className="mark" style={{ width: 22, height: 22 }} />Lifeline</Link>
+          <Link href="/" className="brand" style={{ fontSize: 16 }}><span className="mark" style={{ width: 22, height: 22 }} />Relayne</Link>
           <span className="grow" />
           <div className="row muted" style={{ gap: 18, fontSize: 14, flexWrap: 'wrap' }}>
             <Link href="/#use-cases">Use cases</Link>
