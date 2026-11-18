@@ -1,7 +1,35 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { PLANS } from '@/lib/plans';
 
 const REPO = 'https://github.com/matrix-share/matrix';
+
+/* One line-icon set, 24px grid, 1.75 stroke, currentColor — matches relayne.org. */
+const ICONS: Record<string, ReactNode> = {
+  sos: <><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></>,
+  mesh: <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.59 13.51 6.83 3.98" /><path d="m15.41 6.51-6.82 3.98" /></>,
+  lock: <><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>,
+  users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
+  pin: <><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></>,
+  compass: <><circle cx="12" cy="12" r="10" /><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88" /></>,
+  server: <><rect x="2" y="2" width="20" height="8" rx="2" /><rect x="2" y="14" width="20" height="8" rx="2" /><path d="M6 6h.01" /><path d="M6 18h.01" /></>,
+  waves: <><path d="M2 6c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" /><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" /><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" /></>,
+  wifioff: <><path d="m1 1 22 22" /><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" /><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" /><path d="M10.71 5.05A16 16 0 0 1 22.58 9" /><path d="M1.42 9a15.9 15.9 0 0 1 4.7-2.88" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><path d="M12 20h.01" /></>,
+  map: <><polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21" /><path d="M8 3v15" /><path d="M16 6v15" /></>,
+  mountain: <><path d="M3 20h18" /><path d="M6 20l5-10 3.5 6 2-3 3.5 7" /></>,
+  shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /></>,
+  home: <><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z" /></>,
+  info: <><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></>,
+};
+
+function Icon({ name, size = 22 }: { name: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {ICONS[name] ?? ICONS.info}
+    </svg>
+  );
+}
 
 export default function Home() {
   return (
@@ -26,7 +54,7 @@ export default function Home() {
       {/* Honest note: what needs an account and what doesn't */}
       <section className="container" style={{ padding: '8px 24px 40px' }}>
         <div className="card" style={{ maxWidth: 720, margin: '0 auto', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-          <div style={{ fontSize: 24, lineHeight: 1 }}>ℹ️</div>
+          <div style={{ color: 'var(--accent-text)', flex: 'none', marginTop: 1 }}><Icon name="info" /></div>
           <div>
             <b style={{ fontSize: 15 }}>The messenger needs no account.</b>
             <p className="muted" style={{ fontSize: 14, marginTop: 4, lineHeight: 1.55 }}>
@@ -49,7 +77,7 @@ export default function Home() {
         <div className="tiles" style={{ marginTop: 40 }}>
           {FEATURES.map((f) => (
             <div className="card" key={f.title}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--accent-weak)', color: 'var(--accent)', display: 'grid', placeItems: 'center', marginBottom: 14, fontSize: 22 }}>{f.icon}</div>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--accent-weak)', color: 'var(--accent-text)', display: 'grid', placeItems: 'center', marginBottom: 14 }}><Icon name={f.icon} /></div>
               <h3 style={{ fontSize: 18, letterSpacing: '-.02em', marginBottom: 6 }}>{f.title}</h3>
               <p className="muted" style={{ fontSize: 14.5, lineHeight: 1.5 }}>{f.body}</p>
             </div>
@@ -69,7 +97,7 @@ export default function Home() {
         <div className="tiles" style={{ marginTop: 40 }}>
           {USE_CASES.map((u) => (
             <div className="card" key={u.title}>
-              <div style={{ fontSize: 26, marginBottom: 12, lineHeight: 1 }}>{u.icon}</div>
+              <div style={{ color: 'var(--muted)', marginBottom: 12 }}><Icon name={u.icon} size={24} /></div>
               <h3 style={{ fontSize: 18, letterSpacing: '-.02em', marginBottom: 6 }}>{u.title}</h3>
               <p className="muted" style={{ fontSize: 14.5, lineHeight: 1.5 }}>{u.body}</p>
             </div>
@@ -175,22 +203,22 @@ export default function Home() {
 }
 
 const FEATURES = [
-  { icon: '🆘', title: 'One-tap SOS', body: 'Broadcast an emergency to everyone in range at the highest priority, with GPS and battery attached.' },
-  { icon: '🛰️', title: 'Mesh delivery', body: 'Messages hop phone to phone until they arrive. No carrier or internet needed.' },
-  { icon: '🔒', title: 'Private by default', body: 'End-to-end encryption with forward secrecy. Private sends hide even who you talk to.' },
-  { icon: '👥', title: 'Groups & teams', body: 'Encrypted group threads that keep working across a fractured network.' },
-  { icon: '📍', title: 'Geocast an area', body: 'Alert everyone within a radius of a point, addressed by place instead of by contact.' },
-  { icon: '🧭', title: 'Find each other', body: 'Share your live location and see who’s nearby: distance and direction to your group when the network is down. Opt-in, scoped to who you choose, and auto-expiring.' },
-  { icon: '🖥️', title: 'Managed relays', body: 'Spin up hosted relays and gateways from a dashboard, and see your mesh at a glance.' },
+  { icon: 'sos', title: 'One-tap SOS', body: 'Broadcast an emergency to everyone in range at the highest priority, with GPS and battery attached.' },
+  { icon: 'mesh', title: 'Mesh delivery', body: 'Messages hop phone to phone until they arrive. No carrier or internet needed.' },
+  { icon: 'lock', title: 'Private by default', body: 'End-to-end encryption with forward secrecy. Private sends hide even who you talk to.' },
+  { icon: 'users', title: 'Groups & teams', body: 'Encrypted group threads that keep working across a fractured network.' },
+  { icon: 'pin', title: 'Geocast an area', body: 'Alert everyone within a radius of a point, addressed by place instead of by contact.' },
+  { icon: 'compass', title: 'Find each other', body: 'Share your live location and see who’s nearby: distance and direction to your group when the network is down. Opt-in, scoped to who you choose, and auto-expiring.' },
+  { icon: 'server', title: 'Managed relays', body: 'Spin up hosted relays and gateways from a dashboard, and see your mesh at a glance.' },
 ];
 
 const USE_CASES = [
-  { icon: '🌊', title: 'Disasters', body: 'Floods, tsunamis, earthquakes, wildfires, blizzards: when towers lose power or jam, a one-tap SOS with your GPS still spreads phone to phone.' },
-  { icon: '✊', title: 'Internet shutdowns', body: 'Protests and censorship where the state pulls the plug. There’s no central service to block, and no account tied to your real identity.' },
-  { icon: '🎪', title: 'Crowds & festivals', body: 'Concerts and stadiums where the towers choke. Find each other, see how far away your group is and which way to walk, with no signal needed.' },
-  { icon: '⛰️', title: 'The backcountry & the sea', body: 'Hiking, climbing, skiing, sailing, places with no coverage at all. Stay in touch across ridgelines and send an SOS with coordinates.' },
-  { icon: '🔒', title: 'Private conversations', body: 'For when you simply don’t want anyone reading your messages: end-to-end encrypted, forward-secret, with no server holding your history.' },
-  { icon: '🏘️', title: 'Everyday resilience', body: 'Neighbourhood mutual-aid meshes, power outages, travel with no roaming. A network that doesn’t depend on anyone else staying online.' },
+  { icon: 'waves', title: 'Disasters', body: 'Floods, tsunamis, earthquakes, wildfires, blizzards: when towers lose power or jam, a one-tap SOS with your GPS still spreads phone to phone.' },
+  { icon: 'wifioff', title: 'Internet shutdowns', body: 'Protests and censorship where the state pulls the plug. There’s no central service to block, and no account tied to your real identity.' },
+  { icon: 'map', title: 'Crowds & festivals', body: 'Concerts and stadiums where the towers choke. Find each other, see how far away your group is and which way to walk, with no signal needed.' },
+  { icon: 'mountain', title: 'The backcountry & the sea', body: 'Hiking, climbing, skiing, sailing, places with no coverage at all. Stay in touch across ridgelines and send an SOS with coordinates.' },
+  { icon: 'shield', title: 'Private conversations', body: 'For when you simply don’t want anyone reading your messages: end-to-end encrypted, forward-secret, with no server holding your history.' },
+  { icon: 'home', title: 'Everyday resilience', body: 'Neighbourhood mutual-aid meshes, power outages, travel with no roaming. A network that doesn’t depend on anyone else staying online.' },
 ];
 
 const SECURITY = [
