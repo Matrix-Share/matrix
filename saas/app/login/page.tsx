@@ -15,7 +15,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <Link href="/" className="brand" style={{ marginBottom: 22 }}><span className="mark" />Relayne</Link>
         <h1>Welcome back</h1>
         <p className="sub">Log in to your workspace.</p>
-        {reset && <div className="alert alert-ok">Password updated — log in with your new password.</div>}
+        {reset && <div className="alert alert-ok">Password updated. Log in with your new password.</div>}
         <StatefulForm action={login} submit="Log in">
           <div className="field"><label htmlFor="email">Email</label>
             <input className="input" id="email" name="email" type="email" placeholder="you@example.com" autoComplete="email" required /></div>

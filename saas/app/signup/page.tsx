@@ -13,7 +13,7 @@ export default async function SignupPage() {
       <div className="auth-card">
         <Link href="/" className="brand" style={{ marginBottom: 22 }}><span className="mark" />Relayne</Link>
         <h1>Create your account</h1>
-        <p className="sub">Start free — no credit card required.</p>
+        <p className="sub">Start free. No credit card required.</p>
         <StatefulForm action={signup} submit="Create account">
           <div className="field"><label htmlFor="name">Name</label>
             <input className="input" id="name" name="name" placeholder="Ada Lovelace" autoComplete="name" required /></div>

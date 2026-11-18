@@ -17,8 +17,8 @@ export default async function Dashboard() {
 
   return (
     <>
-      <h1 className="page-h">Welcome back, {user.name.split(' ')[0]}.</h1>
-      <p className="page-sub">Here’s your Relayne workspace at a glance.</p>
+      <h1 className="page-h">Overview</h1>
+      <p className="page-sub">{primary?.name ?? 'Your workspace'}</p>
 
       <div className="tiles">
         <div className="tile"><div className="k">Plan</div><div className="v">{plan.name}</div><Link href="/billing" className="btn btn-plain sm" style={{ paddingLeft: 0 }}>Manage →</Link></div>
@@ -32,7 +32,7 @@ export default async function Dashboard() {
         <div className="card">
           <h2>Open the messenger</h2>
           <p className="muted" style={{ fontSize: 14.5, margin: '4px 0 16px' }}>
-            The Relayne app runs on <b>your own node</b> — in the browser or installed to your phone — and works fully offline. Open it below (defaults to a node on this machine).
+            The Relayne app runs on <b>your own node</b>, in the browser or installed to your phone, and works fully offline. Open it below (it defaults to a node on this machine).
           </p>
           <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
             <a className="btn btn-primary sm" href={nodeUrl} target="_blank" rel="noopener">Open web app</a>
@@ -42,7 +42,7 @@ export default async function Dashboard() {
         <div className="card">
           <div className="row" style={{ gap: 8 }}><h2>Managed relay</h2><span className="badge" style={{ fontSize: 11 }}>Coming soon</span></div>
           <p className="muted" style={{ fontSize: 14.5, margin: '4px 0 16px' }}>
-            A hosted relay that keeps your mesh reachable from anywhere is on the way. Until then, you can <b>run your own relay in one command</b> and point your nodes at it — it’s zero-knowledge (it only forwards ciphertext).
+            A hosted relay that keeps your mesh reachable from anywhere is on the way. Until then, you can <b>run your own relay in one command</b> and point your nodes at it. It is zero-knowledge, forwarding only ciphertext.
           </p>
           <a className="btn btn-ghost sm" href="https://github.com/matrix-share/matrix#quickstart--chat-with-someone-in-60-seconds" target="_blank" rel="noopener">How to self-host a relay</a>
         </div>

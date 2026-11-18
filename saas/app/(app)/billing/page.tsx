@@ -24,7 +24,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
       <h1 className="page-h">Billing</h1>
       <p className="page-sub">{current.name}</p>
 
-      {sp.success && <div className="alert alert-ok">Subscription active — welcome to {plan.name}! It may take a few seconds to reflect.</div>}
+      {sp.success && <div className="alert alert-ok">Subscription active. Welcome to {plan.name}. It may take a few seconds to reflect.</div>}
 
       {/* Current plan summary */}
       <div className="card" style={{ marginBottom: 18 }}>
@@ -45,7 +45,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
 
       {!subscriptionsEnabled && (
         <div className="alert" style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}>
-          Running in <b>test mode</b> — Stripe isn’t configured, so checkout is disabled and everyone stays on the Community plan. Add your Stripe keys and price ids to <span className="mono">.env.local</span> to enable it.
+          Running in <b>test mode</b>. Stripe isn’t configured, so checkout is disabled and everyone stays on the Community plan. Add your Stripe keys and price ids to <span className="mono">.env.local</span> to enable it.
         </div>
       )}
 
