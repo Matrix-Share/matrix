@@ -38,7 +38,8 @@ export default function Home() {
       <section className="container center" style={{ padding: '84px 24px 40px' }}>
         <span className="badge accent" style={{ marginBottom: 22 }}>Works with no towers · no internet · open source</span>
         <h1 style={{ fontSize: 'clamp(40px,7vw,72px)', lineHeight: 1.04, letterSpacing: '-.04em', fontWeight: 680, maxWidth: '16ch', margin: '0 auto' }}>
-          Messaging that works when nothing else does.
+          Messaging that works when nothing else{' '}
+          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)', letterSpacing: 0 }}>does.</span>
         </h1>
         <p className="muted" style={{ fontSize: 'clamp(17px,2.4vw,21px)', maxWidth: '42ch', margin: '22px auto 0', lineHeight: 1.45 }}>
           Relayne carries your message device to device across a mesh, so it gets through in a blackout,

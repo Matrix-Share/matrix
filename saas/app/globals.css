@@ -1,29 +1,45 @@
-/* Relayne SaaS — warm ember accent on near-neutral surfaces, matching relayne.org.
-   Type ramp, 4pt spacing, and fixed radii stay from the shared design system. */
+/* Relayne SaaS — shares relayne.org's design system so both surfaces read as one
+   product: warm ember palette, Bricolage Grotesque display + Instrument-Serif
+   italic accent, 4pt spacing, fixed radii. Tokens kept verbatim with website/styles.css. */
+@font-face{
+  font-family:"Bricolage";
+  src:url("/fonts/bricolage-grotesque.woff2") format("woff2");
+  font-weight:400 800; font-style:normal; font-display:swap;
+  unicode-range:U+0000-00FF,U+2000-206F,U+2190-21FF,U+2200-22FF;
+}
+@font-face{
+  font-family:"InstrumentItalic";
+  src:url("/fonts/instrument-serif-italic.woff2") format("woff2");
+  font-weight:400; font-style:italic; font-display:swap;
+}
 :root{
-  --bg:#ffffff; --surface:#ffffff; --surface-2:#f4f4f6; --elevated:#ffffff;
-  --ink:#18181b; --ink-2:#3f3f46; --muted:#71717a; --faint:#a1a1aa;
-  --line:rgba(24,24,27,.10); --hairline:rgba(24,24,27,.055);
-  --accent:#ea580c; --accent-press:#c2410c; --accent-ink:#fff; --accent-weak:rgba(234,89,12,.10);
-  --accent-text:#c2410c; /* darker accent for text/links on light surfaces (WCAG AA) */
+  --bg:#fbfbfd; --surface:#ffffff; --surface-2:#f4f4f7; --elevated:#ffffff;
+  --ink:#0d0d12; --ink-2:#3d3d46; --muted:#6b6b76; --faint:#9a9aa6;
+  --line:rgba(18,18,27,.10); --hairline:rgba(18,18,27,.06);
+  --accent:#ea580c; --accent-2:#f97316; --accent-3:#fb923c; --accent-press:#c2410c; --accent-ink:#fff;
+  --accent-weak:rgba(234,89,12,.10); --accent-text:#c2410c; --ember:#fb7185;
   --sos:#ef4444; --safe:#10b981; --safe-weak:rgba(16,185,129,.12); --warn:#f59e0b;
   --grad:linear-gradient(120deg,#ea580c,#f97316 55%,#fb923c);
-  --r-1:10px; --r-2:12px; --r-3:16px; --r-4:22px; --r-pill:980px;
-  --font:-apple-system,BlinkMacSystemFont,"Inter","SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --r-1:12px; --r-2:16px; --r-3:22px; --r-4:30px; --r-pill:980px;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-display:"Bricolage",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --font-serif:"InstrumentItalic",Georgia,"Times New Roman",serif;
   --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
-  --e-1:0 1px 2px rgba(24,24,27,.06),0 1px 3px rgba(24,24,27,.04);
-  --e-2:0 4px 14px rgba(24,24,27,.08),0 24px 48px rgba(24,24,27,.10);
-  --bar:color-mix(in srgb,var(--bg) 70%,transparent);
+  --e-1:0 .5px 1px rgba(0,0,0,.04),0 8px 24px rgba(12,12,18,.06);
+  --e-2:0 1px 2px rgba(0,0,0,.05),0 30px 70px rgba(12,12,18,.13);
+  --bar:color-mix(in srgb,var(--surface) 72%,transparent);
   --maxw:1080px;
 }
 @media (prefers-color-scheme:dark){:root{
-  --bg:#09090b; --surface:#18181b; --surface-2:#232328; --elevated:#1b1b1f;
-  --ink:#fafafa; --ink-2:#e4e4e7; --muted:#a1a1aa; --faint:#52525b;
-  --line:rgba(255,255,255,.10); --hairline:rgba(255,255,255,.06);
-  --accent:#fb923c; --accent-press:#ea580c; --accent-weak:rgba(251,146,60,.16); --accent-text:#fb923c;
+  --bg:#08080c; --surface:#111117; --surface-2:#1a1a21; --elevated:#131319;
+  --ink:#fafafa; --ink-2:#d6d6db; --muted:#9a9ea9; --faint:#5b5b66;
+  --line:rgba(255,255,255,.11); --hairline:rgba(255,255,255,.06);
+  --accent:#fb923c; --accent-2:#f59e0b; --accent-3:#fdba74; --accent-press:#ea580c;
+  --accent-weak:rgba(251,146,60,.16); --accent-text:#fb923c; --ember:#fb7185;
   --sos:#f87171; --safe:#34d399; --safe-weak:rgba(52,211,153,.16); --warn:#fbbf24;
   --grad:linear-gradient(120deg,#fb923c,#f59e0b 55%,#fdba74);
-  --e-1:0 1px 2px rgba(0,0,0,.5); --e-2:0 8px 24px rgba(0,0,0,.5),0 24px 56px rgba(0,0,0,.55);
+  --e-1:0 .5px 1px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.5);
+  --e-2:0 1px 2px rgba(0,0,0,.6),0 34px 80px rgba(0,0,0,.66);
 }}
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -32,6 +48,8 @@ body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16p
   letter-spacing:-.01em;-webkit-font-smoothing:antialiased}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 a{color:inherit;text-decoration:none}
+/* Display face on the large headings only (matches relayne.org); UI text stays system. */
+.page-h,.auth-card h1,main h1,main h2{font-family:var(--font-display);font-weight:680}
 .mono{font-family:var(--mono)}
 .container{max-width:var(--maxw);margin:0 auto;padding:0 24px}
 @media(max-width:560px){.container{padding:0 16px}}
