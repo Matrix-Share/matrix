@@ -1331,6 +1331,7 @@ version = "0.1.0"
 dependencies = [
  "getrandom",
  "lifeline-core",
+ "lifeline-proto",
  "serde_json",
  "wasm-bindgen",
 ]
