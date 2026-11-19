@@ -11,10 +11,10 @@ export default async function Dashboard() {
   const primary = myOrgs[0];
   const members = primary ? (await memberships.forOrg(primary.id)).length : 0;
   const plan = planById(primary?.plan ?? 'free');
-  // The messenger runs on the user's OWN node (browser or phone PWA); there is no
-  // hosted node to open. If a deployment points at a real running node, link straight
-  // to it; otherwise send people to the 60-second quickstart to start one, since a
-  // hardcoded localhost address is dead for anyone who isn't already running a node.
+  // The messenger runs on the user's OWN node (browser or phone PWA). If a deployment
+  // points NEXT_PUBLIC_NODE_URL at a hosted web client (the multi-user WASM demo at
+  // relayne-relay.onrender.com, where each browser holds its own keys), link straight
+  // there; otherwise send people to the 60-second quickstart to start their own node.
   const hostedNode = process.env.NEXT_PUBLIC_NODE_URL;
   const quickstart = 'https://github.com/matrix-share/matrix#quickstart--chat-with-someone-in-60-seconds';
   const appHref = hostedNode || quickstart;
