@@ -1,14 +1,14 @@
 # Maintainers
 
 This file lists the people responsible for reviewing changes, triaging issues,
-and cutting releases of Project Lifeline. It is the canonical list referenced by
+and cutting releases of Project Relayne. It is the canonical list referenced by
 [`SECURITY.md`](SECURITY.md) and [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Current maintainers
 
 | Name | GitHub | Areas |
 |---|---|---|
-| Project Lifeline maintainers | [@matrix-share](https://github.com/matrix-share) | Everything — core protocol, crypto, transport, apps |
+| Project Relayne maintainers | [@matrix-share](https://github.com/matrix-share) | Everything — core protocol, crypto, transport, apps |
 
 > This is an early-stage project. As contributors take ownership of areas, add
 > them here with the subsystems they steward (e.g. `crates/core` crypto,

@@ -8,7 +8,7 @@
 //! Reticulum-style transport-node strategy, etc. without touching the router.
 //!
 //! The default is [`SprayAndWaitPolicy`], the binary spray-and-wait +
-//! gateway-gradient behaviour Lifeline ships (FR-24, §12.1). A policy sees only
+//! gateway-gradient behaviour Relayne ships (FR-24, §12.1). A policy sees only
 //! scalar context ([`OfferContext`]) — no store internals — so it stays a pure
 //! decision function that is trivial to unit-test.
 
@@ -53,7 +53,7 @@ pub trait RoutingPolicy: Send {
     fn decide(&self, ctx: &OfferContext) -> OfferAction;
 }
 
-/// Lifeline's default: **binary spray-and-wait** with the gateway-gradient escape
+/// Relayne's default: **binary spray-and-wait** with the gateway-gradient escape
 /// hatch, reputation route-around, and bandwidth-adaptive hold-back (FR-24/47,
 /// "straw, not a firehose").
 #[derive(Debug, Clone, Copy, Default)]

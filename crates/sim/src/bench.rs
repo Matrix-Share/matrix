@@ -1,7 +1,7 @@
 //! **Comparative evaluation harness.** Runs the *same* partitioned scenario
 //! (same seed, mobility, and traffic) under each forwarding strategy and reports
 //! the DTN standard metrics — delivery ratio, delivery latency, and overhead
-//! (relay) ratio — so Lifeline's binary spray-and-wait can be compared against
+//! (relay) ratio — so Relayne's binary spray-and-wait can be compared against
 //! epidemic flooding and no-relay direct delivery.
 //!
 //! This turns the white paper's evaluation methodology into concrete numbers on
@@ -121,7 +121,7 @@ pub fn run_comparison_rwp(seed: u64, ticks: u64, nodes: usize) -> Vec<BenchRow> 
         .collect()
 }
 
-/// Load a Lifeline per-tick contact trace (`tick a b` lines, `#` comments), as
+/// Load a Relayne per-tick contact trace (`tick a b` lines, `#` comments), as
 /// produced by `tools/trace_to_lifeline.py` from a real external dataset.
 /// Returns `(events, node_count, max_tick)`. This is the trace-ingestion path
 /// the mobility module documents, wired to a file so a real CRAWDAD/SocioPatterns

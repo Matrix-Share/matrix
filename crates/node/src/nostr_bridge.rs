@@ -13,7 +13,7 @@
 //! The node's Nostr keypair is derived from the long-term identity via
 //! [`lifeline_core::identity::Identity::derive_subkey`] — stable across restarts
 //! (so our offline mailbox address persists) yet unlinkable from the public
-//! Lifeline identity.
+//! Relayne identity.
 
 use crate::async_bearer::{spawn_async_bearer, BearerChannels};
 use lifeline_bridge::nostr::NostrIdentity;

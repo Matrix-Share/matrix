@@ -61,7 +61,7 @@ export default async function Team({ searchParams }: { searchParams: Promise<{ o
               <span className="badge">{m.role}</span>
               {canManage && m.role !== 'owner' && m.user_id !== user.id && (
                 <form action={removeMember.bind(null, current.id, m.user_id)}>
-                  <button className="btn btn-plain sm" style={{ color: 'var(--sos)' }}>Remove</button>
+                  <button className="btn btn-plain sm" style={{ color: 'var(--sos-text)' }}>Remove</button>
                 </form>
               )}
             </div>

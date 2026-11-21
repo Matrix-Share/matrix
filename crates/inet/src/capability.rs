@@ -11,7 +11,7 @@
 //! scoped token the requester carries and presents, which any gateway can verify
 //! **offline** with nothing but the issuer's public key.
 //!
-//! This is the [macaroon] / [Biscuit] idea, specialised to Lifeline and built on
+//! This is the [macaroon] / [Biscuit] idea, specialised to Relayne and built on
 //! the Ed25519 we already ship (`ed25519-dalek`). We compose audited primitives;
 //! we do not invent a new signature scheme.
 //!
@@ -63,7 +63,7 @@ const SIG_LEN: usize = 64;
 // Service class (the egress tier / "network slice")
 // ---------------------------------------------------------------------------
 
-/// The kind of internet egress a capability authorizes — Lifeline's analogue of
+/// The kind of internet egress a capability authorizes — Relayne's analogue of
 /// a 5G network slice / DiffServ class, but for the *exit*, not the mesh.
 ///
 /// Ordered by breadth of internet access (see [`ServiceClass::privilege`]).

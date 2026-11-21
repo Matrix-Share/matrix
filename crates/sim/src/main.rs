@@ -1,4 +1,4 @@
-//! Project Lifeline — simulator demo runner.
+//! Project Relayne — simulator demo runner.
 //!
 //! Runs the PRD acceptance scenarios and prints a report. This is the "kill the
 //! towers, whole room still messages out with proof" demo made runnable:
@@ -100,7 +100,7 @@ fn main() {
         return;
     }
 
-    println!("\x1b[1mProject Lifeline — decentralized offline mesh · acceptance simulator\x1b[0m");
+    println!("\x1b[1mProject Relayne — decentralized offline mesh · acceptance simulator\x1b[0m");
 
     run(
         "UC2/UC3/NFR-3 · 3-cluster partition + one moving data mule (target ≥95% delivery)",

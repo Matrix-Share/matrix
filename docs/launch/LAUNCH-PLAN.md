@@ -1,12 +1,12 @@
-# Lifeline launch & adoption plan
+# Relayne launch & adoption plan
 
 An honest, staged go-to-market. The core question this answers: **who can use
-Lifeline, and how do we grow it without over-promising a life-safety tool that
+Relayne, and how do we grow it without over-promising a life-safety tool that
 isn't finished or audited?**
 
 ## The one-paragraph verdict
 
-Lifeline is **not ready for a general-public launch**, and it **is ready for a
+Relayne is **not ready for a general-public launch**, and it **is ready for a
 developer/community credibility launch**. The gap is concrete: the one thing the
 general public would install it for — messaging when the network is down —
 depends on native phone-to-phone radios that aren't shipped ([#64](https://github.com/matrix-share/matrix/issues/64)),

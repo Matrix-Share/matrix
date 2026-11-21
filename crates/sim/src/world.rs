@@ -23,11 +23,11 @@ use std::collections::{HashMap, HashSet};
 const STEP_SECS: u64 = 10;
 
 /// Which forwarding strategy the world's routers use — so the evaluation harness
-/// can compare Lifeline's default against classic baselines on the *same*
+/// can compare Relayne's default against classic baselines on the *same*
 /// scenario (same seed, mobility, and traffic).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RoutingStrategy {
-    /// Lifeline's default: binary spray-and-wait + gateway gradient.
+    /// Relayne's default: binary spray-and-wait + gateway gradient.
     #[default]
     SprayAndWait,
     /// Epidemic flooding (Vahdat & Becker) — the delivery/latency ceiling and

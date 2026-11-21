@@ -12,9 +12,9 @@ The disaster requirement: a message/object should ride **every** available carri
 and the recipient must end up with **all** of it, with **no duplicates** and **no
 corruption** — over links that are lossy, out-of-order, and intermittent.
 
-### What the internet's designers already solved (and how Lifeline mirrors it)
+### What the internet's designers already solved (and how Relayne mirrors it)
 
-| Principle (where it came from) | What it guarantees | Lifeline's mechanism |
+| Principle (where it came from) | What it guarantees | Relayne's mechanism |
 |---|---|---|
 | **End-to-end principle** (Saltzer–Reed–Clark '84) | reliability belongs at the *endpoints*, not per-hop — links can be dumb/lossy | the E2E sealed bundle is verified only by the recipient; relays are dumb carriers |
 | **The IP hourglass / narrow waist** | one packet format over *many* link layers | the opaque `Bundle` is the waist; every carrier is an `Interface` |

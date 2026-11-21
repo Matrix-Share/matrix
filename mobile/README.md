@@ -1,6 +1,6 @@
-# Lifeline — mobile app (Expo / React Native)
+# Relayne — mobile app (Expo / React Native)
 
-The native iOS + Android client for Lifeline, built with **Expo** (SDK 57, React
+The native iOS + Android client for Relayne, built with **Expo** (SDK 57, React
 Native 0.86, TypeScript). It shares the project's design language — see
 [`../docs/design/design-system.md`](../docs/design/design-system.md) — implemented
 here as strict tokens in [`theme/tokens.ts`](theme/tokens.ts) (the iOS type ramp,
@@ -8,7 +8,7 @@ system colors and grays, a 4pt spacing scale, fixed radii). No ad-hoc sizes in
 screens; every primitive draws from the tokens.
 
 ## How it connects
-The phone talks to a Lifeline **node** over its HTTP/WebSocket API (the same
+The phone talks to a Relayne **node** over its HTTP/WebSocket API (the same
 endpoints the web app uses) — a node running on a laptop, a gateway, or another
 device on the mesh. Set the node address in **Settings**; it is remembered. The app
 subscribes to the node's live snapshot over WebSocket and auto-reconnects.

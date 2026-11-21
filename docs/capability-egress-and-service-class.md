@@ -1,6 +1,6 @@
 # Capability-based egress & service class
 
-*How Lifeline decides "who may reach the internet, where, and at what tier"
+*How Relayne decides "who may reach the internet, where, and at what tier"
 through a mesh gateway — and why the answer is a portable token, not a server.*
 
 This document is a design record for reviewers. It covers the motivation, a
@@ -58,7 +58,7 @@ that keep working while disconnected are the ones that put the authority **in a
 portable, verifiable, attenuatable token**: capabilities, presigned URLs, Tor's
 advertised policies.
 
-So the load-bearing choice for Lifeline is **capabilities over allow-lists.**
+So the load-bearing choice for Relayne is **capabilities over allow-lists.**
 
 ---
 

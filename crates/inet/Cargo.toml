@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Internet-over-mesh gateway for Project Lifeline: a node with real internet lets *authorized* users reach it through the mesh (a store-and-forward web proxy). Mesh messages stay open to all; internet egress is node-level, capability-authorized, with SSRF guards. Egress authority rides attenuatable, offline-verifiable capability tokens. Transport-agnostic core, testable without a network."
+description = "Internet-over-mesh gateway for Project Relayne: a node with real internet lets *authorized* users reach it through the mesh (a store-and-forward web proxy). Mesh messages stay open to all; internet egress is node-level, capability-authorized, with SSRF guards. Egress authority rides attenuatable, offline-verifiable capability tokens. Transport-agnostic core, testable without a network."
 
 [features]
 # A real blocking HTTP fetcher for the gateway. Off by default so the core stays

@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Project Lifeline L0/L1 transport seam: the Interface/ExternalNet contract, MTU fragmentation, and lossy-link ARQ (PRD §8.4, spectrum doc §3). Depends only on proto — the node runtime lives in lifeline-engine."
+description = "Project Relayne L0/L1 transport seam: the Interface/ExternalNet contract, MTU fragmentation, and lossy-link ARQ (PRD §8.4, spectrum doc §3). Depends only on proto — the node runtime lives in lifeline-engine."
 
 [dependencies]
 lifeline-proto = { path = "../proto" }

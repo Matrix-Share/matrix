@@ -1,11 +1,11 @@
-//! The **external-network seam** — how Lifeline plugs into *any* message-passing
+//! The **external-network seam** — how Relayne plugs into *any* message-passing
 //! network (Nostr relays, a Reticulum transport node, Meshtastic, a plain relay)
 //! and gains connectivity without the engine knowing anything about it.
 //!
 //! Implement [`ExternalNet`] for a network and wrap it in [`BridgeInterface`]:
 //! it becomes a first-class [`Interface`] the [`crate::NodeEngine`] drives exactly
 //! like a radio. The adapter only shuttles **opaque frame bytes** to and from the
-//! network and reports reachable peers — it never inspects a Lifeline bundle, so
+//! network and reports reachable peers — it never inspects a Relayne bundle, so
 //! end-to-end encryption and delivery proof are untouched.
 //!
 //! This is the extension point for "more connectivity": each new network is one

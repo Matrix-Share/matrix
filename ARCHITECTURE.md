@@ -1,4 +1,4 @@
-# Project Lifeline — Architecture
+# Project Relayne — Architecture
 
 > A decentralized, offline-first, end-to-end-encrypted emergency mesh messenger,
 > written in Rust. This document explains **how the system is put together** —
@@ -26,7 +26,7 @@ remove the internet, the relays, even most of the mesh, and messages still move.
 
 ## 2. Layer model → crates
 
-Lifeline is a classic layered stack. Each layer is one (or part of one) Cargo
+Relayne is a classic layered stack. Each layer is one (or part of one) Cargo
 crate, and **each boundary between layers is a narrow trait or data contract** —
 that is the whole extensibility story.
 
@@ -83,7 +83,7 @@ never form a cycle.
 
 ## 3. The extension seams (the important part)
 
-Almost every "add capability X" task in Lifeline is **implement one trait** or
+Almost every "add capability X" task in Relayne is **implement one trait** or
 **add one enum variant**. These are the seams, smallest-surface first:
 
 ### 3.1 `Interface` — the bearer seam (L1)
@@ -97,12 +97,12 @@ and never learns which is which. Async networks are quarantined behind it (see
 ### 3.2 `ExternalNet` + `BridgeInterface` — the "other networks" seam
 `transport::ExternalNet` (four methods: `caps`/`publish`/`receive`/`peers`) is a
 higher-level convenience: implement it and wrap in `BridgeInterface<N>` to get a
-full `Interface` for free. This is how Lifeline rides **existing networks** it
+full `Interface` for free. This is how Relayne rides **existing networks** it
 wants to *augment* rather than replace:
 - `bridge::nostr` — carries bundles as real signed NIP-01 events over the global
   Nostr relay network.
 - `bridge::meshtastic` — carries bundles as real Meshtastic `MeshPacket` protobuf
-  over MQTT, so Lifeline rides physical LoRa hardware.
+  over MQTT, so Relayne rides physical LoRa hardware.
 - `bridge::skeleton` — a documented, compiling template for the next network.
 
 ### 3.3 `MeshBus` — transport-under-adapter seam
@@ -271,7 +271,7 @@ shape:
 
 ---
 
-## 8. Extending Lifeline — recipes
+## 8. Extending Relayne — recipes
 
 ### Add a new transport bearer
 1. `impl ExternalNet for MyNet` (or `impl Interface` directly for full control).

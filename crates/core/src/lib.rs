@@ -1,4 +1,4 @@
-//! Project Lifeline — decentralized core (PRD layers L2 & L5).
+//! Project Relayne — decentralized core (PRD layers L2 & L5).
 //!
 //! This crate is the cryptographic heart the PRD calls out: it runs **fully
 //! offline** and is the only place plaintext ever exists (endpoints only). It

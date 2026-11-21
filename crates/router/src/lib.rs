@@ -1,4 +1,4 @@
-//! Project Lifeline — L4 delay-tolerant router (PRD §8.5, §12).
+//! Project Relayne — L4 delay-tolerant router (PRD §8.5, §12).
 //!
 //! This crate is transport-agnostic: it never talks to a radio. It decides
 //! **what to store, what to hand to a peer, and what to drop**, given a stream

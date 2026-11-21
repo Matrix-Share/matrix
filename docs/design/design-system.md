@@ -1,6 +1,6 @@
-# Lifeline Design System — "Calm infrastructure"
+# Relayne Design System — "Calm infrastructure"
 
-The single source of truth for how every Lifeline surface looks and feels: the
+The single source of truth for how every Relayne surface looks and feels: the
 **web app** (`crates/node/web`), the **marketing website** (`website/`), and the
 **mobile app** (the installable PWA build of the web app). All three import the same
 tokens so the product reads as one system.

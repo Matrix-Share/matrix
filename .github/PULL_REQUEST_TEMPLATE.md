@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to Project Lifeline! -->
+<!-- Thanks for contributing to Project Relayne! -->
 
 ## What & why
 

@@ -1,26 +1,26 @@
-# Lifeline — a plain-English white paper
+# Relayne — a plain-English white paper
 
 *Messaging that works when nothing else does.*
 
 This is the friendly version, for everyone — no cryptography background required.
 (The formal protocol write-up and research notes are maintained separately.)
 
-> **Status:** Lifeline is **alpha** and **not yet independently security-audited.**
+> **Status:** Relayne is **alpha** and **not yet independently security-audited.**
 > It works and you can try it today, but please don't bet your life on it yet.
 > It's open source precisely so it can be reviewed and hardened in the open.
 
 ---
 
-## What is Lifeline?
+## What is Relayne?
 
-Lifeline is a messaging app that keeps working when the internet and phone
+Relayne is a messaging app that keeps working when the internet and phone
 networks are down, blocked, or overloaded.
 
 Normal messaging apps need towers and servers. Take those away — a storm knocks
 out the cell towers, a government pulls the plug, or 50,000 people at a festival
 all fight for the same sliver of signal — and your messages simply don't send.
 
-Lifeline doesn't rely on any of that. **Every phone running Lifeline is a tiny
+Relayne doesn't rely on any of that. **Every phone running Relayne is a tiny
 relay.** Your message hops from your phone to a nearby phone, to the next, and
 the next, until it reaches the person you're trying to reach. Phones even *carry*
 messages as people physically walk around, ferrying them across gaps. And the
@@ -33,32 +33,32 @@ No towers. No accounts. No company in the middle reading your messages.
 
 ## Why this matters — real situations
 
-Lifeline is built for the moments when staying reachable actually matters.
+Relayne is built for the moments when staying reachable actually matters.
 
 ### 1. Disasters
 Floods, tsunamis, snowstorms, wildfires, earthquakes — the first thing to fail is
 the network, exactly when you most need to reach family and first responders.
-With Lifeline, a neighborhood of phones forms its own network. You can send an
+With Relayne, a neighborhood of phones forms its own network. You can send an
 **SOS with your GPS location**, tell everyone **"I'm safe,"** and coordinate a
 rescue — even with every tower down.
 
 ### 2. Internet shutdowns
 During protests and unrest, authorities often cut the internet to stop people
-organizing and to hide what's happening. Lifeline has no internet to cut. It
+organizing and to hide what's happening. Relayne has no internet to cut. It
 runs person-to-person on local radio, so a crowd can keep communicating even in a
 total blackout — and the messages are encrypted, so intercepting the radio buys
 an eavesdropper nothing but scrambled noise.
 
 ### 3. Privacy
 Sometimes you just don't want anyone — not a carrier, not a platform, not an
-advertiser — reading your messages or logging who you talk to. Lifeline encrypts
+advertiser — reading your messages or logging who you talk to. Relayne encrypts
 every message end-to-end, needs no phone number or account, and can even hide
 *who is talking to whom* (see [Privacy & security](#your-privacy-and-security)).
 
 ### 4. Crowded events where the internet chokes
 At concerts, festivals, and stadiums, tens of thousands of people overwhelm the
 local cell towers. Texts stall, apps spin, and you **can't find your friends in
-the crowd.** Lifeline sidesteps the congestion entirely — it doesn't touch the
+the crowd.** Relayne sidesteps the congestion entirely — it doesn't touch the
 overloaded towers — so you can message and **share your live location** with your
 group and actually find each other.
 
@@ -66,7 +66,7 @@ group and actually find each other.
 
 ## Sharing your location can save your life
 
-We think location is Lifeline's quietest superpower. A coordinate that gets
+We think location is Relayne's quietest superpower. A coordinate that gets
 through when nothing else does can be the difference between rescue and disaster.
 
 - **SOS with GPS.** One tap broadcasts an emergency to everyone in range at the
@@ -79,7 +79,7 @@ through when nothing else does can be the difference between rescue and disaster
   gate" — addressed by **place** instead of by name. Perfect when you don't know
   who's nearby, only *where* the problem is.
 - **Find each other in a crowd.** Because phones near each other can measure
-  their relative position, Lifeline can help a group converge even where GPS is
+  their relative position, Relayne can help a group converge even where GPS is
   weak and the internet is useless — the festival problem, solved with the same
   network that carries your messages.
 
@@ -113,7 +113,7 @@ people carrying it can't read it, and can't even easily tell who it's *for*.
 
 ## Your privacy and security
 
-Lifeline is **private by construction, not by promise** — the design makes
+Relayne is **private by construction, not by promise** — the design makes
 snooping hard, rather than asking you to trust a company's policy.
 
 - **End-to-end encrypted.** Every message is sealed to its recipient. The phones
@@ -151,21 +151,21 @@ We're not the first to try this, and we've openly borrowed good ideas.
 - **[Nostr](https://nostr.com)** popularized the idea that **your identity should
   just be a keypair you own** — portable, with no registrar. We use the same
   model. But Nostr famously has **no built-in forward secrecy, no metadata
-  privacy for who-talks-to-whom, and no key rotation** — three things Lifeline
+  privacy for who-talks-to-whom, and no key rotation** — three things Relayne
   adds.
 - **[Buzz](https://github.com/block/buzz)** (a Nostr-based team workspace) is a
   good reminder that the *hosted, team-oriented* layer is valuable — which is why
-  Lifeline offers an optional managed dashboard on top — while keeping the
+  Relayne offers an optional managed dashboard on top — while keeping the
   messenger itself accountless and serverless.
 
-Where Lifeline is different: it's a true **store-carry-forward mesh** (messages
+Where Relayne is different: it's a true **store-carry-forward mesh** (messages
 survive when nobody is online at the same time), it minimizes **metadata**, it
 has **cryptographic proof of delivery**, and it treats **location** as a
 first-class, life-saving feature.
 
 ---
 
-## What Lifeline can't do yet (being honest)
+## What Relayne can't do yet (being honest)
 
 - **Not audited.** The crypto is implemented and tested, but hasn't had a
   third-party security review. Treat it as alpha.
@@ -197,7 +197,7 @@ usable by anyone.
 
 ## Learn more
 
-- **[Use cases](docs/USE-CASES.md)** — the real-world situations Lifeline is built for, each mapped to the feature that answers it.
+- **[Use cases](docs/USE-CASES.md)** — the real-world situations Relayne is built for, each mapped to the feature that answers it.
 - **[Architecture](ARCHITECTURE.md)** — how the code fits together.
 - **[Security policy](SECURITY.md)** — threat model + how to report a vulnerability.
 - **[Source code](https://github.com/matrix-share/matrix)** — read every line.

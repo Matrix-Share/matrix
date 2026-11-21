@@ -1,5 +1,5 @@
 /**
- * Node connection + live state. The phone talks to a Lifeline node over its
+ * Node connection + live state. The phone talks to a Relayne node over its
  * HTTP/WebSocket API (the same endpoints the web app uses) — a node running on a
  * laptop, a gateway, or a home-screen device on the same mesh. The base URL is
  * configurable in Settings and persisted.

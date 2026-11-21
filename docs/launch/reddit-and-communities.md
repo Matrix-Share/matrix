@@ -13,10 +13,10 @@ yet; the product isn't consumer-ready and you'll burn goodwill.
 
 ## r/meshtastic  (most aligned — they already live in phone-to-phone mesh)
 
-**Title:** `Lifeline: an open-source DTN mesh messenger with offline-verifiable delivery receipts (alpha, looking for radio-layer help)`
+**Title:** `Relayne: an open-source DTN mesh messenger with offline-verifiable delivery receipts (alpha, looking for radio-layer help)`
 
 **Body:**
-> I've been building Lifeline — an open-source, E2E-encrypted store-carry-forward
+> I've been building Relayne — an open-source, E2E-encrypted store-carry-forward
 > mesh messenger. Different emphasis from Meshtastic: it's a full DTN with
 > custody transfer, CRDT sync that reconciles after a partition heals, erasure
 > coding over lossy links, and a *cryptographic proof of delivery* you can verify
@@ -36,7 +36,7 @@ yet; the product isn't consumer-ready and you'll burn goodwill.
 
 ## r/privacy  (angle: no accounts, no metadata honeypot, sealed sender)
 
-**Title:** `Lifeline: mesh messenger with no accounts and no server that holds who-talked-to-whom (open source, alpha)`
+**Title:** `Relayne: mesh messenger with no accounts and no server that holds who-talked-to-whom (open source, alpha)`
 
 **Body:** Emphasize: self-certifying identity (address = hash of your public
 key), sealed sender, no phone number, no central directory to subpoena, source

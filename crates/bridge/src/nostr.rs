@@ -1,17 +1,17 @@
-//! A **Nostr** adapter for Lifeline (NIP-01 events over relays).
+//! A **Nostr** adapter for Relayne (NIP-01 events over relays).
 //!
-//! Lifeline bundles are already opaque end-to-end ciphertext, so this adapter
+//! Relayne bundles are already opaque end-to-end ciphertext, so this adapter
 //! doesn't add Nostr-level encryption for confidentiality — it carries each
 //! frame as the content of a **real, signed Nostr event** (secp256k1 Schnorr,
 //! `id = sha256(canonical array)`, per NIP-01) and lets Nostr relays store and
-//! forward it. That gives Lifeline **global internet reach + offline mailboxing
+//! forward it. That gives Relayne **global internet reach + offline mailboxing
 //! over the already-adopted Nostr relay network**, with no `lifeline-relay` to
 //! run and no engine change (it plugs into [`ExternalNet`]).
 //!
 //! Addressing:
 //! * **Broadcast** frames (beacons/discovery) are published to a shared channel
-//!   tag `["L","lifeline-mesh"]` that every Lifeline node subscribes to — this is
-//!   how nodes discover each other and learn the `Lifeline-address ↔ Nostr-pubkey`
+//!   tag `["L","lifeline-mesh"]` that every Relayne node subscribes to — this is
+//!   how nodes discover each other and learn the `Relayne-address ↔ Nostr-pubkey`
 //!   mapping (the mapping is just the event's `pubkey`).
 //! * **Directed** frames are `["p", <recipient nostr pubkey>]`-tagged so relays
 //!   route them to that recipient's inbox.
@@ -31,13 +31,13 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-/// Lifeline frames ride in this event kind (regular range 1000–9999 → relays
+/// Relayne frames ride in this event kind (regular range 1000–9999 → relays
 /// store it, so an offline recipient can fetch it on reconnect).
 pub const LIFELINE_KIND: u32 = 1998;
 /// Shared discovery-channel tag value (`["L","lifeline-mesh"]`).
 pub const CHANNEL: &str = "lifeline-mesh";
 
-/// Build a signed Lifeline frame-carrying event: a broadcast to the discovery
+/// Build a signed Relayne frame-carrying event: a broadcast to the discovery
 /// channel (`to_pubkey == None`) or a message directed to a recipient's pubkey.
 /// Shared by the in-memory adapter and the live WebSocket client.
 pub fn frame_event(

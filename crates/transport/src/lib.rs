@@ -1,4 +1,4 @@
-//! Project Lifeline — L0/L1 transport abstraction (PRD §8.4; spectrum doc §3
+//! Project Relayne — L0/L1 transport abstraction (PRD §8.4; spectrum doc §3
 //! "bind to no single transport"; network-layer L1).
 //!
 //! > *"Build a transport-abstraction protocol where a message is independent of
@@ -6,7 +6,7 @@
 //! > across a noisy room next, Wi-Fi Aware to the next cluster, and out through
 //! > a LoRa or internet gateway when one appears."* — spectrum design doc
 //!
-//! This crate is what makes Lifeline **completely modular across network
+//! This crate is what makes Relayne **completely modular across network
 //! types**. Every physical channel — BLE, Wi-Fi Aware, ultrasound, optical,
 //! LoRa, internet — is a plug-in implementing one small [`Interface`] contract.
 //! Because interfaces have wildly different MTUs (ultrasound tens of bytes, LoRa

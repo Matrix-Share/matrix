@@ -1,5 +1,5 @@
 /**
- * Lifeline design tokens — the single source of truth for the mobile app.
+ * Relayne design tokens — the single source of truth for the mobile app.
  *
  * Deliberately built on Apple's *actual* iOS system scale (the iOS type ramp,
  * system grays, and system accent/semantic colors) rather than invented values.

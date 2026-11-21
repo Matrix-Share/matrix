@@ -1,4 +1,4 @@
-# Lifeline roadmap
+# Relayne roadmap
 
 A public, honest view of where the project is and what's next. This is a living
 document — the source of truth is the [issue tracker](https://github.com/matrix-share/matrix/issues);

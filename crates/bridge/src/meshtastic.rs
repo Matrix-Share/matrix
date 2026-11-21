@@ -1,12 +1,12 @@
-//! A **Meshtastic** adapter for Lifeline (real `ServiceEnvelope`/`MeshPacket`
+//! A **Meshtastic** adapter for Relayne (real `ServiceEnvelope`/`MeshPacket`
 //! protobuf over MQTT).
 //!
 //! [Meshtastic](https://meshtastic.org) is a widely-deployed LoRa mesh: cheap
 //! off-grid radios that also bridge to the internet via MQTT. This adapter lets
-//! Lifeline **ride the Meshtastic network** — a Lifeline frame becomes the
+//! Relayne **ride the Meshtastic network** — a Relayne frame becomes the
 //! payload of a genuine Meshtastic `MeshPacket` (on a private application port),
 //! wrapped in the `ServiceEnvelope` that every Meshtastic MQTT gateway speaks —
-//! so Lifeline traffic flows over real Meshtastic hardware and public MQTT
+//! so Relayne traffic flows over real Meshtastic hardware and public MQTT
 //! brokers with **no engine change** (it plugs into [`ExternalNet`]).
 //!
 //! Because MQTT clients are synchronous, [`MeshtasticNet`] implements
@@ -18,7 +18,7 @@
 //!
 //! Addressing mirrors the Nostr adapter: broadcasts go to the Meshtastic
 //! broadcast address, directed frames to a peer's learned node number, and the
-//! `PeerId ↔ node-number` map is learned from received packets. Lifeline frames
+//! `PeerId ↔ node-number` map is learned from received packets. Relayne frames
 //! are already opaque E2E ciphertext, so we carry them in a plaintext
 //! Meshtastic `Data` (the mesh only ever sees ciphertext bytes).
 
@@ -30,7 +30,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 /// Meshtastic application port for private/third-party app payloads. Using this
-/// keeps Lifeline traffic clearly separated from Meshtastic's own port numbers.
+/// keeps Relayne traffic clearly separated from Meshtastic's own port numbers.
 pub const PRIVATE_APP: i32 = 256;
 /// Meshtastic broadcast node address (`0xffffffff`).
 pub const BROADCAST: u32 = 0xffff_ffff;
@@ -50,7 +50,7 @@ pub struct Data {
     /// Application port (`PortNum`); we use [`PRIVATE_APP`].
     #[prost(int32, tag = "1")]
     pub portnum: i32,
-    /// The opaque application bytes — a Lifeline frame.
+    /// The opaque application bytes — a Relayne frame.
     #[prost(bytes = "vec", tag = "2")]
     pub payload: Vec<u8>,
 }
@@ -95,7 +95,7 @@ pub trait MeshBus {
     fn poll(&mut self) -> Vec<Vec<u8>>;
 }
 
-/// A Lifeline↔Meshtastic adapter over some [`MeshBus`].
+/// A Relayne↔Meshtastic adapter over some [`MeshBus`].
 pub struct MeshtasticNet<B: MeshBus> {
     bus: B,
     caps: InterfaceCaps,
@@ -109,7 +109,7 @@ pub struct MeshtasticNet<B: MeshBus> {
 
 impl<B: MeshBus> MeshtasticNet<B> {
     /// Create an adapter. `my_node` is our Meshtastic node number (derive it
-    /// from the Lifeline identity for stability); `channel` is the Meshtastic
+    /// from the Relayne identity for stability); `channel` is the Meshtastic
     /// channel name every bridged node shares.
     pub fn new(bus: B, my_node: u32, channel: impl Into<String>) -> Self {
         Self {
@@ -190,7 +190,7 @@ impl<B: MeshBus> ExternalNet for MeshtasticNet<B> {
             }
             let Some(data) = pkt.decoded else { continue }; // encrypted/foreign → can't read
             if data.portnum != PRIVATE_APP {
-                continue; // not a Lifeline payload
+                continue; // not a Relayne payload
             }
             let peer = peer_id_from_identity(&pkt.from.to_le_bytes());
             self.peers.insert(peer, pkt.from);

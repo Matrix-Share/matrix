@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://relayne.org">Website</a> ·
   <a href="WHITEPAPER.md">Whitepaper</a> ·
-  <a href="#how-lifeline-compares">How it compares</a> ·
+  <a href="#how-relayne-compares">How it compares</a> ·
   <a href="docs/USE-CASES.md">Use cases</a> ·
   <a href="https://github.com/matrix-share/matrix/discussions">Discussions</a>
 </p>

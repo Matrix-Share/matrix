@@ -30,7 +30,7 @@
 </header>
 
 <main class="wrap" style="padding-top:56px;padding-bottom:80px;max-width:960px">
-  <a class="backlink" href="/" style="color:var(--accent);font-size:14px;font-weight:560">← Back to home</a>
+  <a class="backlink" href="/" style="color:var(--accent-text);font-size:14px;font-weight:560">← Back to home</a>
   <h1 style="font-size:clamp(32px,5vw,48px);letter-spacing:-.035em;font-weight:720;margin:18px 0 6px">Get in touch</h1>
   <p style="color:var(--muted);font-size:18px;line-height:1.6;max-width:56ch">
     Relayne is an open project, and the fastest way to reach us, and the whole community, is on GitHub.
@@ -83,7 +83,7 @@
         Compose message
       </button>
       <p id="formNote" style="color:var(--faint);font-size:12.5px;line-height:1.5;margin-top:12px">
-        This opens a pre-filled email to <b>archit.sharma@nometria.com</b> in your own mail app. Nothing is sent to any server from this page. For anything public, <a href="https://github.com/matrix-share/matrix/discussions" style="color:var(--accent)">GitHub Discussions</a> is faster.
+        This opens a pre-filled email to <b>hello@relayne.org</b> in your own mail app. Nothing is sent to any server from this page. For anything public, <a href="https://github.com/matrix-share/matrix/discussions" style="color:var(--accent-text)">GitHub Discussions</a> is faster.
       </p>
     </form>
 
@@ -96,7 +96,7 @@
       </div>
       <div class="contact-card" style="margin-bottom:16px">
         <h3>Security reports</h3>
-        <p>Found a vulnerability? Please disclose it privately. See our <a href="security.html" style="color:var(--accent)">security &amp; disclosure</a> page for how.</p>
+        <p>Found a vulnerability? Please disclose it privately. See our <a href="security.html" style="color:var(--accent-text)">security &amp; disclosure</a> page for how.</p>
       </div>
       <div class="contact-card">
         <h3>Partnerships &amp; press</h3>
@@ -157,7 +157,7 @@
     var message = document.getElementById('message').value.trim();
     var subject = '[Relayne] ' + topic + ' — ' + name;
     var body = message + '\n\n— ' + name + ' (' + email + ')';
-    window.location.href = 'mailto:archit.sharma@nometria.com'
+    window.location.href = 'mailto:hello@relayne.org'
       + '?subject=' + encodeURIComponent(subject)
       + '&body=' + encodeURIComponent(body);
     var note = document.getElementById('formNote');

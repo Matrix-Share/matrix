@@ -1,4 +1,4 @@
-//! Project Lifeline — node daemon.
+//! Project Relayne — node daemon.
 //!
 //! Runs the mesh [`NodeEngine`] on a dedicated thread, connects to a
 //! zero-knowledge relay for internet transport, and serves a web GUI + HTTP/WS

@@ -1,7 +1,7 @@
 //! Panic / duress wipe — emergency destruction of everything a seized device
 //! could leak (G3; bitchat's triple-tap wipe, generalized).
 //!
-//! Lifeline already zeroizes secrets *in memory* on drop, and persists state
+//! Relayne already zeroizes secrets *in memory* on drop, and persists state
 //! **encrypted at rest** (`core::vault`, `identity::KeyBackup`). But a high-risk
 //! user under coercion needs one decisive action that makes the on-disk data
 //! *unrecoverable now*, not "unrecoverable once the process happens to exit".
@@ -33,7 +33,7 @@ use std::fs;
 use std::io::{self, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-/// The two files a Lifeline node persists under its data dir. Wiping these
+/// The two files a Relayne node persists under its data dir. Wiping these
 /// destroys the identity secret keys and all sealed state (contacts, message
 /// history, the forward-secret prekey ring, group ids).
 pub const NODE_ARTIFACTS: [&str; 2] = ["identity.json", "state.vault"];
@@ -143,10 +143,10 @@ where
     report
 }
 
-/// Wipe a Lifeline node's persisted secrets: the known [`NODE_ARTIFACTS`] under
+/// Wipe a Relayne node's persisted secrets: the known [`NODE_ARTIFACTS`] under
 /// `data_dir`. This is the disk half of a panic wipe. Does **not** touch
 /// unrelated files in the dir, so pointing it at a shared directory only
-/// destroys Lifeline's own state.
+/// destroys Relayne's own state.
 pub fn wipe_node_data(data_dir: &Path) -> WipeReport {
     let targets = NODE_ARTIFACTS.iter().map(|name| data_dir.join(name));
     wipe_paths(targets)
@@ -154,7 +154,7 @@ pub fn wipe_node_data(data_dir: &Path) -> WipeReport {
 
 /// Scorched-earth variant: recursively secure-erase **every** file under `dir`
 /// and then remove the now-empty directory tree. Use only when the whole data
-/// dir is Lifeline's and nothing else lives there. Symlinks are removed without
+/// dir is Relayne's and nothing else lives there. Symlinks are removed without
 /// following (we never chase a link out of the tree).
 pub fn wipe_dir_recursive(dir: &Path) -> WipeReport {
     let mut report = WipeReport::default();
@@ -295,7 +295,7 @@ mod tests {
         assert!(!dir.join("state.vault").exists());
         assert!(
             dir.join("unrelated.txt").exists(),
-            "a targeted wipe must not touch non-Lifeline files"
+            "a targeted wipe must not touch non-Relayne files"
         );
 
         fs::remove_dir_all(&dir).ok();

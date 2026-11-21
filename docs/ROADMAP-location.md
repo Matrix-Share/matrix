@@ -1,7 +1,7 @@
 # Roadmap — location, "find each other," and consistent messaging
 
 The [find-each-other feature](../crates/node/web/index.html) and
-[USE-CASES.md](USE-CASES.md) make a promise: Lifeline keeps you connected — and
+[USE-CASES.md](USE-CASES.md) make a promise: Relayne keeps you connected — and
 findable — when the network can't. This is the checklist to make that promise
 **fully real** (production-grade, not just demo-real) and to keep the
 **documentation and messaging consistent across every surface**: the mesh node +
@@ -99,7 +99,7 @@ otherwise the safety feature becomes a tracking risk.
 The same story, told the same way, **everywhere**: web app, mobile, marketing
 site, SaaS, white papers.
 
-- [x] Marketing "Where Lifeline helps" use-cases section (SaaS + static site).
+- [x] Marketing "Where Relayne helps" use-cases section (SaaS + static site).
       *(PR #62)*
 - [x] Add a **"Find each other" card** to the *Features* list on both marketing
       sites (static site already had one; added to the SaaS `FEATURES`).

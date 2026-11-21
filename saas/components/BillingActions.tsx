@@ -43,7 +43,7 @@ export function BillingActions({
       <button className={`btn ${variant === 'primary' ? 'btn-primary' : 'btn-ghost'} wide sm`} onClick={go} disabled={busy}>
         {busy ? 'Opening…' : label}
       </button>
-      {error && <p style={{ color: 'var(--sos)', fontSize: 13, marginTop: 8 }}>{error}</p>}
+      {error && <p style={{ color: 'var(--sos-text)', fontSize: 13, marginTop: 8 }}>{error}</p>}
     </>
   );
 }

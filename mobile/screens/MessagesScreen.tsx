@@ -42,7 +42,7 @@ export default function MessagesScreen({ onOpen }: { onOpen: (sel: string) => vo
         <Empty
           icon="wifi-outline"
           title="Connect to a node"
-          body="Lifeline runs on a node — a laptop, a gateway, or a device on your mesh. Add its address in Settings to start messaging."
+          body="Relayne runs on a node — a laptop, a gateway, or a device on your mesh. Add its address in Settings to start messaging."
         />
       </Header>
     );

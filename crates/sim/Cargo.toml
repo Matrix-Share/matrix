@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Project Lifeline network simulator: partitions, data mules, gateways — validates the delivery acceptance criteria (PRD §16, NFR-3)."
+description = "Project Relayne network simulator: partitions, data mules, gateways — validates the delivery acceptance criteria (PRD §16, NFR-3)."
 
 [dependencies]
 lifeline-proto = { path = "../proto" }

@@ -2,7 +2,7 @@
 //! in-process Nostr relay** — real WebSocket frames, real signed NIP-01 events,
 //! real relay filter matching — with no external network.
 //!
-//! Two Lifeline nodes' Nostr clients connect to the relay; one broadcasts a
+//! Two Relayne nodes' Nostr clients connect to the relay; one broadcasts a
 //! discovery beacon, the other learns it as a peer and replies with a directed
 //! frame that the relay routes back by `#p` tag. This exercises the same path a
 //! node would use against `wss://relay.damus.io`, just over `ws://127.0.0.1`.
@@ -21,7 +21,7 @@ use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message;
 
 /// Does `event` satisfy a Nostr REQ `filter` object? We honor `kinds` and any
-/// `#<letter>` tag filter (the two Lifeline uses); other keys are ignored.
+/// `#<letter>` tag filter (the two Relayne uses); other keys are ignored.
 fn event_matches(ev: &NostrEvent, filter: &Value) -> bool {
     let Some(obj) = filter.as_object() else {
         return false;
@@ -209,7 +209,7 @@ async fn two_clients_exchange_frames_over_real_websocket() {
     let _ = tokio::time::timeout(Duration::from_secs(2), bob_task).await;
 }
 
-/// The kind/tag constants stay the ones every Lifeline node agrees on.
+/// The kind/tag constants stay the ones every Relayne node agrees on.
 #[test]
 fn frame_kind_and_channel_are_stable() {
     assert_eq!(LIFELINE_KIND, 1998);

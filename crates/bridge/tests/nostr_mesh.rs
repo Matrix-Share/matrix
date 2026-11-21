@@ -1,8 +1,8 @@
-//! End-to-end: two full Lifeline `NodeEngine`s reach each other **over Nostr**.
+//! End-to-end: two full Relayne `NodeEngine`s reach each other **over Nostr**.
 //! Each node's only interface is a Nostr adapter pointed at a shared relay — no
 //! `lifeline-relay`, no radios. Discovery, an end-to-end-encrypted message, and
 //! the signed delivery receipt all travel as real signed Nostr events that the
-//! relay stores and forwards. This is "Lifeline over the Nostr network."
+//! relay stores and forwards. This is "Relayne over the Nostr network."
 
 use lifeline_bridge::nostr::{MockRelay, NostrIdentity, NostrNet};
 use lifeline_core::Identity;

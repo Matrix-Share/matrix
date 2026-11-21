@@ -1,4 +1,4 @@
-# Product Requirements Document — Project Lifeline (working title)
+# Product Requirements Document — Project Relayne (working title)
 
 **A decentralized, offline-first emergency communication network.**
 An app-first mesh that keeps people connected when the internet and cellular networks fail, and that "comes alive" the moment any single node touches connectivity.
@@ -17,7 +17,7 @@ An app-first mesh that keeps people connected when the internet and cellular net
 
 ## 1. Executive summary
 
-Project Lifeline is a peer-to-peer messaging network whose **core product is a mobile and web/desktop app**. Every user with the app is a node. Nodes communicate directly using the radios and transducers already inside their devices (Bluetooth LE, Wi-Fi Aware, ultrasound, optical), forming a local mesh that needs no towers, SIMs, or internet.
+Project Relayne is a peer-to-peer messaging network whose **core product is a mobile and web/desktop app**. Every user with the app is a node. Nodes communicate directly using the radios and transducers already inside their devices (Bluetooth LE, Wi-Fi Aware, ultrasound, optical), forming a local mesh that needs no towers, SIMs, or internet.
 
 Messages are **end-to-end encrypted** and delivered using **delay-tolerant, store-and-forward routing**: a message is carried, replicated, and relayed opportunistically until it reaches its recipient — even by physically moving devices ("data mules"). Users who own extra hardware (a LoRa radio, an internet uplink) can opt in as **privileged gateway nodes** that bridge the offline mesh to long-range frequencies and the wider internet. Because delivery is store-and-forward, **reaching any one gateway restores reach for the whole mesh.**
 

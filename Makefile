@@ -1,4 +1,4 @@
-# Project Lifeline — common developer tasks.
+# Project Relayne — common developer tasks.
 .PHONY: help build test fmt fmt-check clippy sim run relay node up down docker clean
 
 help: ## Show this help

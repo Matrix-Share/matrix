@@ -1,4 +1,4 @@
-//! Project Lifeline — wire protocol schemas and canonical encoding.
+//! Project Relayne — wire protocol schemas and canonical encoding.
 //!
 //! This crate is the on-the-wire *contract* described in PRD §11 (data models)
 //! and §12 (protocols). It deliberately contains **no cryptography and no I/O**:

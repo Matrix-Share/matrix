@@ -1,6 +1,6 @@
 # Secure Software Development Lifecycle (SSDLC)
 
-Lifeline is safety- and security-critical software. This document describes how
+Relayne is safety- and security-critical software. This document describes how
 security is built into the development process — not bolted on — using
 **open-source tooling that anyone can run and verify**. It is the internal
 counterpart to the externally-facing [`SECURITY.md`](../SECURITY.md) (how to
@@ -65,7 +65,7 @@ semgrep scan --config p/security-audit --config p/rust --config p/javascript
   and a tracking issue — an explicit, auditable ignore).
 - **Prefer removing attack surface** over ignoring. Example: the optional
   Meshtastic MQTT bridge disables `rumqttc`'s bundled TLS (which pinned a
-  vulnerable `rustls-webpki`); Lifeline payloads are already end-to-end sealed,
+  vulnerable `rustls-webpki`); Relayne payloads are already end-to-end sealed,
   so the MQTT hop is not a confidentiality boundary. See
   [`crates/bridge/Cargo.toml`](../crates/bridge/Cargo.toml).
 - **Licenses** are restricted to permissive, Apache-2.0-compatible ones

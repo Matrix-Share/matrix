@@ -85,7 +85,7 @@ pub fn x25519_pub_from_slice(b: &[u8]) -> Result<XPublic> {
 }
 
 /// Stateless ephemeral-static **sealed box** (ECIES-style) over X25519 + HKDF +
-/// XChaCha20-Poly1305 — Lifeline's one E2E public-key encryption primitive.
+/// XChaCha20-Poly1305 — Relayne's one E2E public-key encryption primitive.
 ///
 /// The returned blob is self-describing: `eph_pub(32) || nonce(24) || ct`.
 ///
