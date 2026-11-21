@@ -32,7 +32,7 @@ ciborium.workspace = true
 qrcode = { version = "0.14", default-features = false }
 
 tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "sync", "time", "signal"] }
-axum = { version = "0.7", features = ["ws"] }
+axum = { version = "0.8", features = ["ws"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
