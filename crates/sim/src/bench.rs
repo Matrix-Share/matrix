@@ -121,12 +121,15 @@ pub fn run_comparison_rwp(seed: u64, ticks: u64, nodes: usize) -> Vec<BenchRow> 
         .collect()
 }
 
+/// Per-tick contact events: `(tick, node_a, node_b)` triples.
+type TraceEvents = Vec<(u64, usize, usize)>;
+
 /// Load a Relayne per-tick contact trace (`tick a b` lines, `#` comments), as
 /// produced by `tools/trace_to_lifeline.py` from a real external dataset.
 /// Returns `(events, node_count, max_tick)`. This is the trace-ingestion path
 /// the mobility module documents, wired to a file so a real CRAWDAD/SocioPatterns
 /// trace can drive the comparative evaluation (not just synthetic mobility).
-pub fn load_trace_events(path: &str) -> io::Result<(Vec<(u64, usize, usize)>, usize, u64)> {
+pub fn load_trace_events(path: &str) -> io::Result<(TraceEvents, usize, u64)> {
     let f = File::open(path)?;
     let mut events = Vec::new();
     let (mut max_id, mut max_tick) = (0usize, 0u64);
