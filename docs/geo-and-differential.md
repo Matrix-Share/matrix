@@ -1,12 +1,12 @@
-# Geo-encoding & Differential-GPS ideas for Lifeline
+# Geo-encoding & Differential-GPS ideas for Relayne
 
-Two GPS-adjacent directions, researched and grounded in Lifeline's architecture.
+Two GPS-adjacent directions, researched and grounded in Relayne's architecture.
 The one premise to get right first: **GPS is strictly receive-only** — a receiver
 derives *position* and *time* from satellite timing and can never transmit back.
 So "sending through GPS" is impossible. But GPS is a free, global, offline
 **sensor** that hands every device two gifts — precise **position** and precise
 **time** — and those are inputs that unlock a lot. The correct model (and exactly
-how a Lifeline node already works): **use GPS as a sensor feeding the mesh; let
+how a Relayne node already works): **use GPS as a sensor feeding the mesh; let
 the other radios do the sending.**
 
 Two real footnotes to the premise:
@@ -23,7 +23,7 @@ Two real footnotes to the premise:
 
 ## Angle 1 — Location as an information mechanism
 
-| # | Mechanism | Lifeline seam it fits | Verdict |
+| # | Mechanism | Relayne seam it fits | Verdict |
 |---|-----------|------------------------|---------|
 | A | **Geographic routing + geocast** — forward toward a position; deliver to "everyone in region R" | the `router::RoutingPolicy` trait + a geocast destination | **Highest value, buildable now** |
 | B | **Location as content** — geo-tagged SOS/hazard/resource reports aggregated into a shared map | `sync` CRDT | Straightforward |
@@ -46,7 +46,7 @@ DGPS/RTK works on one principle: **when an error is common-mode and
 spatially/temporally correlated across receivers, a reference at known ground
 truth measures it once and broadcasts a correction everyone nearby applies to
 cancel it.** Three ingredients: a reference with ground truth, a correlated
-error, a broadcast channel. Where does Lifeline have that pattern?
+error, a broadcast channel. Where does Relayne have that pattern?
 
 1. **Differential *time* (flagship).** A node with GPS lock (or a fixed
    anchor/gateway) is the "reference station." It broadcasts precise time; nodes
@@ -63,14 +63,14 @@ error, a broadcast channel. Where does Lifeline have that pattern?
    Real field, but honest caveat: phone RF ranging is coarse without UWB.
 3. **Differential *reputation* (the novel transfer).** The DGPS insight
    generalizes: a trusted reference cancels correlated error in a noisy shared
-   estimate. Lifeline's black-hole **reputation gossip** (FR-47) is exactly that —
+   estimate. Relayne's black-hole **reputation gossip** (FR-47) is exactly that —
    noisy, partial-view, with the audited weakness that a malicious node can
    **defame an honest one**. A trusted **anchor** broadcasting periodic
    "reputation corrections" is a *differential-reputation reference* that damps
    defamation — and the Network-RTK/Virtual-Reference-Station idea (interpolate
    from multiple base stations weighted by location) maps to weighting several
    anchors by proximity/trust. An analogy, not literal DGPS, but apt and
-   prototype-worthy; it hardens a mechanism Lifeline already ships.
+   prototype-worthy; it hardens a mechanism Relayne already ships.
 
 ---
 
@@ -124,7 +124,7 @@ Ranked, each landing on a seam that already exists:
 DGPS is one instance of a reusable pattern: **a reference with ground truth
 cancels correlated error in a noisy shared estimate, by broadcasting a correction
 everyone applies.** Three ingredients — reference, correlated error, broadcast
-channel — and Lifeline has several places that fit:
+channel — and Relayne has several places that fit:
 
 | Application | The noisy shared estimate | The reference (ground truth) | The correlated error it cancels | Fit / status |
 |---|---|---|---|---|

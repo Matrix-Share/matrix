@@ -1,7 +1,7 @@
-# Contributing to Project Lifeline
+# Contributing to Project Relayne
 
 Thanks for helping build resilient, offline-first emergency communication.
-Lifeline is safety-critical software for people in disasters, so we hold a high
+Relayne is safety-critical software for people in disasters, so we hold a high
 bar for correctness, security, and honesty about limitations.
 
 ## Ground rules

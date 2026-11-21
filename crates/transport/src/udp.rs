@@ -28,7 +28,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 /// interfaces in one process must not filter each other's traffic as "self").
 static INSTANCE_SEQ: AtomicU32 = AtomicU32::new(0);
 
-/// Default multicast group for Lifeline LAN discovery (administratively scoped).
+/// Default multicast group for Relayne LAN discovery (administratively scoped).
 pub const DEFAULT_GROUP: Ipv4Addr = Ipv4Addr::new(239, 255, 42, 99);
 
 /// Datagram payload cap kept below the typical 1500-byte path MTU to avoid IP

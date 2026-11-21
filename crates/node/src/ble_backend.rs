@@ -135,7 +135,7 @@ pub fn spawn(handle: &tokio::runtime::Handle) -> Option<ChannelInterface> {
     Some(iface)
 }
 
-/// One run of the central: set up the adapter, scan for the Lifeline service, and
+/// One run of the central: set up the adapter, scan for the Relayne service, and
 /// service discovery + connections until an error bubbles up (then the caller
 /// restarts us). Per connected peripheral, a task forwards its notifications and
 /// the shared outbound queue is drained to its frame characteristic.

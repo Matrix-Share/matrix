@@ -1,4 +1,4 @@
-# Release readiness — is Lifeline ready to be open-sourced?
+# Release readiness — is Relayne ready to be open-sourced?
 
 **Short answer: yes, as a clearly-labeled `0.1.0-alpha` developer preview — and
 no, not for production or life-safety use.** Both halves matter; this document is

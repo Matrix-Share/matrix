@@ -39,7 +39,7 @@ high-risk or life-safety communication yet. See [`docs/RELEASE-READINESS.md`](do
   from a shared `(start, bpm)`, seizure-safe (≤ 3 Hz, smooth glow) and consensual
   (`PayloadKind::Strobe`; `POST /api/strobe`). A **live compass arrow** (device
   heading) for people and places.
-- **Situations hub** — a first-class UI that gives each problem Lifeline solves
+- **Situations hub** — a first-class UI that gives each problem Relayne solves
   (disaster, blackout/protest, off-grid/backcountry, crowded event, private) its
   own tailored screen and plain guidance, so the tools fit the moment.
 - **Native Bluetooth LE transport — the platform-independent core.** ATT-MTU
@@ -144,7 +144,7 @@ high-risk or life-safety communication yet. See [`docs/RELEASE-READINESS.md`](do
     mechanism). Two new tests (quota metering/exhaustion, revocation).
 - **Comparative routing evaluation harness (`lifeline-sim::bench`).** Turns the
   white paper's evaluation methodology into concrete, reproducible numbers. Adds
-  two baseline routing policies alongside Lifeline's default — `EpidemicPolicy`
+  two baseline routing policies alongside Relayne's default — `EpidemicPolicy`
   (flooding; Vahdat \& Becker) and `DirectDeliveryPolicy` (no relaying) — and
   parameterises the simulated `World` with a `RoutingStrategy`. The harness runs
   the *same* partitioned mule scenario under all three and reports the DTN
@@ -171,7 +171,7 @@ high-risk or life-safety communication yet. See [`docs/RELEASE-READINESS.md`](do
   **(2) sealed-sender delivery forces source-local reputation, which is immune to
   Sybil badmouthing** — privacy and accountability align rather than trade off;
   **(3) the open-relay / gated-egress asymmetry** that organizes the design.
-  Also: removed the marketing-style "In Lifeline" colorboxes, added `amsthm`
+  Also: removed the marketing-style "In Relayne" colorboxes, added `amsthm`
   propositions with proofs/justifications, fixed a stray tag in the README, and
   added the Chaum–Fiat–Naor e-cash citation. All 45 `\cite` keys resolve; theorem
   and tabular environments balance.
@@ -225,7 +225,7 @@ high-risk or life-safety communication yet. See [`docs/RELEASE-READINESS.md`](do
     signature chain binds each caveat to its predecessor so caveats can't be
     reordered, spliced, or stripped.
   - **`ServiceClass` egress tiers** (`LifeSafety ⊂ Messaging ⊂ Interactive ⊂
-    Bulk`) — Lifeline's analogue of a 5G slice / DiffServ class, but for the
+    Bulk`) — Relayne's analogue of a 5G slice / DiffServ class, but for the
     *exit*. Orthogonal to mesh `Priority`. The `Messaging` tier is the zero-rated
     host-allowlist model (cf. in-flight free WhatsApp); attenuation can only lower
     the class.
@@ -369,7 +369,7 @@ surface) and hardened it:
     SSRF-blocked incl. `169.254.169.254`, public-URL allow). Client proxy + real
     HTTP fetcher are the integration follow-up.
   - **Reliable multi-carrier transfer** (design): the "use every carrier, get all
-    data, exactly once" guarantee already falls out of Lifeline's pieces —
+    data, exactly once" guarantee already falls out of Relayne's pieces —
     content-addressing (no-dupe + integrity), a `Manifest` merkle root
     (completeness via `missing`/`reassemble`), a concurrent multi-interface engine
     (all carriers, `bundle_id` dedup), and ARQ/reassembly (lossy links) — mapped
@@ -529,14 +529,14 @@ surface) and hardened it:
   is demoted while an honest custodian and a low-contact carrier within grace are
   not).
 - **Kademlia DHT (`lifeline-dht`) — online peer & rendezvous discovery.** A new
-  crate implementing the Kademlia DHT (Maymounkov & Mazières) over Lifeline's
+  crate implementing the Kademlia DHT (Maymounkov & Mazières) over Relayne's
   existing 128-bit `Address` keyspace (which already carried an `xor_distance`
   metric for exactly this "L3 discovery layer"). A node with internet can locate
   *where a peer is reachable* or *who is registered at a rendezvous key* with no
   central directory: `RoutingTable` (k-buckets across 128 XOR buckets, LRU with
   incumbent-retention against eviction flooding), iterative α-parallel
   `FIND_NODE`/`FIND_VALUE` lookups, `STORE` to the k closest, and `bootstrap`.
-  **Transport-agnostic** by the same seam philosophy as the rest of Lifeline —
+  **Transport-agnostic** by the same seam philosophy as the rest of Relayne —
   the lookup is pure logic driven over a synchronous `DhtRpc` request→response,
   so it rides any carrier and is fully testable against an in-memory network.
   Verified: iterative lookup **converges to the globally-closest node** across a
@@ -546,7 +546,7 @@ surface) and hardened it:
   (`meshtastic` feature) speaks the **real Meshtastic wire format** — genuine
   `ServiceEnvelope`/`MeshPacket` protobuf (`prost`, hand-derived subset, byte-
   compatible with real packets) carried on a private application port — so
-  Lifeline frames flow over actual Meshtastic LoRa hardware and public MQTT
+  Relayne frames flow over actual Meshtastic LoRa hardware and public MQTT
   brokers. Because MQTT clients are synchronous, `MeshtasticNet` implements
   `ExternalNet` **directly** and is driven by the engine tick — no async runtime,
   no channel bridging: the cleanest possible demonstration that the seam extends
@@ -573,7 +573,7 @@ surface) and hardened it:
   `ChannelInterface` — **no engine change**. The node's Nostr keypair is derived
   from its long-term identity via the new `Identity::derive_subkey` (domain-
   separated, stable across restarts so the offline mailbox address persists, and
-  unlinkable from the public Lifeline identity). Completes Phase 1 of
+  unlinkable from the public Relayne identity). Completes Phase 1 of
   [`docs/nostr-integration.md`](docs/nostr-integration.md).
 - **External-network seam + Nostr connectivity.** New `transport::ExternalNet`
   trait + `BridgeInterface`: any message-passing network becomes a first-class
@@ -582,12 +582,12 @@ surface) and hardened it:
   documented, compiling template (`lifeline-bridge::skeleton`). The first adapter,
   **`lifeline-bridge::nostr`**, is a real Nostr integration: secp256k1 Schnorr
   NIP-01 events (`id = sha256(canonical array)`, verified like any Nostr client),
-  a bundle↔event codec (opaque Lifeline ciphertext in event content, a shared
+  a bundle↔event codec (opaque Relayne ciphertext in event content, a shared
   `["L","lifeline-mesh"]` discovery channel, `["p", …]`-tagged directed messages),
   and relay-backed store-and-forward. **Proven end-to-end**: two full `NodeEngine`s
   discover each other, exchange an E2E-encrypted message, and return the signed
   delivery receipt entirely as signed Nostr events over a (mock) relay — **no
-  `lifeline-relay`, no engine change**. This plugs Lifeline into the global,
+  `lifeline-relay`, no engine change**. This plugs Relayne into the global,
   already-adopted Nostr relay network while leading with what Nostr lacks (forward
   secrecy, verifiable delivery, multi-bearer offline). Strategy + NIP mapping:
   [`docs/nostr-integration.md`](docs/nostr-integration.md).

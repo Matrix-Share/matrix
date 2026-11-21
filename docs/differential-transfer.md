@@ -2,7 +2,7 @@
 
 "Differential GPS" is one instance of a far more general idea. This document
 states it mathematically, validates it against the literature (so we implement
-textbook-correct algorithms, not home-grown bugs), and maps it across Lifeline.
+textbook-correct algorithms, not home-grown bugs), and maps it across Relayne.
 
 ## 1. The mathematics
 
@@ -41,7 +41,7 @@ Set reconciliation is textbook, with a 20-year lineage: Minsky–Trachtenberg–
 2003 (characteristic-polynomial / CPISync), Eppstein–Goodrich–Uyeda–Varghese 2011
 ("What's the Difference?", IBLT), Meyer 2023 (Range-Based Set Reconciliation).
 Deployed in Dynamo/Cassandra anti-entropy (Merkle trees), Bitcoin (minisketch),
-and **Nostr NIP-77 (negentropy)** — which Lifeline already integrates with.
+and **Nostr NIP-77 (negentropy)** — which Relayne already integrates with.
 
 **The inversion — where each variant creates bugs:**
 
@@ -54,11 +54,11 @@ and **Nostr NIP-77 (negentropy)** — which Lifeline already integrates with.
 **Choice: range-based, with a BLAKE3 fingerprint over the sorted ids.** Rationale:
 deterministic (no silent omission), degrades to O(n) when sets are disjoint (never
 worse than today's re-offer), and matches the proven Nostr choice. Three
-Lifeline-specific inversions checked: a malicious peer can only make *its own* sync
+Relayne-specific inversions checked: a malicious peer can only make *its own* sync
 incomplete (content stays E2E-authenticated → **no new integrity attack surface**);
 worst case is no regression; it needs only a total order on `bundle_id`.
 
-## 3. Where the differential pattern applies in Lifeline
+## 3. Where the differential pattern applies in Relayne
 
 | Feature | Q | Reference R | Δ | Regime | Value |
 |---|---|---|---|---|---|
@@ -71,7 +71,7 @@ worst case is no regression; it needs only a total order on `bundle_id`.
 | **Time / position / congestion / sensing** | clock / coords / load / reading | GPS anchor / gateway / known conditions | control-variate correction | B | time ✅, rest roadmap |
 
 The through-line: **condition every transfer on the mutual information the two
-nodes already share.** For Lifeline, whose binding constraint is bytes over lossy,
+nodes already share.** For Relayne, whose binding constraint is bytes over lossy,
 tiny-MTU bearers, Regime-A is the highest-leverage optimization in the system.
 
 ## 4. Build order

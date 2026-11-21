@@ -1,7 +1,7 @@
-# Competitive gap analysis — Nostr, bitchat, Buzz vs. Lifeline
+# Competitive gap analysis — Nostr, bitchat, Buzz vs. Relayne
 
 Independent study (three fresh-context agents, primary sources only, mid-2026) of the
-three systems nearest Lifeline, then a gap analysis against Lifeline's *actual* code.
+three systems nearest Relayne, then a gap analysis against Relayne's *actual* code.
 Goal: find the capabilities a globally-serious decentralized offline messenger must
 cover that we are missing, and separate them from the ones we already cover (sometimes
 better). Each gap below is tagged **HAVE / PARTIAL / MISSING** against verified source.
@@ -20,8 +20,8 @@ better). Each gap below is tagged **HAVE / PARTIAL / MISSING** against verified 
   search) and **not** offline. Strong on: portable identity, agents-as-first-class
   keypairs, OS-keyring custody, human-in-the-loop moderation, extend-by-`kind`.
 
-## What Lifeline already covers (validated by the studies — don't rebuild)
-| Capability | Lifeline state | Note |
+## What Relayne already covers (validated by the studies — don't rebuild)
+| Capability | Relayne state | Note |
 |---|---|---|
 | Offline-first DTN store-carry-forward | **HAVE** | Our core reason to exist; Buzz has none, bitchat's is the model |
 | Forward-secret 1:1 messaging | **HAVE** | Rotating prekey ring + retention window (`core/prekey.rs`); Nostr NIP-44 has *zero* FS |
@@ -40,7 +40,7 @@ better). Each gap below is tagged **HAVE / PARTIAL / MISSING** against verified 
 ### Tier 1 — convergent, central to the thesis, real gaps
 
 **G1. Post-compromise security + membership-change rekey for groups (MLS/TreeKEM).** — **PARTIAL**
-All three studies converge here. Lifeline's group crypto (`core/src/group.rs`) is
+All three studies converge here. Relayne's group crypto (`core/src/group.rs`) is
 Signal/Megolm **sender-keys**: forward-secret *along each chain*, but with **no
 post-compromise security** and **no automatic rekey on membership change** — a leaked
 sender key exposes all future messages until a manual rotation, and a removed member
@@ -52,7 +52,7 @@ relays; nobody has done it well over an offline mesh. High effort, high payoff.
 
 **G2. Metadata privacy: unlinkable presence identity + traffic-analysis resistance.** — **PARTIAL**
 bitchat names stable sender IDs as its *"weakest part"*; Nostr leaks the recipient
-p-tag, size, timing, IP even under gift-wrap. Lifeline seals content to rotating prekeys
+p-tag, size, timing, IP even under gift-wrap. Relayne seals content to rotating prekeys
 (good) but (a) presence/beacon identity linkability needs a **per-epoch rotating
 pseudonym**, (b) DTN carriers should address recipients by a **rotating tag = HMAC(recipient
 key, epoch)** (bitchat's courier trick) so carriers route without learning who mail is
@@ -61,7 +61,7 @@ for, (c) `core/src/onion.rs` pads only the **innermost** cell and its own commen
 (d) there is **no cover/dummy traffic**. Convergent weak spot across all three.
 
 **G3. Panic / duress wipe.** — **MISSING**
-bitchat's triple-tap erases keys, mail, history, metrics. Lifeline has thorough
+bitchat's triple-tap erases keys, mail, history, metrics. Relayne has thorough
 `zeroize`-on-drop but **no user-triggered emergency wipe** and no duress mode. For the
 disaster / high-risk-user threat model this is table stakes, and it's cheap. Verified
 absent (the "panic" hits in-tree are Rust `panic!`, not a wipe feature).
@@ -69,7 +69,7 @@ absent (the "panic" hits in-tree are Rust `panic!`, not a wipe feature).
 ### Tier 2 — important, concrete, mostly known patterns
 
 **G4. Key lifecycle: secure custody + rotation + revocation + recovery.** — **MISSING / PARTIAL**
-Nostr's unsolved gap and Buzz's strong shipped pattern both point here. Lifeline rotates
+Nostr's unsolved gap and Buzz's strong shipped pattern both point here. Relayne rotates
 *prekeys* and revokes *capabilities*, but has **no long-term identity-key rotation,
 revocation, or recovery**, and keys are not in an OS keyring. Add: (a) **OS-keyring
 custody** with outage-safe verified migration (Buzz's exact pattern — Keychain / Credential
@@ -80,7 +80,7 @@ the most-attacked device.
 
 **G5. Trust & anti-spam layering under anonymity.** — **PARTIAL**
 Nostr's lesson: anonymity breaks reputation filtering, so you need *layered* cost —
-economic + web-of-trust + PoW + relay-auth, none sufficient alone. Lifeline has PoW +
+economic + web-of-trust + PoW + relay-auth, none sufficient alone. Relayne has PoW +
 black-hole reputation; **add a web-of-trust overlay** on the social/contact graph and a
 **petname/favorites trust primitive that gates escalation** (bitchat: favoriting pins a
 key and unlocks the internet path). Also human-readable **NIP-05-style handles** (as
@@ -89,7 +89,7 @@ key and unlocks the internet path). Also human-readable **NIP-05-style handles**
 ### Tier 3 — deployment realism & moderation polish
 
 **G6. Real-radio transport realities.** — **PARTIAL**
-Lifeline is sim + UDP-mesh + LoRa/Meshtastic bridge; it lacks a **native BLE-mesh
+Relayne is sim + UDP-mesh + LoRa/Meshtastic bridge; it lacks a **native BLE-mesh
 transport** with bitchat's hard-won details: **contention-aware relay** (seeded
 ~log₂(degree) fanout, adaptive TTL clamping, 10–220 ms jitter — this is what stops BLE
 broadcast storms), **BLE-MTU fragmentation** with bounded reassembly, and **adaptive
@@ -121,4 +121,4 @@ Primary: [nostr-protocol/nips](https://github.com/nostr-protocol/nips),
 [Marmot](https://github.com/marmot-protocol/marmot) + [MDK](https://github.com/parres-hq/mdk),
 [permissionlesstech/bitchat](https://github.com/permissionlesstech/bitchat) (WHITEPAPER.md),
 [block/buzz](https://github.com/block/buzz) (ARCHITECTURE/SECURITY/VISION docs, v0.5.0).
-Lifeline state verified against `crates/core/src/{group,prekey,identity,onion,crypto}.rs`.
+Relayne state verified against `crates/core/src/{group,prekey,identity,onion,crypto}.rs`.

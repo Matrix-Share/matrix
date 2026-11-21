@@ -41,7 +41,7 @@ a{color:inherit;text-decoration:none}
 .btn-primary:hover{background:var(--accent-press)}
 .btn-ghost{background:var(--surface-2);color:var(--ink);border-color:var(--hairline)} .btn-ghost:hover{filter:brightness(.97)}
 .btn-plain{background:transparent;color:var(--accent-text)} .btn-plain:hover{background:var(--accent-weak)}
-.btn-danger{background:transparent;color:var(--sos);border-color:color-mix(in srgb,var(--sos) 34%,var(--line))}
+.btn-danger{background:transparent;color:var(--sos-text);border-color:color-mix(in srgb,var(--sos) 34%,var(--line))}
 .btn-danger:hover{background:color-mix(in srgb,var(--sos) 10%,transparent)}
 .btn.sm{height:36px;padding:0 14px;font-size:14px;border-radius:10px}
 .btn.wide{width:100%}
@@ -64,13 +64,13 @@ select.input{appearance:none}
 
 /* Alerts */
 .alert{border-radius:var(--r-2);padding:11px 14px;font-size:14px;font-weight:500;margin-bottom:14px}
-.alert-err{background:color-mix(in srgb,var(--sos) 12%,transparent);color:var(--sos)}
-.alert-ok{background:var(--safe-weak);color:var(--safe)}
+.alert-err{background:color-mix(in srgb,var(--sos) 12%,transparent);color:var(--sos-text)}
+.alert-ok{background:var(--safe-weak);color:var(--safe-text)}
 
 /* Badges */
 .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);background:var(--surface-2);color:var(--muted)}
 .badge.accent{background:var(--accent-weak);color:var(--accent-text)}
-.badge.safe{background:var(--safe-weak);color:var(--safe)}
+.badge.safe{background:var(--safe-weak);color:var(--safe-text)}
 
 /* Auth pages */
 .auth-wrap{min-height:100dvh;display:grid;place-items:center;padding:24px;background:var(--surface-2)}

@@ -1,4 +1,4 @@
-//! Project Lifeline — L5 CRDT sync (PRD §8.6, §12.3, "web3 done right").
+//! Project Relayne — L5 CRDT sync (PRD §8.6, §12.3, "web3 done right").
 //!
 //! Shared state that must survive partitions — group membership, blocklists,
 //! presence, delivery status — is modelled as **Conflict-free Replicated Data

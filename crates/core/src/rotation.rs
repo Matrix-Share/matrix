@@ -1,6 +1,6 @@
 //! Identity key rotation & revocation (G4).
 //!
-//! A Lifeline identity's network address is `blake3(sign_pub)[..16]` — the
+//! A Relayne identity's network address is `blake3(sign_pub)[..16]` — the
 //! signing key *is* the identity. That is what makes identity self-sovereign and
 //! registrar-free, but it also means the base protocol has **no way to retire a
 //! key**: if your key is compromised or you simply want to roll it, every contact

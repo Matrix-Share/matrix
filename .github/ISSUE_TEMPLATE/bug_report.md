@@ -15,7 +15,7 @@ labels: bug
 1.
 
 ### Environment
-- Lifeline version / commit:
+- Relayne version / commit:
 - OS / platform:
 - How run (cargo, docker, …):
 

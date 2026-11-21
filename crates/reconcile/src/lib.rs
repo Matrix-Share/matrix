@@ -1,6 +1,6 @@
 //! **Range-based set reconciliation** — the differential-transfer primitive.
 //!
-//! Two nodes hold sets of keys (for Lifeline: the `bundle_id`s each carries).
+//! Two nodes hold sets of keys (for Relayne: the `bundle_id`s each carries).
 //! Naively syncing means re-offering everything and de-duplicating by trial. This
 //! instead converges to the exact **symmetric difference** `A △ B` with
 //! communication **proportional to the difference**, not to the set size — the

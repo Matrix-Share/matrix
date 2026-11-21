@@ -1,7 +1,7 @@
-//! **Geospatial primitives** for Project Lifeline.
+//! **Geospatial primitives** for Project Relayne.
 //!
 //! GPS gives every device a free, global, offline **position**. This crate turns
-//! that position into a *routing and addressing* primitive so Lifeline can do the
+//! that position into a *routing and addressing* primitive so Relayne can do the
 //! disaster-native thing: address a **region** ("anyone within 2 km of here")
 //! instead of an identity — geographic routing and **geocast**.
 //!

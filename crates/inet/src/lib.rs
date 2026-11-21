@@ -35,13 +35,13 @@
 //! * a per-request response byte ceiling from the capability's scope.
 //!
 //! Request/response bodies are sealed end-to-end between client and gateway with
-//! Lifeline's ordinary E2E path, so relays carrying the bundle never see the URL
+//! Relayne's ordinary E2E path, so relays carrying the bundle never see the URL
 //! or the response — only the gateway (the chosen, trusted exit) does, exactly
 //! like a VPN/Tor exit.
 //!
 //! # No real-time calling — structurally
 //!
-//! In-flight Wi-Fi blocks VoIP with deep packet inspection. Lifeline does not
+//! In-flight Wi-Fi blocks VoIP with deep packet inspection. Relayne does not
 //! need to: the transport is store-and-forward request/response, so a persistent
 //! low-latency bidirectional media stream has *no representation* here. "Messages
 //! flow, calls don't" is a property of the DTN, not a policy we maintain — and

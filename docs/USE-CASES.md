@@ -1,6 +1,6 @@
-# Where Lifeline helps — real-world use cases
+# Where Relayne helps — real-world use cases
 
-Lifeline is a messenger that keeps working when the usual network — cell towers
+Relayne is a messenger that keeps working when the usual network — cell towers
 and the internet — is **missing, broken, blocked, or overwhelmed**. Instead of
 routing every message through a tower and a data centre, each phone becomes a
 node: messages **hop from device to device, get carried by people who are
@@ -9,12 +9,12 @@ moment *any one* device in the group touches connectivity, everything queued
 "comes alive" and flows out — with a cryptographic proof it was delivered.
 
 That single idea turns out to matter in a lot of situations. This page walks
-through them in plain language: what goes wrong, and exactly which Lifeline
+through them in plain language: what goes wrong, and exactly which Relayne
 feature answers it.
 
 > **Status: alpha, and not yet independently security-audited.** These use cases
-> describe what Lifeline is *designed and built* for. The cryptography and mesh
-> logic work and are tested, but Lifeline has not had a third-party security
+> describe what Relayne is *designed and built* for. The cryptography and mesh
+> logic work and are tested, but Relayne has not had a third-party security
 > review, and the native phone-to-phone radios (Bluetooth/Wi-Fi Aware) are
 > designed but not shipped yet. **Don't bet a life on it today** — help us get it
 > audited and finished. See the [README](../README.md) for what runs right now.
@@ -22,7 +22,7 @@ feature answers it.
 A thread runs through almost all of these: **sharing your location can save your
 life.** When you can't describe where you are — you're hurt, lost, panicking, or
 don't know the area — a GPS coordinate that travels over the mesh does the
-talking. Lifeline treats location as a first-class safety feature: a one-tap
+talking. Relayne treats location as a first-class safety feature: a one-tap
 **SOS with your GPS and battery level**, **live location sharing**, **geocast**
 (alert everyone inside an area), and **find-each-other** (see how far away each
 person is and which way to walk).
@@ -80,12 +80,12 @@ towers are technically up but so congested that texts don't send and you
 **can't find your friends** in the crowd.
 
 - **Find each other:** everyone in your group shares their location over the mesh,
-  and Lifeline shows you **how far away each person is and which direction to
+  and Relayne shows you **how far away each person is and which direction to
   walk** ("Maya · 120 m · NE") — no working internet required, because the
   positions hop between phones directly.
 - Group messages that would never squeeze through a saturated tower **go
   device-to-device** across the crowd instead.
-- Because it's **peer-to-peer**, Lifeline actually works *better* the denser the
+- Because it's **peer-to-peer**, Relayne actually works *better* the denser the
   crowd — more phones means more relays, the opposite of how cell towers fail.
 
 This is also the friendliest way for new people to experience the mesh: it solves
@@ -123,7 +123,7 @@ logs.
   recipient can read a message, and each message is **forward-secret**, so a key
   compromised later can't unlock what was already said.
 - **Sealed sender** hides *who sent* a message from the devices that carry it, and
-  **rendezvous addressing** hides *who's receiving* — Lifeline is built to leak as
+  **rendezvous addressing** hides *who's receiving* — Relayne is built to leak as
   little metadata as possible, not just message contents.
 - **No account and no central server** means there's no company sitting on a
   searchable history of your conversations and contacts.
@@ -171,7 +171,7 @@ anyone else staying online**.
 
 Every case above is really the same problem wearing different clothes: **the
 usual path is unavailable, so the message has to find its own way there.**
-Lifeline's core does exactly that, and the safety features layer on top:
+Relayne's core does exactly that, and the safety features layer on top:
 
 | Need | Feature |
 |---|---|

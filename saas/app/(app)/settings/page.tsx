@@ -35,7 +35,7 @@ export default async function Settings() {
       </div>
 
       <div className="card" style={{ borderColor: 'color-mix(in srgb,var(--sos) 24%,var(--hairline))' }}>
-        <h2 style={{ color: 'var(--sos)' }}>Danger zone</h2>
+        <h2 style={{ color: 'var(--sos-text)' }}>Danger zone</h2>
         <p className="muted" style={{ fontSize: 13.5, margin: '2px 0 16px' }}>Permanently delete your account and sign out everywhere. This cannot be undone.</p>
         <DangerButton action={deleteAccount} label="Delete account" confirm="Delete your account permanently? This cannot be undone." />
       </div>

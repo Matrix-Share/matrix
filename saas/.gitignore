@@ -23,3 +23,4 @@ data/
 *.log
 .vercel
 *.tsbuildinfo
+.env*

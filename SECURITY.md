@@ -1,6 +1,6 @@
 # Security Policy
 
-Project Lifeline is intended for use in emergencies, where a security flaw can
+Project Relayne is intended for use in emergencies, where a security flaw can
 put people at real risk. We take vulnerabilities seriously.
 
 ## Reporting a vulnerability

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Lifeline",
+    "name": "Relayne",
     "slug": "lifeline",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -33,7 +33,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Lifeline uses your location only when you choose to share it — to show people you trust where you are and to help you find each other when the network is down. It is never shared until you tap “Share.”"
+          "locationWhenInUsePermission": "Relayne uses your location only when you choose to share it — to show people you trust where you are and to help you find each other when the network is down. It is never shared until you tap “Share.”"
         }
       ]
     ]

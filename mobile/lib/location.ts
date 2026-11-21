@@ -41,7 +41,7 @@ export async function getFix(): Promise<Fix> {
   if (perm !== 'granted') perm = await requestPermission();
   if (perm === 'denied') {
     throw new Error(
-      'Location permission is off. Enable it for Lifeline in your device Settings to share where you are.'
+      'Location permission is off. Enable it for Relayne in your device Settings to share where you are.'
     );
   }
   if (perm !== 'granted') {

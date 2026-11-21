@@ -1,5 +1,5 @@
 /**
- * The Lifeline UI kit. Every primitive draws its sizes, gaps, radii and colors
+ * The Relayne UI kit. Every primitive draws its sizes, gaps, radii and colors
  * from the design tokens — no ad-hoc values in screens. This is what keeps the
  * whole app visually consistent.
  */

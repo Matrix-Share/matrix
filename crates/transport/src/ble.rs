@@ -27,7 +27,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-/// 128-bit GATT **service** UUID that identifies a Lifeline node in a BLE
+/// 128-bit GATT **service** UUID that identifies a Relayne node in a BLE
 /// advertisement. Peers scan for this to discover each other; it is a fixed,
 /// project-specific v4 UUID (not registered with the Bluetooth SIG — fine for a
 /// custom service).

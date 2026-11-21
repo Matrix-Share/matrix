@@ -54,7 +54,7 @@ export default function SettingsScreen() {
         <SectionLabel>Node</SectionLabel>
         <Card>
           <View style={{ padding: space.lg, gap: space.sm }}>
-            <Txt variant="subhead" color={colors.muted}>Address of the Lifeline node this app talks to.</Txt>
+            <Txt variant="subhead" color={colors.muted}>Address of the Relayne node this app talks to.</Txt>
             <View style={{ flexDirection: 'row', gap: space.sm, alignItems: 'center' }}>
               <View style={{ flex: 1, backgroundColor: colors.fill, borderRadius: radius.md, paddingHorizontal: space.md }}>
                 <TextInput
@@ -112,7 +112,7 @@ export default function SettingsScreen() {
           Messages are end-to-end encrypted and stored encrypted at rest. A panic wipe destroys the on-device keys and cannot be undone.
         </Txt>
 
-        <Txt variant="caption" color={colors.faint} style={{ textAlign: 'center', marginTop: space.xxl }}>Lifeline · open-source mesh messenger</Txt>
+        <Txt variant="caption" color={colors.faint} style={{ textAlign: 'center', marginTop: space.xxl }}>Relayne · open-source mesh messenger</Txt>
       </ScrollView>
     </Header>
   );

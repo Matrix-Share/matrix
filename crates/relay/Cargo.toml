@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Project Lifeline zero-knowledge relay: forwards opaque ciphertext frames between nodes (the internet-gateway fabric)."
+description = "Project Relayne zero-knowledge relay: forwards opaque ciphertext frames between nodes (the internet-gateway fabric)."
 
 [lib]
 name = "lifeline_relay"

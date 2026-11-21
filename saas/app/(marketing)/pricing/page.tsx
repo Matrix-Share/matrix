@@ -20,7 +20,7 @@ export default function Pricing() {
             <div className="stack" style={{ gap: 10 }}>
               {p.features.map((ft) => (
                 <div key={ft} className="row" style={{ fontSize: 14, alignItems: 'flex-start' }}>
-                  <span style={{ color: 'var(--safe)', fontWeight: 700 }}>✓</span><span className="muted">{ft}</span>
+                  <span style={{ color: 'var(--safe-text)', fontWeight: 700 }}>✓</span><span className="muted">{ft}</span>
                 </div>
               ))}
             </div>

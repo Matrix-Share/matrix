@@ -181,7 +181,7 @@ export default function Home() {
               <div className="stack" style={{ gap: 8 }}>
                 {p.features.map((ft) => (
                   <div key={ft} className="row muted" style={{ fontSize: 13.5, alignItems: 'flex-start' }}>
-                    <span style={{ color: 'var(--safe)', fontWeight: 700 }}>✓</span>{ft}
+                    <span style={{ color: 'var(--safe-text)', fontWeight: 700 }}>✓</span>{ft}
                   </div>
                 ))}
               </div>

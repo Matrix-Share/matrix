@@ -1,6 +1,6 @@
 //! **Template for a new external network.** Copy this module, rename it (e.g.
 //! `reticulum`, `meshtastic`, `matrix`, `relay`), and fill in the four methods.
-//! That is the *entire* surface needed to give Lifeline connectivity over any new
+//! That is the *entire* surface needed to give Relayne connectivity over any new
 //! message-passing network — the engine, routing, and crypto are untouched.
 //!
 //! The contract (see [`ExternalNet`]):
@@ -31,7 +31,7 @@ pub struct TemplateNet {
 
 impl TemplateNet {
     /// `name` identifies the overlay; `mtu` is how large a frame this network can
-    /// carry in one message (drives Lifeline's fragmentation).
+    /// carry in one message (drives Relayne's fragmentation).
     pub fn new(name: &str, mtu: usize) -> Self {
         TemplateNet {
             caps: InterfaceCaps::overlay(name, mtu),

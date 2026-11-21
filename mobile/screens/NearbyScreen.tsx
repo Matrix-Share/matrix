@@ -211,7 +211,7 @@ export default function NearbyScreen() {
 
           {perm === 'denied' && (
             <Txt variant="caption" color={colors.sos} style={{ marginTop: space.md }}>
-              Location permission is off — enable it for Lifeline in Settings.
+              Location permission is off — enable it for Relayne in Settings.
             </Txt>
           )}
         </Card>

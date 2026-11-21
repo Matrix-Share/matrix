@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "External-network adapters that give Lifeline connectivity over other networks (Nostr relays, and a template for Reticulum/Meshtastic/…) behind the transport::ExternalNet seam."
+description = "External-network adapters that give Relayne connectivity over other networks (Nostr relays, and a template for Reticulum/Meshtastic/…) behind the transport::ExternalNet seam."
 
 [dependencies]
 lifeline-transport = { path = "../transport" }
@@ -28,7 +28,7 @@ prost = { version = "0.13", optional = true }
 # `default-features = false` disables rumqttc's bundled TLS stack, which pins a
 # `rustls-webpki` with known cert-validation advisories (RUSTSEC-2026-0049/0098/
 # 0099/0104). The bridge connects to a Meshtastic MQTT broker over plain MQTT;
-# Lifeline payloads are already end-to-end sealed, so the MQTT-hop is not a
+# Relayne payloads are already end-to-end sealed, so the MQTT-hop is not a
 # confidentiality boundary. Re-enable `use-rustls` once upstream ships a patched
 # webpki. See docs/SSDLC.md.
 rumqttc = { version = "0.24", optional = true, default-features = false }

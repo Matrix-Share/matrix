@@ -1,6 +1,6 @@
 //! Rotating rendezvous addresses — recipient-unlinkable DTN addressing (G2).
 //!
-//! A Lifeline bundle already hides its *sender* from carriers (sealed sender,
+//! A Relayne bundle already hides its *sender* from carriers (sealed sender,
 //! `src_sealed`), but the [`Bundle::dst`](lifeline_proto::Bundle) — the
 //! recipient's real network address — travels in the clear on every stored-and-
 //! forwarded copy. Any carrier can therefore log who is receiving mail and track

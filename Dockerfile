@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Multi-stage build for Project Lifeline. Produces a single small image
+# Multi-stage build for Project Relayne. Produces a single small image
 # containing both binaries; `docker compose` selects which one to run.
 #
 #   docker build -t lifeline .

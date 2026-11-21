@@ -1,4 +1,4 @@
-//! Project Lifeline — zero-knowledge relay hub.
+//! Project Relayne — zero-knowledge relay hub.
 //!
 //! Accepts TCP connections from nodes and forwards opaque (end-to-end-encrypted)
 //! frames between them. Everyone connected to the same relay is mutually "in

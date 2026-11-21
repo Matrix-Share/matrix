@@ -1,7 +1,7 @@
 //! Relay wire protocol + length-prefixed CBOR framing.
 //!
 //! The relay is deliberately **zero-knowledge**: it forwards opaque `data`
-//! blobs (which are end-to-end-encrypted Lifeline frames) between connected
+//! blobs (which are end-to-end-encrypted Relayne frames) between connected
 //! nodes and never inspects them. It is the one optional centralized component
 //! — the "internet gateway fabric" — and it can read/forge nothing (FR-38,
 //! gateway doc §5).

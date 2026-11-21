@@ -30,6 +30,8 @@
   --accent:#ea580c; --accent-2:#f97316; --accent-3:#fb923c; --accent-press:#c2410c; --accent-ink:#fff;
   --accent-weak:rgba(234,89,12,.10); --accent-text:#c2410c; --ember:#fb7185;
   --sos:#ef4444; --safe:#10b981; --safe-weak:rgba(16,185,129,.12); --warn:#f59e0b;
+  /* AA-safe text variants of the status hues (≥4.5:1 on light), paired with --accent-text. */
+  --sos-text:#b91c1c; --safe-text:#047857; --warn-text:#b45309;
   --grad:linear-gradient(120deg,#ea580c,#f97316 55%,#fb923c);
   --r-1:12px; --r-2:16px; --r-3:22px; --r-4:30px; --r-pill:980px;
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -48,6 +50,7 @@
   --accent:#fb923c; --accent-2:#f59e0b; --accent-3:#fdba74; --accent-press:#ea580c;
   --accent-weak:rgba(251,146,60,.16); --accent-text:#fb923c; --ember:#fb7185;
   --sos:#f87171; --safe:#34d399; --safe-weak:rgba(52,211,153,.16); --warn:#fbbf24;
+  --sos-text:#f87171; --safe-text:#34d399; --warn-text:#fbbf24;
   --grad:linear-gradient(120deg,#fb923c,#f59e0b 55%,#fdba74);
   --e-1:0 .5px 1px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.5);
   --e-2:0 1px 2px rgba(0,0,0,.6),0 34px 80px rgba(0,0,0,.66);
@@ -60,6 +63,7 @@
   --accent:#fb923c; --accent-2:#f59e0b; --accent-3:#fdba74; --accent-press:#ea580c;
   --accent-weak:rgba(251,146,60,.16); --accent-text:#fb923c; --ember:#fb7185;
   --sos:#f87171; --safe:#34d399; --safe-weak:rgba(52,211,153,.16); --warn:#fbbf24;
+  --sos-text:#f87171; --safe-text:#34d399; --warn-text:#fbbf24;
   --grad:linear-gradient(120deg,#fb923c,#f59e0b 55%,#fdba74);
   --e-1:0 .5px 1px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.5);
   --e-2:0 1px 2px rgba(0,0,0,.6),0 34px 80px rgba(0,0,0,.66);

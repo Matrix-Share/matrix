@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Project Lifeline node daemon: runs the mesh engine and serves a web GUI + HTTP/WS API for chatting over the mesh."
+description = "Project Relayne node daemon: runs the mesh engine and serves a web GUI + HTTP/WS API for chatting over the mesh."
 
 [[bin]]
 name = "lifeline-node"

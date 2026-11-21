@@ -1,6 +1,6 @@
 # Nostr: what to learn, and how to integrate
 
-*A strategy note. Goal: **augment** the existing ecosystem — plug Lifeline into
+*A strategy note. Goal: **augment** the existing ecosystem — plug Relayne into
 Nostr's already-adopted relay network for internet reach — rather than rebuild a
 lesser version of something that already works.*
 
@@ -31,7 +31,7 @@ public instances we don't have to run.
 ## 2. The precedent: BitChat already does mesh + Nostr
 
 BitChat (Jack Dorsey / permissionlesstech) is a **BLE-mesh messenger with Nostr
-as its internet bridge** — the same shape as Lifeline. A `MessageRouter` "prefers
+as its internet bridge** — the same shape as Relayne. A `MessageRouter` "prefers
 a live mesh link, falls back to Nostr, and engages the courier system when
 neither can deliver promptly." Concretely:
 
@@ -49,12 +49,12 @@ neither can deliver promptly." Concretely:
 This is direct proof the pattern works and has traction. It also tells us where
 the bar is — and where we already clear it.
 
-## 3. Where Lifeline already *leads* (don't reinvent)
+## 3. Where Relayne already *leads* (don't reinvent)
 
 We are not a Nostr client with worse tooling. On the axes that matter for an
-emergency mesh, Lifeline already has capabilities Nostr/BitChat lack:
+emergency mesh, Relayne already has capabilities Nostr/BitChat lack:
 
-| Capability | Nostr / BitChat | Lifeline |
+| Capability | Nostr / BitChat | Relayne |
 |---|---|---|
 | **Forward secrecy** | ❌ NIP-44 uses a **static** conversation key — a leaked key decrypts *all* past DMs (NIP-EE/MLS is a future fix) | ✅ **rotating prekeys** with a retention window (`core::prekey`) |
 | **Verifiable delivery** | ❌ no delivery proof | ✅ signed delivery + custody receipts, verified offline |
@@ -64,15 +64,15 @@ emergency mesh, Lifeline already has capabilities Nostr/BitChat lack:
 | **Bandwidth adaptation** | none | ✅ compression + **priority-aware bearer selection** (SOS preempts) |
 | **Gateway routing** | per-sender bridge | ✅ **signed gateway announces + gradient**, bundles flow downhill |
 
-**Positioning:** Lifeline is the *resilience + verifiability* layer; Nostr is the
-*reach + adoption* layer. Bridging them is **symbiotic** — Lifeline gains a global
+**Positioning:** Relayne is the *resilience + verifiability* layer; Nostr is the
+*reach + adoption* layer. Bridging them is **symbiotic** — Relayne gains a global
 relay network and market presence; the Nostr world gains a mesh/gateway extension
 that keeps working when the internet doesn't.
 
 ## 4. What to learn / adopt from Nostr
 
 1. **Nostr relays as an internet fabric** (the big one) — a `NostrInterface`
-   lets any two Lifeline nodes reach each other over public Nostr relays with
+   lets any two Relayne nodes reach each other over public Nostr relays with
    **no `lifeline-relay` to operate**, and get relay-backed offline mailboxing
    for free.
 2. **Outbox model (NIP-65)** — nodes advertise which relays reach them; discovery
@@ -87,7 +87,7 @@ that keeps working when the internet doesn't.
    any pre-existing contact — something our contact-graph model can't do today.
 5. **Align our anti-abuse with Nostr's** — NIP-13 PoW ≈ our Hashcash postage;
    NIP-40 expiration ≈ our bundle TTL; NIP-42 AUTH ≈ recipient-only delivery. Use
-   compatible framings so a Lifeline↔Nostr bridge is clean.
+   compatible framings so a Relayne↔Nostr bridge is clean.
 
 ## 5. Integration design — `NostrInterface`
 
@@ -114,7 +114,7 @@ gift-wrap for **metadata**:
   engine, which decrypts/verifies as usual. Relay-backed store-and-forward.
 - **Geohash / broadcast mode.** For SOS / regional alerts, publish a
   **`kind:20000` `#g <geohash>`** event carrying the (still E2E-or-signed) bundle.
-  Any Lifeline node subscribed to that geohash receives it — emergency reach with
+  Any Relayne node subscribed to that geohash receives it — emergency reach with
   no prior contact.
 
 **Identity mapping.** A node derives a **secp256k1 Nostr key** from a device seed
@@ -145,7 +145,7 @@ client (`tokio-tungstenite`), `serde_json` (already have serde). Isolated to the
 ## 7. Recommendation & phased plan
 
 Build the **`NostrInterface`** as the next feature — highest leverage: it plugs
-Lifeline into a global, adopted relay network for internet reach and offline
+Relayne into a global, adopted relay network for internet reach and offline
 mailboxing, reuses our existing seams (zero engine changes), and lets us lead
 with the capabilities Nostr lacks (forward secrecy, verifiable delivery,
 multi-bearer offline, erasure).
@@ -157,13 +157,13 @@ multi-bearer offline, erasure).
    node behind the `nostr` feature: `LIFELINE_NOSTR_RELAY=wss://relay.damus.io`
    adds Nostr as an extra engine bearer via a `ChannelInterface`, with the node's
    Nostr keypair derived from its long-term identity (`Identity::derive_subkey`,
-   stable across restarts, unlinkable from the public Lifeline identity).
-   *Outcome: two Lifeline nodes talk over public Nostr relays, no `lifeline-relay`.*
+   stable across restarts, unlinkable from the public Relayne identity).
+   *Outcome: two Relayne nodes talk over public Nostr relays, no `lifeline-relay`.*
 2. **Phase 2 — geohash emergency broadcast.** `kind:20000 #g` SOS/regional
    channels; per-geohash ephemeral keys. *Outcome: reach "anyone near a location"
    with no prior contact.*
-3. **Phase 3 — true interop.** Publish a Lifeline node's Nostr pubkey + inbox
-   relays (NIP-65-style) so **Nostr-native users can DM Lifeline users** and vice
+3. **Phase 3 — true interop.** Publish a Relayne node's Nostr pubkey + inbox
+   relays (NIP-65-style) so **Nostr-native users can DM Relayne users** and vice
    versa; optional read-only geohash viewers (like bitchat-world-view) for
    situational awareness.
 

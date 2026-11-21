@@ -1,13 +1,13 @@
 # Bluetooth LE transport — design & status
 
-BLE is the bearer that makes Lifeline's headline promise literally true: two
+BLE is the bearer that makes Relayne's headline promise literally true: two
 phones that have never touched a tower exchange messages directly. This document
 describes how the BLE bearer is built, what is implemented and tested today, and
 what a real radio backend must provide.
 
 ## Where it sits
 
-Lifeline's transport layer is a set of `Box<dyn Interface>` bearers the engine
+Relayne's transport layer is a set of `Box<dyn Interface>` bearers the engine
 drives identically ([interface.rs](../crates/transport/src/interface.rs)). BLE is
 split into two halves so the reusable logic can be written and **tested without a
 radio**:
@@ -80,7 +80,7 @@ The radio backend owns these (they are inherently platform APIs); the
 recommended policy:
 
 - **Discovery** — advertise the service UUID; scan on a duty cycle. On seeing a
-  Lifeline peer, connect (bounded concurrent connections; prefer stronger RSSI).
+  Relayne peer, connect (bounded concurrent connections; prefer stronger RSSI).
 - **Beacons** — once connected, the engine's own presence beacon (a `FrameKind::Beacon`)
   rides the same characteristic; no BLE-specific identity is exposed beyond the
   service UUID.

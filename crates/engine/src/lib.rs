@@ -1,4 +1,4 @@
-//! Project Lifeline — the **node runtime** (PRD L1–L5, §12.1).
+//! Project Relayne — the **node runtime** (PRD L1–L5, §12.1).
 //!
 //! [`NodeEngine`] is the orchestrator that composes the lower layers into a
 //! running mesh node: it drives any number of [`lifeline_transport::Interface`]

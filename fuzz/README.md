@@ -1,6 +1,6 @@
 # Fuzzing
 
-Coverage-guided fuzz targets for Lifeline's **parsers of untrusted bytes** — the
+Coverage-guided fuzz targets for Relayne's **parsers of untrusted bytes** — the
 framing layer where mesh messengers have historically been broken (Bridgefy,
 USENIX 2022). Part of the [SSDLC](../docs/SSDLC.md).
 

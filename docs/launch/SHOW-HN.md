@@ -9,7 +9,7 @@ and the demo GIF (#109) ready first — the GIF is what makes this land.
 **Title** (80 char limit; lead with the honest hook, no hype):
 
 ```
-Show HN: Lifeline – an open-source mesh messenger that works without the internet
+Show HN: Relayne – an open-source mesh messenger that works without the internet
 ```
 
 Alternatives if you want the honest-alpha angle up front:
@@ -25,7 +25,7 @@ Alternatives if you want the honest-alpha angle up front:
 **First comment** (post immediately after submitting — this is where you set the
 honest frame; HN will trust you *more* for it, not less):
 
-> Author here. Lifeline is an open-source, end-to-end-encrypted mesh messenger
+> Author here. Relayne is an open-source, end-to-end-encrypted mesh messenger
 > built as a Delay/Disruption-Tolerant Network: every phone is a node, messages
 > hop device-to-device and get physically carried between partitions until they
 > reach the recipient, and delivery comes back with an offline-verifiable

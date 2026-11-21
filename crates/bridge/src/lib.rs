@@ -1,4 +1,4 @@
-//! **External-network adapters** — Lifeline's connectivity to other networks.
+//! **External-network adapters** — Relayne's connectivity to other networks.
 //!
 //! Each adapter implements [`lifeline_transport::ExternalNet`] and is wrapped in
 //! `BridgeInterface` to become a first-class engine [`lifeline_transport::Interface`].
@@ -8,11 +8,11 @@
 //!
 //! Provided here:
 //! * [`nostr`] — a real Nostr adapter (secp256k1 Schnorr events, bundle↔event
-//!   codec, relay-backed store-and-forward). Lets Lifeline nodes reach each other
+//!   codec, relay-backed store-and-forward). Lets Relayne nodes reach each other
 //!   over the global, already-adopted Nostr relay network. A live WebSocket relay
 //!   client (`ws` feature) hits real relays; see [`ws`].
 //! * [`meshtastic`] (`meshtastic` feature) — a real Meshtastic adapter: genuine
-//!   `ServiceEnvelope`/`MeshPacket` protobuf carried over MQTT, so Lifeline rides
+//!   `ServiceEnvelope`/`MeshPacket` protobuf carried over MQTT, so Relayne rides
 //!   actual LoRa mesh hardware and public Meshtastic brokers. Live MQTT client
 //!   behind the `mqtt` feature.
 //! * [`skeleton`] — a documented, compiling template for the next network

@@ -1,4 +1,4 @@
-//! Project Lifeline — network simulator (`/sim`, PRD §13.1).
+//! Project Relayne — network simulator (`/sim`, PRD §13.1).
 //!
 //! The simulator is how the PRD's delivery acceptance criteria are *proven*
 //! without hardware (PRD §16 exit criteria, NFR-3): it builds a world of real

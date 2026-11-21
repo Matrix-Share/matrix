@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lifeline quickstart — one command to a running two-person mesh demo.
+# Relayne quickstart — one command to a running two-person mesh demo.
 #
 #   ./quickstart.sh
 #
@@ -10,7 +10,7 @@
 #
 # NOTE (alpha, be honest): this demo meshes over a local relay/LAN that stands in
 # for the internet transport. The native phone-to-phone Bluetooth/Wi-Fi Aware
-# radios are built but not yet shipped, and Lifeline has not had a security audit
+# radios are built but not yet shipped, and Relayne has not had a security audit
 # — so don't rely on it for a real emergency yet. See README.md.
 set -euo pipefail
 
@@ -34,7 +34,7 @@ open_tabs() {
 
 banner() {
   say ""
-  say "  Lifeline demo mesh is starting."
+  say "  Relayne demo mesh is starting."
   info "Asha  →  $ASHA"
   info "Ravi  →  $RAVI"
   info "They auto-discover each other. Type a message in one tab; it arrives"
@@ -77,7 +77,7 @@ if command -v cargo >/dev/null 2>&1; then
 fi
 
 # ---- Neither available ------------------------------------------------------
-say "Lifeline needs either Docker or the Rust toolchain to run the demo."
+say "Relayne needs either Docker or the Rust toolchain to run the demo."
 info "Install Docker:  https://docs.docker.com/get-docker/   (then re-run ./quickstart.sh)"
 info "Or install Rust: https://rustup.rs                     (then re-run ./quickstart.sh)"
 exit 1

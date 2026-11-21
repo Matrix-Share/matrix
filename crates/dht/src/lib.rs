@@ -1,16 +1,16 @@
-//! A **Kademlia DHT** for Project Lifeline — online peer + rendezvous discovery.
+//! A **Kademlia DHT** for Project Relayne — online peer + rendezvous discovery.
 //!
 //! When a node has internet (via any bearer — a relay, Nostr, Meshtastic-MQTT),
 //! it can find *where a peer is reachable* or *who is registered at a rendezvous
 //! key* without a central directory: nodes self-organize into an XOR keyspace
 //! (Maymounkov & Mazières, 2002) and answer `FIND_NODE`/`FIND_VALUE`/`STORE`.
-//! Lifeline's [`Address`] is already a 128-bit id with an `xor_distance` metric,
+//! Relayne's [`Address`] is already a 128-bit id with an `xor_distance` metric,
 //! so it doubles as both the node id and the DHT key.
 //!
 //! **Transport-agnostic.** The lookup algorithm is pure logic driven over the
 //! [`DhtRpc`] seam (a synchronous request→response), so it rides *any* carrier
 //! and is fully testable against an in-memory network — the same seam philosophy
-//! as the rest of Lifeline. A node contact carries an opaque `endpoint` blob the
+//! as the rest of Relayne. A node contact carries an opaque `endpoint` blob the
 //! transport interprets (a socket address, a bearer hint); the DHT never looks
 //! inside it.
 //!

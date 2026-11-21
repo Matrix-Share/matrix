@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Project Lifeline node runtime: the NodeEngine that composes the transport seam, DTN router, CRDT sync, and E2E crypto into a running mesh node (PRD L1–L5)."
+description = "Project Relayne node runtime: the NodeEngine that composes the transport seam, DTN router, CRDT sync, and E2E crypto into a running mesh node (PRD L1–L5)."
 
 [dependencies]
 lifeline-proto = { path = "../proto" }

@@ -4,7 +4,7 @@
 //! whole path is testable without a network. This module is the "for real" half:
 //! an async [`tokio-tungstenite`] task that connects to an actual Nostr relay
 //! (`wss://relay.example` — or `ws://` for a local one), subscribes to the
-//! Lifeline discovery channel plus our own `#p` inbox, publishes outbound frames
+//! Relayne discovery channel plus our own `#p` inbox, publishes outbound frames
 //! as signed NIP-01 events, and surfaces inbound frames — reusing the exact same
 //! [`NostrEvent`]/[`frame_event`] codec, so a node reaches the global Nostr relay
 //! network with **zero engine changes**.
@@ -215,7 +215,7 @@ fn handle_relay_text(
         return; // forged/tampered — reject, exactly as any Nostr client would
     }
     let (Ok(frame), Some(pk_bytes)) = (b64url_decode(&ev.content), unhex(&ev.pubkey)) else {
-        return; // not a Lifeline frame we can decode
+        return; // not a Relayne frame we can decode
     };
     let peer = peer_id_from_identity(&pk_bytes);
     peers.lock().unwrap().insert(peer, ev.pubkey.clone());
