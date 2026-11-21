@@ -103,7 +103,7 @@ mod tests {
         assert!(!addr.is_empty());
         assert_eq!(addr, address(&json, "pw").unwrap()); // stable across restores
         assert!(address(&json, "wrong").is_err()); // wrong passphrase can't open it
-        // Two fresh identities differ — each tab is its own user.
+                                                   // Two fresh identities differ — each tab is its own user.
         let other = new_identity(1000, "pw", None).unwrap();
         assert_ne!(addr, address(&other, "pw").unwrap());
     }
@@ -113,7 +113,10 @@ mod tests {
         let alice = new_identity(1, "a", Some("Alice".into())).unwrap();
         let bob = new_identity(1, "b", Some("Bob".into())).unwrap();
         let bob_rec = public_record(&bob, "b").unwrap();
-        assert_eq!(record_address(&bob_rec).unwrap(), address(&bob, "b").unwrap());
+        assert_eq!(
+            record_address(&bob_rec).unwrap(),
+            address(&bob, "b").unwrap()
+        );
 
         let bundle = seal(&alice, "a", &bob_rec, 1000, "meet at the bridge").unwrap();
         assert_eq!(open(&bob, "b", &bundle).unwrap(), "meet at the bridge");
